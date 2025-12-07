@@ -1,0 +1,2160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ivan's Schedule - Dec 7-13, 2025</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding-bottom: 70px;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .header h1 {
+            color: #667eea;
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 16px;
+        }
+
+        .exam-countdown {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .countdown-box {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            padding: 15px;
+            border-radius: 10px;
+            color: white;
+            text-align: center;
+        }
+
+        .countdown-box.math {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+        }
+
+        .countdown-box h3 {
+            font-size: 14px;
+            margin-bottom: 5px;
+            opacity: 0.9;
+        }
+
+        .countdown-box .time {
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        /* Day Navigation */
+        .day-nav-container {
+            background: white;
+            border-radius: 15px;
+            padding: 15px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            position: relative;
+        }
+
+        .day-nav-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-arrow {
+            background: #667eea;
+            color: white;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.3s ease;
+        }
+
+        .nav-arrow:hover {
+            background: #5568d3;
+            transform: scale(1.1);
+        }
+
+        .nav-arrow:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: scale(1);
+        }
+
+        .day-tabs-container {
+            overflow-x: auto;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+            flex: 1;
+        }
+
+        .day-tabs-container::-webkit-scrollbar {
+            display: none;
+        }
+
+        .day-tabs {
+            display: flex;
+            gap: 10px;
+            min-width: min-content;
+        }
+
+        .day-tab {
+            background: #f5f5f5;
+            padding: 12px 20px;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            white-space: nowrap;
+            flex-shrink: 0;
+            border: 2px solid transparent;
+        }
+
+        .day-tab:hover {
+            background: #e8e8e8;
+        }
+
+        .day-tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+        }
+
+        .day-tab .day-name {
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        .day-tab .day-date {
+            font-size: 12px;
+            opacity: 0.8;
+            margin-top: 2px;
+        }
+
+        /* Content Area */
+        .content {
+            display: none;
+        }
+
+        .content.active {
+            display: block;
+        }
+
+        .day-content {
+            display: none;
+        }
+
+        .day-content.active {
+            display: block;
+        }
+
+        .day-header {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .day-header h2 {
+            color: #667eea;
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .day-header .subtitle {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+
+        .day-header .motivation {
+            background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+            font-style: italic;
+            color: #2d3436;
+        }
+
+        .time-block {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .time-block.current-time {
+            background: linear-gradient(to right, #FFF3E0 0%, #ffffff 100%);
+            border-left: 5px solid #FF6B35;
+            box-shadow: 0 5px 25px rgba(255, 107, 53, 0.4);
+            transform: translateX(-2px);
+            position: relative;
+        }
+
+        .time-block.current-time::before {
+            content: "NOW";
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #FF6B35;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        .time-block.past-time {
+            opacity: 0.5;
+        }
+
+        .time-block h3 {
+            color: #667eea;
+            font-size: 18px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .time-block .time {
+            background: #667eea;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+
+        .tasks {
+            margin: 15px 0;
+        }
+
+        .task-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            margin: 8px 0;
+            padding: 8px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .task-item input[type="checkbox"] {
+            margin-top: 3px;
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .task-item label {
+            cursor: pointer;
+            flex: 1;
+            line-height: 1.5;
+        }
+
+        .food, .note {
+            margin: 10px 0;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .food {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .note {
+            background: #fff3e0;
+            color: #e65100;
+        }
+
+        /* Shopping Tab */
+        .shopping-content {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        .shopping-content h2 {
+            color: #667eea;
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+
+        .budget-info {
+            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .budget-info h3 {
+            font-size: 18px;
+            color: #2d3436;
+        }
+
+        .shopping-item {
+            padding: 15px;
+            border-bottom: 1px solid #eee;
+            display: grid;
+            gap: 5px;
+        }
+
+        .shopping-item:last-child {
+            border-bottom: none;
+        }
+
+        .item-name {
+            font-weight: bold;
+            color: #2d3436;
+            font-size: 16px;
+        }
+
+        .item-quantity {
+            color: #667eea;
+            font-size: 14px;
+        }
+
+        .item-reason {
+            color: #666;
+            font-size: 13px;
+            font-style: italic;
+        }
+
+        /* Recipes Tab */
+        .recipes-content {
+            display: grid;
+            gap: 20px;
+        }
+
+        .recipe-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .recipe-card h3 {
+            color: #667eea;
+            font-size: 22px;
+            margin-bottom: 15px;
+        }
+
+        .recipe-meta {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .meta-item {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 13px;
+        }
+
+        .meta-item strong {
+            display: block;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .ingredients, .instructions {
+            margin: 20px 0;
+        }
+
+        .ingredients h4, .instructions h4 {
+            color: #2d3436;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .ingredients ul, .instructions ol {
+            margin-left: 20px;
+        }
+
+        .ingredients li, .instructions li {
+            margin: 5px 0;
+            line-height: 1.6;
+        }
+
+        .recipe-video {
+            margin-top: 15px;
+        }
+
+        .recipe-video a {
+            display: inline-block;
+            background: #ff0000;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .recipe-video a:hover {
+            background: #cc0000;
+            transform: translateY(-2px);
+        }
+
+        .recipe-notes {
+            background: #fff3e0;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+            color: #e65100;
+            font-style: italic;
+        }
+
+        /* Bottom Navigation */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            box-shadow: 0 -5px 15px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0;
+            z-index: 100;
+        }
+
+        .nav-item {
+            flex: 1;
+            text-align: center;
+            padding: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            background: none;
+            color: #666;
+        }
+
+        .nav-item.active {
+            color: #667eea;
+        }
+
+        .nav-item .icon {
+            font-size: 24px;
+            margin-bottom: 4px;
+        }
+
+        .nav-item .label {
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        /* Scroll to Top Button */
+        .scroll-top {
+            position: fixed;
+            bottom: 80px;
+            right: 20px;
+            width: 56px;
+            height: 56px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 99;
+            transition: all 0.3s ease;
+        }
+
+        .scroll-top:hover {
+            background: #5568d3;
+            transform: translateY(-3px);
+            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.5);
+        }
+
+        .scroll-top.visible {
+            display: flex;
+        }
+
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+
+            .header {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .exam-countdown {
+                grid-template-columns: 1fr;
+            }
+
+            .day-tab {
+                padding: 10px 15px;
+            }
+
+            .recipe-meta {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🗓️ Ivan's Weekly Schedule</h1>
+            <p>December 7-13, 2025 | English Exam Week! 💪</p>
+            
+            <div class="exam-countdown">
+                <div class="countdown-box">
+                    <h3>📝 English Exam</h3>
+                    <div class="time" id="englishCountdown">Loading...</div>
+                </div>
+                <div class="countdown-box math">
+                    <h3>📐 Math Exam</h3>
+                    <div class="time" id="mathCountdown">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Day Navigation -->
+        <div class="day-nav-container" id="scheduleNav" style="display: none;">
+            <div class="day-nav-wrapper">
+                <button class="nav-arrow" id="prevDay" onclick="navigateDay(-1)">←</button>
+                <div class="day-tabs-container" id="dayTabsContainer">
+                    <div class="day-tabs" id="dayTabs"></div>
+                </div>
+                <button class="nav-arrow" id="nextDay" onclick="navigateDay(1)">→</button>
+            </div>
+        </div>
+
+        <!-- Content Areas -->
+        <div id="scheduleContent" class="content active">
+            <div id="dayContents"></div>
+        </div>
+
+        <div id="shoppingContent" class="content"></div>
+
+        <div id="recipesContent" class="content"></div>
+    </div>
+
+    <!-- Scroll to Top Button -->
+    <button class="scroll-top" id="scrollTop" onclick="scrollToTop()">↑</button>
+
+    <!-- Bottom Navigation -->
+    <div class="bottom-nav">
+        <button class="nav-item active" onclick="switchTab('schedule')">
+            <div class="icon">📅</div>
+            <div class="label">Schedule</div>
+        </button>
+        <button class="nav-item" onclick="switchTab('shopping')">
+            <div class="icon">🛒</div>
+            <div class="label">Shopping</div>
+        </button>
+        <button class="nav-item" onclick="switchTab('recipes')">
+            <div class="icon">👨‍🍳</div>
+            <div class="label">Recipes</div>
+        </button>
+    </div>
+
+    <script>
+        // Embedded Schedule Data
+        const scheduleData = {
+            "metadata": {
+                "owner": "Ivan",
+                "generated": "2025-12-07",
+                "period": "December 7-13, 2025"
+            },
+            "exams": {
+                "english": {
+                    "date": "2025-12-11T09:30:00",
+                    "name": "Functional Skills English Level 1"
+                },
+                "math": {
+                    "date": "2025-12-16T09:30:00",
+                    "name": "Functional Skills Math Level 1"
+                }
+            },
+            "days": {
+                "sunday": {
+                    "date": "2025-12-07",
+                    "title": "Sunday December 7",
+                    "subtitle": "Work Day + English Study Focus",
+                    "motivation": "💪 First day of exam week! Stay focused on English prep. You've got this!",
+                    "blocks": [
+                        {
+                            "time": "07:00-08:00",
+                            "title": "🌅 Morning Routine",
+                            "tasks": [
+                                "Wake up at 07:00",
+                                "Shower & get dressed",
+                                "Make bed"
+                            ]
+                        },
+                        {
+                            "time": "08:00-08:45",
+                            "title": "🍳 Breakfast",
+                            "tasks": [
+                                "Cook scrambled eggs (2 eggs)",
+                                "Toast with peanut butter",
+                                "Drink water"
+                            ],
+                            "food": "🍽️ Scrambled eggs + toast + water",
+                            "note": "💡 Eat slowly - 30 minutes for breakfast"
+                        },
+                        {
+                            "time": "08:45-11:45",
+                            "title": "📚 English Study Session 1",
+                            "tasks": [
+                                "Review writing formats (letter, email, article)",
+                                "Practice reading comprehension",
+                                "Work on grammar exercises",
+                                "Take 10-min break each hour"
+                            ],
+                            "note": "💡 Focus time! Put phone in different room. 3 hours solid work!"
+                        },
+                        {
+                            "time": "11:45-12:30",
+                            "title": "🍌 Snack & Rest",
+                            "tasks": [
+                                "Eat 1 banana",
+                                "Drink water",
+                                "Light stretching",
+                                "Rest eyes (no screen)"
+                            ],
+                            "food": "🍽️ Banana + water"
+                        },
+                        {
+                            "time": "12:30-14:00",
+                            "title": "📖 English Study Session 2",
+                            "tasks": [
+                                "Practice punctuation & spelling",
+                                "Review past exam papers",
+                                "Make summary notes"
+                            ],
+                            "note": "💡 Last study session before work!"
+                        },
+                        {
+                            "time": "14:00-14:14",
+                            "title": "🚶 Prepare for Work",
+                            "tasks": [
+                                "Change into work clothes",
+                                "Pack water bottle",
+                                "Check you have everything"
+                            ]
+                        },
+                        {
+                            "time": "14:14-14:27",
+                            "title": "🚶 Walk to Nando's",
+                            "tasks": [
+                                "13-minute walk",
+                                "Arrive 3 minutes early (14:27)"
+                            ],
+                            "note": "💡 Arrive at 14:27 for 14:30 shift start"
+                        },
+                        {
+                            "time": "14:30-23:30",
+                            "title": "💼 Work at Nando's",
+                            "tasks": [
+                                "9-hour shift",
+                                "Stay focused and professional",
+                                "Take your meal break"
+                            ],
+                            "food": "🍽️ Staff meal at work (FREE!)",
+                            "note": "💡 Long shift! Stay energized. 2 meal breaks expected."
+                        },
+                        {
+                            "time": "23:30-23:43",
+                            "title": "🚶 Walk Home",
+                            "tasks": [
+                                "13-minute walk home",
+                                "Decompress from work day"
+                            ]
+                        },
+                        {
+                            "time": "23:43-00:00",
+                            "title": "🚿 Night Routine",
+                            "tasks": [
+                                "Shower (15 min) - Essential after long shift!",
+                                "Brush teeth",
+                                "Straight to bed - NO phone scrolling!"
+                            ],
+                            "note": "💡 Quick shower and sleep. Exam week needs rest!"
+                        }
+                    ]
+                },
+                "monday": {
+                    "date": "2025-12-08",
+                    "title": "Monday December 8",
+                    "subtitle": "Day Off - Maximum English Prep!",
+                    "motivation": "🎯 This is YOUR day! No work = full focus on English exam prep. Make it count!",
+                    "blocks": [
+                        {
+                            "time": "07:00-07:30",
+                            "title": "🌅 Morning Routine",
+                            "tasks": [
+                                "Wake up at 07:00",
+                                "Shower & get dressed",
+                                "Make bed",
+                                "Open curtains"
+                            ]
+                        },
+                        {
+                            "time": "07:30-08:15",
+                            "title": "🍳 Breakfast",
+                            "tasks": [
+                                "Cook scrambled eggs (2 eggs)",
+                                "Toast with peanut butter",
+                                "Drink water"
+                            ],
+                            "food": "🍽️ Scrambled eggs + toast + water"
+                        },
+                        {
+                            "time": "08:15-11:15",
+                            "title": "📚 English Study Session 1",
+                            "tasks": [
+                                "Practice writing tasks (letter & article)",
+                                "Work on reading comprehension",
+                                "Review grammar rules",
+                                "Take 10-min breaks every hour"
+                            ],
+                            "note": "💡 3-hour power session! Phone away. Deep focus time!"
+                        },
+                        {
+                            "time": "11:15-12:00",
+                            "title": "☕ Break & Light Exercise",
+                            "tasks": [
+                                "Eat 1 banana + chocolate (2-3 squares)",
+                                "Walk around for 15 minutes",
+                                "Stretch",
+                                "Drink water"
+                            ],
+                            "food": "🍽️ Banana + dark chocolate + water"
+                        },
+                        {
+                            "time": "12:00-13:30",
+                            "title": "👨‍🍳 Cook Lunch",
+                            "tasks": [
+                                "Cook chicken & rice using leftover Nando's chicken",
+                                "Prepare 2 portions (eat half, save half)",
+                                "Clean up kitchen"
+                            ],
+                            "food": "🍽️ Chicken & rice (eat HALF, save HALF for tomorrow!)",
+                            "note": "💡 Portion control! Use the 300g cooked chicken from fridge."
+                        },
+                        {
+                            "time": "13:30-16:30",
+                            "title": "📚 English Study Session 2",
+                            "tasks": [
+                                "Do full practice exam (timed)",
+                                "Mark and review answers",
+                                "Identify weak areas",
+                                "Make final revision notes"
+                            ],
+                            "note": "💡 Simulate real exam conditions! This is crucial practice."
+                        },
+                        {
+                            "time": "16:30-17:00",
+                            "title": "🍎 Snack Break",
+                            "tasks": [
+                                "Eat 1 apple",
+                                "Drink water",
+                                "Rest eyes - look outside"
+                            ],
+                            "food": "🍽️ Apple + water"
+                        },
+                        {
+                            "time": "17:00-18:30",
+                            "title": "🛒 Shopping (Optional)",
+                            "tasks": [
+                                "Walk to local shop",
+                                "Buy items from shopping list",
+                                "Budget: £7-8",
+                                "Walk back home"
+                            ],
+                            "note": "💡 Quick shop - minimal items needed since you have lots at home!"
+                        },
+                        {
+                            "time": "18:30-19:15",
+                            "title": "🍽️ Dinner",
+                            "tasks": [
+                                "Heat up saved chicken & rice from lunch",
+                                "Eat slowly",
+                                "Drink water"
+                            ],
+                            "food": "🍽️ Leftover chicken & rice (second half)",
+                            "note": "💡 Easy dinner - already cooked!"
+                        },
+                        {
+                            "time": "19:15-21:00",
+                            "title": "📖 Light English Review",
+                            "tasks": [
+                                "Review key points from today",
+                                "Read through format examples",
+                                "Relax - don't stress!",
+                                "Prepare materials for exam"
+                            ],
+                            "note": "💡 Light review only - no cramming! Trust your preparation."
+                        },
+                        {
+                            "time": "21:00-22:00",
+                            "title": "😌 Relaxation Time",
+                            "tasks": [
+                                "Light activity (read, music)",
+                                "Prepare clothes for tomorrow",
+                                "Pack bag for college",
+                                "Drink water"
+                            ]
+                        },
+                        {
+                            "time": "22:00-23:00",
+                            "title": "🌙 Wind Down",
+                            "tasks": [
+                                "Put phone in different room at 22:00!",
+                                "Shower",
+                                "Brush teeth",
+                                "Prepare everything for exam day",
+                                "Relax & sleep by 23:00"
+                            ],
+                            "note": "💡 Phone away at 22:00! Get 8 hours sleep before exam!"
+                        }
+                    ]
+                },
+                "tuesday": {
+                    "date": "2025-12-09",
+                    "title": "Tuesday December 9",
+                    "subtitle": "Math Class + Work + Final English Prep",
+                    "motivation": "📐 Math class in morning, then work. Quick English review tonight!",
+                    "blocks": [
+                        {
+                            "time": "07:00-07:30",
+                            "title": "🌅 Morning Routine",
+                            "tasks": [
+                                "Wake up at 07:00",
+                                "Shower & get dressed",
+                                "Make bed"
+                            ]
+                        },
+                        {
+                            "time": "07:30-08:15",
+                            "title": "🍳 Breakfast",
+                            "tasks": [
+                                "Cook scrambled eggs (2 eggs)",
+                                "Toast with peanut butter",
+                                "Drink water",
+                                "Pack water for college"
+                            ],
+                            "food": "🍽️ Scrambled eggs + toast + water"
+                        },
+                        {
+                            "time": "08:15-08:55",
+                            "title": "📚 Light English Review",
+                            "tasks": [
+                                "Quick review of key formats",
+                                "Read through notes (20 min)",
+                                "Stay calm and confident"
+                            ],
+                            "note": "💡 Light review only - exam is tomorrow!"
+                        },
+                        {
+                            "time": "08:55-09:25",
+                            "title": "🚴 Bike to College",
+                            "tasks": [
+                                "30-minute bike ride",
+                                "Arrive 5 minutes early (09:25)"
+                            ],
+                            "note": "💡 Leave at 08:55 to arrive at 09:25 for 09:30 class"
+                        },
+                        {
+                            "time": "09:30-12:30",
+                            "title": "📐 Math Class",
+                            "tasks": [
+                                "Attend full class",
+                                "Take notes",
+                                "Ask questions if needed",
+                                "Pay attention"
+                            ],
+                            "note": "💡 Focus in class - math exam is next Monday!"
+                        },
+                        {
+                            "time": "12:30-13:00",
+                            "title": "🚴 Bike Home",
+                            "tasks": [
+                                "30-minute bike ride home",
+                                "Eat 1 banana on the way"
+                            ],
+                            "food": "🍽️ Banana"
+                        },
+                        {
+                            "time": "13:00-14:00",
+                            "title": "🍽️ Quick Lunch",
+                            "tasks": [
+                                "Cook instant noodles OR macaroni",
+                                "Quick and easy meal",
+                                "Drink water"
+                            ],
+                            "food": "🍽️ Instant noodles or macaroni (quick meal)",
+                            "note": "💡 Quick meal before work prep"
+                        },
+                        {
+                            "time": "14:00-16:30",
+                            "title": "😌 Rest & Final English Review",
+                            "tasks": [
+                                "Rest for 1 hour",
+                                "Light English review (30 min)",
+                                "Prepare for work",
+                                "Stay relaxed - you're ready!"
+                            ],
+                            "note": "💡 Last review before exam! Just key points. Don't stress!"
+                        },
+                        {
+                            "time": "16:30-16:44",
+                            "title": "🚶 Prepare & Walk to Work",
+                            "tasks": [
+                                "Change into work clothes",
+                                "Walk 13 minutes",
+                                "Arrive 3 minutes early (16:57)"
+                            ]
+                        },
+                        {
+                            "time": "17:00-23:30",
+                            "title": "💼 Work at Nando's",
+                            "tasks": [
+                                "6.5-hour shift",
+                                "Stay focused",
+                                "Take meal break"
+                            ],
+                            "food": "🍽️ Staff meal at work (FREE!)"
+                        },
+                        {
+                            "time": "23:30-23:43",
+                            "title": "🚶 Walk Home",
+                            "tasks": [
+                                "13-minute walk home"
+                            ]
+                        },
+                        {
+                            "time": "23:43-00:00",
+                            "title": "🚿 Quick Night Routine",
+                            "tasks": [
+                                "Quick shower (10 min)",
+                                "Brush teeth",
+                                "Straight to bed - NO phone!",
+                                "EXAM TOMORROW - get good sleep!"
+                            ],
+                            "note": "💡 EXAM DAY TOMORROW! Sleep well! Phone away!"
+                        }
+                    ]
+                },
+                "wednesday": {
+                    "date": "2025-12-10",
+                    "title": "Wednesday December 10",
+                    "subtitle": "Pre-Exam Day + Work",
+                    "motivation": "🎯 Tomorrow is ENGLISH EXAM! Stay calm, get good sleep tonight!",
+                    "blocks": [
+                        {
+                            "time": "07:00-07:30",
+                            "title": "🌅 Morning Routine",
+                            "tasks": [
+                                "Wake up at 07:00",
+                                "Shower & get dressed",
+                                "Make bed"
+                            ]
+                        },
+                        {
+                            "time": "07:30-08:15",
+                            "title": "🍳 Breakfast",
+                            "tasks": [
+                                "Cook scrambled eggs (2 eggs)",
+                                "Toast with peanut butter",
+                                "Drink water"
+                            ],
+                            "food": "🍽️ Scrambled eggs + toast + water",
+                            "note": "💡 Good breakfast - exam prep day!"
+                        },
+                        {
+                            "time": "08:15-10:00",
+                            "title": "📖 Very Light English Review",
+                            "tasks": [
+                                "Read through format examples (30 min)",
+                                "Review key points (30 min)",
+                                "NO new learning - just refresh!",
+                                "Stay confident - you know this!"
+                            ],
+                            "note": "💡 LIGHT review only! No stress. You've prepared well!"
+                        },
+                        {
+                            "time": "10:00-11:00",
+                            "title": "😌 Relax & Prepare Mentally",
+                            "tasks": [
+                                "Take a walk outside (20 min)",
+                                "Eat 1 banana",
+                                "Breathe deeply",
+                                "Visualize success tomorrow"
+                            ],
+                            "food": "🍽️ Banana + water",
+                            "note": "💡 Stay calm. You're ready for this exam!"
+                        },
+                        {
+                            "time": "11:00-11:47",
+                            "title": "🚶 Prepare & Walk to Work",
+                            "tasks": [
+                                "Prepare work clothes",
+                                "Pack water",
+                                "Walk 13 minutes",
+                                "Arrive 3 minutes early (11:57)"
+                            ]
+                        },
+                        {
+                            "time": "12:00-21:00",
+                            "title": "💼 Work at Nando's",
+                            "tasks": [
+                                "9-hour shift",
+                                "Stay focused and professional",
+                                "Take your meal breaks"
+                            ],
+                            "food": "🍽️ Staff meal at work (FREE!) - 2 meal breaks",
+                            "note": "💡 Long shift but good distraction from exam stress!"
+                        },
+                        {
+                            "time": "21:00-21:13",
+                            "title": "🚶 Walk Home",
+                            "tasks": [
+                                "13-minute walk home",
+                                "Decompress from work"
+                            ]
+                        },
+                        {
+                            "time": "21:13-21:45",
+                            "title": "🚿 Shower & Relax",
+                            "tasks": [
+                                "Shower (15 min) after work",
+                                "Change into comfortable clothes",
+                                "Drink water"
+                            ],
+                            "note": "💡 Relax after work. Early night for exam tomorrow!"
+                        },
+                        {
+                            "time": "21:45-22:00",
+                            "title": "📚 Final Exam Prep",
+                            "tasks": [
+                                "Pack bag for exam tomorrow",
+                                "Check: pens, pencils, ID",
+                                "Set alarm for 07:00",
+                                "Prepare clothes for tomorrow"
+                            ],
+                            "note": "💡 Everything ready for EXAM DAY!"
+                        },
+                        {
+                            "time": "22:00-23:00",
+                            "title": "🌙 Early Sleep",
+                            "tasks": [
+                                "Put phone in different room NOW!",
+                                "Brush teeth",
+                                "Read something light (optional)",
+                                "Sleep by 23:00 - EXAM TOMORROW!"
+                            ],
+                            "note": "💡 CRITICAL: 8 hours sleep before exam! Phone away at 22:00!"
+                        }
+                    ]
+                },
+                "thursday": {
+                    "date": "2025-12-11",
+                    "title": "Thursday December 11",
+                    "subtitle": "🎓 ENGLISH EXAM DAY! 🎓",
+                    "motivation": "⭐ TODAY IS THE DAY! You've prepared well. Stay calm, read carefully, and trust yourself. YOU'VE GOT THIS! ⭐",
+                    "blocks": [
+                        {
+                            "time": "07:00-07:45",
+                            "title": "🌅 Morning Routine",
+                            "tasks": [
+                                "Wake up at 07:00 (well-rested!)",
+                                "Shower & get dressed nicely",
+                                "Make bed",
+                                "Breathe deeply - you're ready!"
+                            ],
+                            "note": "💡 Take your time. No rushing. Stay calm!"
+                        },
+                        {
+                            "time": "07:45-08:30",
+                            "title": "🍳 Good Breakfast",
+                            "tasks": [
+                                "Cook eggs (omelette or scrambled - 2 eggs)",
+                                "Toast with peanut butter",
+                                "Drink water (stay hydrated!)",
+                                "Eat slowly and mindfully"
+                            ],
+                            "food": "🍽️ Eggs + toast + water - GOOD breakfast for brain power!",
+                            "note": "💡 Proper breakfast = better focus in exam!"
+                        },
+                        {
+                            "time": "08:30-09:00",
+                            "title": "🚴 Bike to Exam",
+                            "tasks": [
+                                "Leave at 08:30",
+                                "30-minute bike ride",
+                                "Arrive at 09:00 (30 min before exam!)",
+                                "Listen to music if it helps you relax"
+                            ],
+                            "note": "💡 Arrive 30 minutes early - time to breathe and settle!"
+                        },
+                        {
+                            "time": "09:00-09:30",
+                            "title": "😌 Pre-Exam Calm Time",
+                            "tasks": [
+                                "Find a quiet spot",
+                                "Breathe deeply (4 counts in, 4 out)",
+                                "Drink water",
+                                "Go to bathroom if needed",
+                                "Stay positive - you know this!"
+                            ],
+                            "note": "💡 Use this time to CALM DOWN. No last-minute cramming!"
+                        },
+                        {
+                            "time": "09:30-12:30",
+                            "title": "📝 ENGLISH EXAM",
+                            "tasks": [
+                                "Read ALL instructions carefully",
+                                "Read questions TWICE before answering",
+                                "Manage your time - don't rush",
+                                "Check your work if time allows",
+                                "Stay calm - you've prepared for this!"
+                            ],
+                            "note": "💡 EXAM TIPS: Read carefully, plan answers, check spelling/punctuation, use your time wisely!"
+                        },
+                        {
+                            "time": "12:30-13:00",
+                            "title": "🚴 Bike Home",
+                            "tasks": [
+                                "30-minute bike ride",
+                                "EXAM DONE! Well done!",
+                                "Decompress from exam"
+                            ],
+                            "note": "💡 EXAM FINISHED! Great job showing up and trying your best!"
+                        },
+                        {
+                            "time": "13:00-14:30",
+                            "title": "🎉 Post-Exam Celebration Meal",
+                            "tasks": [
+                                "Cook yourself a nice lunch!",
+                                "Spaghetti with sauce OR instant noodles",
+                                "Eat 1 apple",
+                                "Chocolate treat (you earned it!)",
+                                "Relax and enjoy!"
+                            ],
+                            "food": "🍽️ Spaghetti OR noodles + apple + chocolate - CELEBRATION!",
+                            "note": "💡 Well done! Exam is OVER! Enjoy this meal - you earned it!"
+                        },
+                        {
+                            "time": "14:30-16:30",
+                            "title": "😌 Rest & Decompress",
+                            "tasks": [
+                                "REST! You deserve it!",
+                                "Watch something light",
+                                "Listen to music",
+                                "No studying - brain break!",
+                                "Nap if you want (30-60 min max)"
+                            ],
+                            "note": "💡 Complete rest! No guilt. You worked hard for this exam!"
+                        },
+                        {
+                            "time": "16:30-16:44",
+                            "title": "🚶 Prepare & Walk to Work",
+                            "tasks": [
+                                "Change into work clothes",
+                                "Walk 13 minutes",
+                                "Arrive 3 minutes early (16:57)"
+                            ]
+                        },
+                        {
+                            "time": "17:00-21:00",
+                            "title": "💼 Work at Nando's",
+                            "tasks": [
+                                "4-hour shift",
+                                "Stay focused",
+                                "Easy shift after exam!"
+                            ],
+                            "food": "🍽️ Staff meal at work (FREE!)",
+                            "note": "💡 Shorter shift today - good after exam!"
+                        },
+                        {
+                            "time": "21:00-21:13",
+                            "title": "🚶 Walk Home",
+                            "tasks": [
+                                "13-minute walk home"
+                            ]
+                        },
+                        {
+                            "time": "21:13-22:00",
+                            "title": "🚿 Evening Routine & Shopping Plan",
+                            "tasks": [
+                                "Shower (10 min)",
+                                "Relax",
+                                "Optional: Plan shopping for tomorrow OR Monday",
+                                "Prepare for weekend"
+                            ],
+                            "note": "💡 Exam done! Now shift focus to Math exam (next Monday)"
+                        },
+                        {
+                            "time": "22:00-23:00",
+                            "title": "🌙 Wind Down",
+                            "tasks": [
+                                "Put phone away at 22:00",
+                                "Brush teeth",
+                                "Reflect on your achievement today!",
+                                "Sleep well - you did it!"
+                            ],
+                            "note": "💡 Be proud! English exam COMPLETE! ⭐"
+                        }
+                    ]
+                },
+                "friday": {
+                    "date": "2025-12-12",
+                    "title": "Friday December 12",
+                    "subtitle": "Post-English Exam + Work + Light Math Prep Starts",
+                    "motivation": "🎯 English done! Now focus shifts to Math (exam Monday). Balance work & study!",
+                    "blocks": [
+                        {
+                            "time": "07:00-07:30",
+                            "title": "🌅 Morning Routine",
+                            "tasks": [
+                                "Wake up at 07:00",
+                                "Shower & get dressed",
+                                "Make bed"
+                            ]
+                        },
+                        {
+                            "time": "07:30-08:15",
+                            "title": "🍳 Breakfast",
+                            "tasks": [
+                                "Cook scrambled eggs (2 eggs)",
+                                "Toast with peanut butter",
+                                "Drink water"
+                            ],
+                            "food": "🍽️ Scrambled eggs + toast + water"
+                        },
+                        {
+                            "time": "08:15-10:30",
+                            "title": "📐 Math Study Session 1",
+                            "tasks": [
+                                "Review basic operations (add, subtract, multiply, divide)",
+                                "Practice fractions & decimals",
+                                "Work on percentages",
+                                "Take short breaks"
+                            ],
+                            "note": "💡 Start Math prep! Exam is Monday - 3 days away!"
+                        },
+                        {
+                            "time": "10:30-11:00",
+                            "title": "☕ Break",
+                            "tasks": [
+                                "Eat 1 banana",
+                                "Walk around",
+                                "Drink water"
+                            ],
+                            "food": "🍽️ Banana + water"
+                        },
+                        {
+                            "time": "11:00-13:00",
+                            "title": "📐 Math Study Session 2",
+                            "tasks": [
+                                "Practice word problems",
+                                "Work on measurement & units",
+                                "Review geometry basics"
+                            ],
+                            "note": "💡 2-hour session - build confidence with Math!"
+                        },
+                        {
+                            "time": "13:00-14:00",
+                            "title": "🍽️ Lunch",
+                            "tasks": [
+                                "Cook macaroni OR use leftover spaghetti",
+                                "Simple & quick",
+                                "Drink water"
+                            ],
+                            "food": "🍽️ Macaroni or leftover pasta"
+                        },
+                        {
+                            "time": "14:00-16:30",
+                            "title": "💻 Web Development Hobby Time",
+                            "tasks": [
+                                "Work on Hindi Reader app",
+                                "Code for fun - decompress from exam week!",
+                                "Enjoy your hobby!",
+                                "Take breaks"
+                            ],
+                            "note": "💡 REWARD TIME! You earned this hobby time after English exam!"
+                        },
+                        {
+                            "time": "16:30-16:44",
+                            "title": "🚶 Prepare & Walk to Work",
+                            "tasks": [
+                                "Change into work clothes",
+                                "Walk 13 minutes",
+                                "Arrive 3 minutes early (16:57)"
+                            ]
+                        },
+                        {
+                            "time": "17:00-23:30",
+                            "title": "💼 Work at Nando's",
+                            "tasks": [
+                                "6.5-hour shift",
+                                "Stay focused",
+                                "Take meal break"
+                            ],
+                            "food": "🍽️ Staff meal at work (FREE!)"
+                        },
+                        {
+                            "time": "23:30-23:43",
+                            "title": "🚶 Walk Home",
+                            "tasks": [
+                                "13-minute walk home"
+                            ]
+                        },
+                        {
+                            "time": "23:43-00:00",
+                            "title": "🚿 Quick Night Routine",
+                            "tasks": [
+                                "Quick shower (10 min)",
+                                "Brush teeth",
+                                "Straight to bed - NO phone!"
+                            ],
+                            "note": "💡 Late finish but get to bed quick!"
+                        }
+                    ]
+                },
+                "saturday": {
+                    "date": "2025-12-13",
+                    "title": "Saturday December 13",
+                    "subtitle": "Work Day + Math Prep",
+                    "motivation": "📐 Math exam in 2 days! Balance work & study. You can do this!",
+                    "blocks": [
+                        {
+                            "time": "07:00-07:30",
+                            "title": "🌅 Morning Routine",
+                            "tasks": [
+                                "Wake up at 07:00",
+                                "Shower & get dressed",
+                                "Make bed"
+                            ]
+                        },
+                        {
+                            "time": "07:30-08:15",
+                            "title": "🍳 Breakfast",
+                            "tasks": [
+                                "Cook scrambled eggs (2 eggs)",
+                                "Toast with peanut butter",
+                                "Drink water"
+                            ],
+                            "food": "🍽️ Scrambled eggs + toast + water"
+                        },
+                        {
+                            "time": "08:15-11:00",
+                            "title": "📐 Math Study Session",
+                            "tasks": [
+                                "Practice calculations",
+                                "Work on problem-solving",
+                                "Review areas you find difficult",
+                                "Take short breaks"
+                            ],
+                            "note": "💡 Good solid study time before work!"
+                        },
+                        {
+                            "time": "11:00-11:30",
+                            "title": "🍎 Snack & Rest",
+                            "tasks": [
+                                "Eat 1 apple + chocolate (2-3 squares)",
+                                "Drink water",
+                                "Light stretching"
+                            ],
+                            "food": "🍽️ Apple + dark chocolate + water"
+                        },
+                        {
+                            "time": "11:30-13:00",
+                            "title": "📖 Light Math Review",
+                            "tasks": [
+                                "Review notes from this week",
+                                "Quick practice problems",
+                                "Don't overdo it - work later"
+                            ]
+                        },
+                        {
+                            "time": "13:00-14:00",
+                            "title": "🍽️ Lunch",
+                            "tasks": [
+                                "Cook instant noodles OR pasta",
+                                "Quick meal",
+                                "Drink water"
+                            ],
+                            "food": "🍽️ Instant noodles or pasta (quick & easy)"
+                        },
+                        {
+                            "time": "14:00-15:30",
+                            "title": "😌 Rest Before Work",
+                            "tasks": [
+                                "Relax",
+                                "Eat 1 banana",
+                                "Prepare for work shift",
+                                "No screen time - rest eyes"
+                            ],
+                            "food": "🍽️ Banana"
+                        },
+                        {
+                            "time": "15:30-15:47",
+                            "title": "🚶 Prepare & Walk to Work",
+                            "tasks": [
+                                "Change into work clothes",
+                                "Walk 13 minutes",
+                                "Arrive 3 minutes early (15:57)"
+                            ]
+                        },
+                        {
+                            "time": "16:00-22:00",
+                            "title": "💼 Work at Nando's",
+                            "tasks": [
+                                "6-hour shift",
+                                "Stay focused",
+                                "Take meal break"
+                            ],
+                            "food": "🍽️ Staff meal at work (FREE!)"
+                        },
+                        {
+                            "time": "22:00-22:13",
+                            "title": "🚶 Walk Home",
+                            "tasks": [
+                                "13-minute walk home"
+                            ]
+                        },
+                        {
+                            "time": "22:13-23:00",
+                            "title": "🚿 Evening Routine",
+                            "tasks": [
+                                "Shower (15 min)",
+                                "Eat 1 apple if hungry",
+                                "Brush teeth",
+                                "Prepare for tomorrow's study",
+                                "Phone away, then sleep by 23:00"
+                            ],
+                            "note": "💡 Tomorrow is Sunday - full day for Math prep before exam Monday!"
+                        }
+                    ]
+                }
+            },
+            "shopping": {
+                "week_of": "2025-12-07",
+                "budget": "£7-8",
+                "explanation": "Very light shopping this week! You have LOTS of food at home already. This is mainly to top up a few essentials.",
+                "when_to_shop": "Thursday December 11 (after English exam) OR Monday December 8",
+                "list": [
+                    {
+                        "item": "Bread",
+                        "quantity": "1 loaf",
+                        "price": "~£1.00",
+                        "already_have": "Half loaf",
+                        "total_after": "1.5 loaves",
+                        "reason": "Toast for 7 breakfasts - current half loaf not enough"
+                    },
+                    {
+                        "item": "Eggs",
+                        "quantity": "6 eggs (1 box)",
+                        "price": "~£2.00",
+                        "already_have": "11 eggs",
+                        "total_after": "17 eggs",
+                        "reason": "Need 14 for breakfasts (2 per day × 7 days). Have 11, buy 6 more for safety"
+                    },
+                    {
+                        "item": "Bananas",
+                        "quantity": "4 bananas",
+                        "price": "~£1.00",
+                        "already_have": "4 bananas",
+                        "total_after": "8 bananas",
+                        "reason": "Daily snack (1 per day). Have 4, buy 4 more for full week"
+                    },
+                    {
+                        "item": "Apples",
+                        "quantity": "2 apples",
+                        "price": "~£1.00",
+                        "already_have": "6 apples",
+                        "total_after": "8 apples",
+                        "reason": "Evening snack. Have 6, buy 2 more to complete the week"
+                    },
+                    {
+                        "item": "Dark Chocolate",
+                        "quantity": "1 bar",
+                        "price": "~£2.00",
+                        "already_have": "1 milk chocolate bar",
+                        "total_after": "2 bars total (1 milk, 1 dark)",
+                        "reason": "Study break treat - dark chocolate for focus"
+                    }
+                ],
+                "items_you_dont_need": [
+                    {
+                        "item": "Rice",
+                        "reason": "Don't need - you'll use pasta/noodles this week"
+                    },
+                    {
+                        "item": "Chicken",
+                        "reason": "Already have 300g cooked Nando's chicken - use that Monday!"
+                    },
+                    {
+                        "item": "Pasta/Noodles",
+                        "reason": "Have plenty! 4 packs instant noodles + 500g macaroni + 750g spaghetti"
+                    },
+                    {
+                        "item": "Milk",
+                        "reason": "Have 2.275L full bottle - plenty for the week!"
+                    },
+                    {
+                        "item": "Peanut Butter",
+                        "reason": "Have 75% of jar - enough for week of breakfasts"
+                    },
+                    {
+                        "item": "Oil",
+                        "reason": "Have 750ml - enough for cooking this week"
+                    },
+                    {
+                        "item": "Vegetables",
+                        "reason": "Have carrots, onions, potatoes - enough for this week's limited home cooking"
+                    }
+                ],
+                "notes": [
+                    "💡 You work 6 days this week = 6 FREE staff meals at Nando's!",
+                    "💡 Only 1 non-work day (Monday) needs home cooking for main meal",
+                    "💡 Use the 300g cooked Nando's chicken on Monday with rice/pasta",
+                    "💡 Use your instant noodles, macaroni, and spaghetti for quick meals",
+                    "💡 This is exam week - keep meals SIMPLE and use what you have!",
+                    "💡 Total estimated cost: £7-8 (very light shopping week!)"
+                ]
+            },
+            "recipes": {
+                "scrambled_eggs": {
+                    "name": "Perfect Scrambled Eggs",
+                    "difficulty": "Beginner",
+                    "time": "10 minutes",
+                    "servings": "1 serving",
+                    "ingredients": [
+                        "2 eggs",
+                        "Splash of milk (optional)",
+                        "Pinch of salt & pepper",
+                        "Small knob of butter or oil"
+                    ],
+                    "instructions": [
+                        "Crack eggs into bowl, add milk (optional), salt, and pepper",
+                        "Whisk with fork until well mixed (30 seconds)",
+                        "Heat pan on MEDIUM heat with butter/oil",
+                        "Pour in egg mixture when butter melts",
+                        "Let it sit for 20 seconds without stirring",
+                        "Gently push eggs from edge to center with spatula",
+                        "Keep folding gently until just cooked (soft, not dry)",
+                        "Remove from heat - eggs continue cooking!",
+                        "Serve immediately on toast"
+                    ],
+                    "video": "https://www.youtube.com/watch?v=s9r-CxnCXkg",
+                    "notes": "💡 Pro tip: Don't overcook! Remove from heat when eggs still look slightly wet - they'll finish cooking on the plate. Low and slow = creamy eggs!"
+                },
+                "simple_omelette": {
+                    "name": "Simple Omelette",
+                    "difficulty": "Beginner",
+                    "time": "10 minutes",
+                    "servings": "1 serving",
+                    "ingredients": [
+                        "2 eggs",
+                        "Splash of milk (optional)",
+                        "Pinch of salt & pepper",
+                        "Oil or butter for pan",
+                        "Optional: Cheese, leftover chicken"
+                    ],
+                    "instructions": [
+                        "Crack eggs in bowl, add milk, salt, pepper",
+                        "Whisk really well with fork (1 minute)",
+                        "Heat pan on MEDIUM-HIGH heat with butter/oil",
+                        "Pour all egg mixture in at once",
+                        "Let it cook for 30 seconds without touching",
+                        "Use spatula to gently push cooked edges to center",
+                        "Tilt pan so uncooked egg flows to edges",
+                        "When almost set, add any fillings on one half",
+                        "Fold omelette in half with spatula",
+                        "Slide onto plate and serve immediately"
+                    ],
+                    "video": "https://www.youtube.com/watch?v=qXPhVYpQLPA",
+                    "notes": "💡 Pro tip: Don't flip the omelette! Just fold it in half. If it breaks, it's still delicious - call it scrambled eggs! 😄"
+                },
+                "chicken_rice": {
+                    "name": "Simple Chicken & Rice",
+                    "difficulty": "Beginner",
+                    "time": "30 minutes",
+                    "servings": "2 (eat half, save half)",
+                    "ingredients": [
+                        "300g cooked chicken (your Nando's leftovers!)",
+                        "150g rice (makes 2 portions cooked)",
+                        "1 onion, diced",
+                        "2 carrots, sliced (optional - you have these!)",
+                        "Oil for cooking",
+                        "Salt & pepper",
+                        "Water (2× rice amount = 300ml)"
+                    ],
+                    "instructions": [
+                        "Rinse rice in cold water until water runs clear",
+                        "Heat oil in pot, add diced onion",
+                        "Cook onion for 2-3 minutes until soft",
+                        "Add rice, stir for 1 minute",
+                        "Add water (2 cups water for 1 cup rice)",
+                        "Add carrots if using",
+                        "Bring to boil, then reduce to LOW heat",
+                        "Cover and cook for 15-20 minutes (don't lift lid!)",
+                        "Meanwhile, cut cooked chicken into pieces",
+                        "When rice done (water absorbed), add chicken on top",
+                        "Put lid back, let chicken heat through (3-5 min)",
+                        "Mix everything, season with salt & pepper",
+                        "Divide into 2 portions - eat one, save one!"
+                    ],
+                    "video": "https://www.youtube.com/watch?v=Jg1tNy0d5j4",
+                    "notes": "💡 PORTION CONTROL! Divide into 2 before eating. Eat HALF today, save HALF for tomorrow's lunch! This is easy because chicken is already cooked - just heat it up with rice!"
+                },
+                "simple_pasta": {
+                    "name": "Quick & Easy Pasta",
+                    "difficulty": "Beginner",
+                    "time": "20 minutes",
+                    "servings": "2 (eat half, save half)",
+                    "ingredients": [
+                        "200g pasta (spaghetti or macaroni - you have both!)",
+                        "1-2 tablespoons oil",
+                        "1 onion, diced (optional)",
+                        "Salt & pepper",
+                        "Optional: Any vegetables you have"
+                    ],
+                    "instructions": [
+                        "Boil large pot of water with pinch of salt",
+                        "Add pasta when water is boiling hard",
+                        "Cook for 10-12 minutes (check package)",
+                        "Meanwhile, if using onion: heat oil in pan, cook onion until soft",
+                        "Test pasta - should be soft but not mushy",
+                        "Drain pasta in colander",
+                        "Add pasta to pan with onion OR just mix with oil",
+                        "Season with salt & pepper",
+                        "Mix well",
+                        "Divide into 2 portions immediately",
+                        "Eat one portion, save one for later!"
+                    ],
+                    "video": "https://www.youtube.com/watch?v=UyXNxJGjPw4",
+                    "notes": "💡 PORTION CONTROL! Cook 200g = 2 portions. Eat HALF, save HALF! You can add leftover chicken to make it more filling. Save pasta water (2-3 tablespoons) - makes pasta less dry when reheating!"
+                },
+                "instant_noodles": {
+                    "name": "Upgraded Instant Noodles",
+                    "difficulty": "Beginner",
+                    "time": "10 minutes",
+                    "servings": "1",
+                    "ingredients": [
+                        "1 pack instant noodles (you have 4 packs!)",
+                        "Water (amount shown on package)",
+                        "1 egg (optional)",
+                        "Any vegetables you have (optional)"
+                    ],
+                    "instructions": [
+                        "Boil water in pot",
+                        "Add noodles when water boiling",
+                        "Cook for 3-4 minutes",
+                        "Optional: Crack egg into noodles in last minute",
+                        "Optional: Add any vegetables in last 2 minutes",
+                        "Add seasoning packet",
+                        "Stir and serve immediately"
+                    ],
+                    "video": "https://www.youtube.com/watch?v=q7lXx9uhEZ8",
+                    "notes": "💡 Quick meal for busy days! Add an egg for extra protein. You have 4 packs - perfect for quick lunches this week!"
+                }
+            }
+        };
+
+        // Initialize the app
+        let currentDay = 'sunday';
+        const dayOrder = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+        function init() {
+            createDayTabs();
+            renderSchedule();
+            renderShopping();
+            renderRecipes();
+            updateCountdowns();
+            setInterval(updateCountdowns, 60000); // Update every minute
+            
+            // Scroll to current day on load
+            const today = new Date();
+            const todayDay = today.toLocaleDateString('en-US', { weekday: 'long' }).toLowerCase();
+            if (dayOrder.includes(todayDay)) {
+                switchDay(todayDay);
+            } else {
+                // Default to first day if today is not in schedule
+                switchDay(dayOrder[0]);
+            }
+            
+            // Update current time highlighting and auto-scroll
+            setTimeout(() => {
+                updateCurrentTimeBlock();
+                scrollToCurrentTime();
+            }, 300);
+            
+            // Keep updating time highlighting
+            setInterval(updateCurrentTimeBlock, 60000); // Update every minute
+            
+            // Scroll button
+            window.addEventListener('scroll', handleScroll);
+        }
+
+        function createDayTabs() {
+            const tabsContainer = document.getElementById('dayTabs');
+            dayOrder.forEach(day => {
+                const dayData = scheduleData.days[day];
+                const tab = document.createElement('div');
+                tab.className = 'day-tab';
+                tab.onclick = () => switchDay(day);
+                
+                const date = new Date(dayData.date);
+                const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+                const monthDay = date.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+                
+                tab.innerHTML = `
+                    <div class="day-name">${dayName}</div>
+                    <div class="day-date">${monthDay}</div>
+                `;
+                tab.dataset.day = day;
+                tabsContainer.appendChild(tab);
+            });
+        }
+
+        function switchDay(day) {
+            currentDay = day;
+            
+            // Update tabs
+            document.querySelectorAll('.day-tab').forEach(tab => {
+                tab.classList.remove('active');
+                if (tab.dataset.day === day) {
+                    tab.classList.add('active');
+                    // Scroll tab into view
+                    tab.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                }
+            });
+            
+            // Update day contents
+            document.querySelectorAll('.day-content').forEach(content => {
+                content.classList.remove('active');
+                if (content.dataset.day === day) {
+                    content.classList.add('active');
+                }
+            });
+            
+            // Update navigation arrows
+            const currentIndex = dayOrder.indexOf(day);
+            document.getElementById('prevDay').disabled = currentIndex === 0;
+            document.getElementById('nextDay').disabled = currentIndex === dayOrder.length - 1;
+            
+            // Update time highlighting for new day
+            setTimeout(() => {
+                updateCurrentTimeBlock();
+                
+                // Check if this is TODAY - if yes, auto-scroll to current time
+                const today = new Date();
+                const selectedDate = new Date(scheduleData.days[day].date);
+                if (today.toDateString() === selectedDate.toDateString()) {
+                    // It's today - auto scroll to current time
+                    scrollToCurrentTime();
+                } else {
+                    // Not today - scroll to top
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+            }, 100);
+        }
+
+        function navigateDay(direction) {
+            const currentIndex = dayOrder.indexOf(currentDay);
+            const newIndex = currentIndex + direction;
+            if (newIndex >= 0 && newIndex < dayOrder.length) {
+                switchDay(dayOrder[newIndex]);
+            }
+        }
+
+        function renderSchedule() {
+            const container = document.getElementById('dayContents');
+            
+            dayOrder.forEach(day => {
+                const dayData = scheduleData.days[day];
+                const dayContent = document.createElement('div');
+                dayContent.className = 'day-content';
+                dayContent.dataset.day = day;
+                
+                let html = `
+                    <div class="day-header">
+                        <h2>${dayData.title}</h2>
+                        <div class="subtitle">${dayData.subtitle}</div>
+                        <div class="motivation">${dayData.motivation}</div>
+                    </div>
+                `;
+                
+                dayData.blocks.forEach((block, index) => {
+                    const blockId = `${day}-block-${index}`;
+                    html += `
+                        <div class="time-block" data-block-id="${blockId}" data-time="${block.time}">
+                            <h3>
+                                <span class="time">${block.time}</span>
+                                ${block.title}
+                            </h3>
+                    `;
+                    
+                    if (block.tasks && block.tasks.length > 0) {
+                        html += '<div class="tasks">';
+                        block.tasks.forEach((task, taskIndex) => {
+                            const taskId = `${blockId}-task-${taskIndex}`;
+                            html += `
+                                <div class="task-item">
+                                    <input type="checkbox" id="${taskId}" onchange="saveTaskState('${taskId}', this.checked)">
+                                    <label for="${taskId}">${task}</label>
+                                </div>
+                            `;
+                        });
+                        html += '</div>';
+                    }
+                    
+                    if (block.food) {
+                        html += `<div class="food">${block.food}</div>`;
+                    }
+                    
+                    if (block.note) {
+                        html += `<div class="note">${block.note}</div>`;
+                    }
+                    
+                    html += '</div>';
+                });
+                
+                dayContent.innerHTML = html;
+                container.appendChild(dayContent);
+            });
+            
+            // Restore checkbox states
+            restoreTaskStates();
+        }
+
+        function renderShopping() {
+            const shopping = scheduleData.shopping;
+            let html = `
+                <div class="shopping-content">
+                    <h2>🛒 Shopping List</h2>
+                    <div class="budget-info">
+                        <h3>Budget: ${shopping.budget}</h3>
+                        <p>${shopping.explanation}</p>
+                        <p><strong>When:</strong> ${shopping.when_to_shop}</p>
+                    </div>
+            `;
+            
+            shopping.list.forEach(item => {
+                html += `
+                    <div class="shopping-item">
+                        <div class="item-name">✓ ${item.item}</div>
+                        <div class="item-quantity">Buy: ${item.quantity} (${item.price})</div>
+                        <div class="item-reason">Already have: ${item.already_have} → Total: ${item.total_after}</div>
+                        <div class="item-reason">${item.reason}</div>
+                    </div>
+                `;
+            });
+            
+            html += '<h3 style="margin-top: 30px; color: #667eea;">✨ Items You DON\'T Need:</h3>';
+            shopping.items_you_dont_need.forEach(item => {
+                html += `
+                    <div class="shopping-item">
+                        <div class="item-name">✗ ${item.item}</div>
+                        <div class="item-reason">${item.reason}</div>
+                    </div>
+                `;
+            });
+            
+            html += '<h3 style="margin-top: 30px; color: #667eea;">📝 Important Notes:</h3>';
+            shopping.notes.forEach(note => {
+                html += `<div class="note" style="margin: 10px 0;">${note}</div>`;
+            });
+            
+            html += '</div>';
+            document.getElementById('shoppingContent').innerHTML = html;
+        }
+
+        function renderRecipes() {
+            const recipes = scheduleData.recipes;
+            let html = '<div class="recipes-content">';
+            
+            Object.values(recipes).forEach(recipe => {
+                html += `
+                    <div class="recipe-card">
+                        <h3>${recipe.name}</h3>
+                        <div class="recipe-meta">
+                            <div class="meta-item">
+                                <strong>Difficulty</strong>
+                                ${recipe.difficulty}
+                            </div>
+                            <div class="meta-item">
+                                <strong>Time</strong>
+                                ${recipe.time}
+                            </div>
+                            <div class="meta-item">
+                                <strong>Servings</strong>
+                                ${recipe.servings}
+                            </div>
+                        </div>
+                        
+                        <div class="ingredients">
+                            <h4>📋 Ingredients:</h4>
+                            <ul>
+                                ${recipe.ingredients.map(ing => `<li>${ing}</li>`).join('')}
+                            </ul>
+                        </div>
+                        
+                        <div class="instructions">
+                            <h4>👨‍🍳 Instructions:</h4>
+                            <ol>
+                                ${recipe.instructions.map(step => `<li>${step}</li>`).join('')}
+                            </ol>
+                        </div>
+                        
+                        <div class="recipe-video">
+                            <a href="${recipe.video}" target="_blank">▶️ Watch Video Tutorial</a>
+                        </div>
+                        
+                        <div class="recipe-notes">
+                            ${recipe.notes}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            document.getElementById('recipesContent').innerHTML = html;
+        }
+
+        function switchTab(tab) {
+            // Update navigation
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            event.currentTarget.classList.add('active');
+            
+            // Update content
+            document.querySelectorAll('.content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            if (tab === 'schedule') {
+                document.getElementById('scheduleContent').classList.add('active');
+                document.getElementById('scheduleNav').style.display = 'block';
+            } else {
+                document.getElementById('scheduleNav').style.display = 'none';
+                if (tab === 'shopping') {
+                    document.getElementById('shoppingContent').classList.add('active');
+                } else if (tab === 'recipes') {
+                    document.getElementById('recipesContent').classList.add('active');
+                }
+            }
+            
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function updateCountdowns() {
+            const now = new Date();
+            
+            // English exam
+            const englishEl = document.getElementById('englishCountdown');
+            if (englishEl) {
+                const englishDate = new Date(scheduleData.exams.english.date);
+                const diff = englishDate - now;
+                
+                if (diff > 0) {
+                    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                    englishEl.textContent = `${days}d ${hours}h`;
+                } else {
+                    englishEl.textContent = 'DONE! ✅';
+                }
+            }
+            
+            // Math exam
+            const mathEl = document.getElementById('mathCountdown');
+            if (mathEl) {
+                const mathDate = new Date(scheduleData.exams.math.date);
+                const diff = mathDate - now;
+                
+                if (diff > 0) {
+                    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+                    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                    mathEl.textContent = `${days}d ${hours}h`;
+                } else {
+                    mathEl.textContent = 'DONE! ✅';
+                }
+            }
+        }
+
+        function updateCurrentTimeBlock() {
+            // Only highlight if we're viewing TODAY's schedule
+            const today = new Date();
+            const selectedDayData = scheduleData.days[currentDay];
+            const selectedDate = new Date(selectedDayData.date);
+            
+            // Clear all highlights first
+            document.querySelectorAll('.time-block').forEach(block => {
+                block.classList.remove('current-time', 'past-time');
+            });
+            
+            // Only proceed if selected day is today
+            if (today.toDateString() !== selectedDate.toDateString()) {
+                return;
+            }
+            
+            const currentHour = today.getHours();
+            const currentMinute = today.getMinutes();
+            const currentTime = currentHour * 60 + currentMinute;
+            
+            const activeDayContent = document.querySelector(`.day-content[data-day="${currentDay}"]`);
+            if (!activeDayContent) return;
+            
+            const blocks = activeDayContent.querySelectorAll('.time-block');
+            let currentBlockFound = false;
+            
+            blocks.forEach(block => {
+                const timeRange = block.dataset.time;
+                if (!timeRange) return;
+                
+                // Parse start and end times
+                const times = timeRange.split('-');
+                const startTime = times[0].trim();
+                const endTime = times[1] ? times[1].trim() : null;
+                
+                const [startHour, startMin] = startTime.split(':').map(Number);
+                const blockStartTime = startHour * 60 + startMin;
+                
+                let blockEndTime;
+                if (endTime) {
+                    const [endHour, endMin] = endTime.split(':').map(Number);
+                    blockEndTime = endHour * 60 + endMin;
+                    // Handle times that cross midnight (like 23:43-00:00)
+                    if (blockEndTime < blockStartTime) {
+                        blockEndTime += 24 * 60;
+                    }
+                } else {
+                    // If no end time, assume 1 hour block
+                    blockEndTime = blockStartTime + 60;
+                }
+                
+                // Check if current time is within this block
+                if (currentTime >= blockStartTime && currentTime < blockEndTime) {
+                    block.classList.add('current-time');
+                    currentBlockFound = true;
+                } else if (currentTime >= blockEndTime) {
+                    block.classList.add('past-time');
+                }
+            });
+        }
+
+        function scrollToCurrentTime() {
+            const today = new Date();
+            const selectedDayData = scheduleData.days[currentDay];
+            const selectedDate = new Date(selectedDayData.date);
+            
+            // Only auto-scroll if viewing TODAY
+            if (today.toDateString() !== selectedDate.toDateString()) {
+                return;
+            }
+            
+            const currentBlock = document.querySelector('.time-block.current-time');
+            if (currentBlock) {
+                // Wait a bit for rendering to complete, then scroll
+                setTimeout(() => {
+                    const yOffset = -100; // Offset from top
+                    const y = currentBlock.getBoundingClientRect().top + window.pageYOffset + yOffset;
+                    window.scrollTo({ top: y, behavior: 'smooth' });
+                }, 200);
+            }
+        }
+
+        function saveTaskState(taskId, checked) {
+            localStorage.setItem(taskId, checked);
+        }
+
+        function restoreTaskStates() {
+            document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+                const saved = localStorage.getItem(checkbox.id);
+                if (saved === 'true') {
+                    checkbox.checked = true;
+                }
+            });
+        }
+
+        function handleScroll() {
+            const scrollTop = document.getElementById('scrollTop');
+            if (window.pageYOffset > 300) {
+                scrollTop.classList.add('visible');
+            } else {
+                scrollTop.classList.remove('visible');
+            }
+        }
+
+        function scrollToTop() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // Initialize on load
+        window.onload = init;
+    </script>
+</body>
+</html>
