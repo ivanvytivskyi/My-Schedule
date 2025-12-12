@@ -1,641 +1,36 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ivan's Schedule V4.1 - Dec 8-14, 2025 (Final Rota)</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding-bottom: 70px;
-        }
-
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        .header {
-            background: white;
-            border-radius: 15px;
-            padding: 25px;
-            margin-bottom: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        }
-
-        .header h1 {
-            color: #667eea;
-            font-size: 28px;
-            margin-bottom: 10px;
-        }
-
-        .header p {
-            color: #666;
-            font-size: 16px;
-        }
-
-        .version-badge {
-            display: inline-block;
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            color: white;
-            padding: 5px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: bold;
-            margin-left: 10px;
-        }
-
-        .exam-countdown {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-top: 20px;
-        }
-
-        .countdown-box {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            padding: 15px;
-            border-radius: 10px;
-            color: white;
-            text-align: center;
-        }
-
-        .countdown-box.math {
-            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-        }
-
-        .countdown-box h3 {
-            font-size: 14px;
-            margin-bottom: 5px;
-            opacity: 0.9;
-        }
-
-        .countdown-box .time {
-            font-size: 24px;
-            font-weight: bold;
-        }
-
-        /* Day Navigation */
-        .day-nav-container {
-            background: white;
-            border-radius: 15px;
-            padding: 15px;
-            margin-bottom: 20px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            position: relative;
-        }
-
-        .day-nav-wrapper {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .nav-arrow {
-            background: #667eea;
-            color: white;
-            border: none;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            transition: all 0.3s ease;
-        }
-
-        .nav-arrow:hover {
-            background: #5568d3;
-            transform: scale(1.1);
-        }
-
-        .nav-arrow:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-            transform: scale(1);
-        }
-
-        .day-tabs-container {
-            overflow-x: auto;
-            scrollbar-width: none;
-            -ms-overflow-style: none;
-            flex: 1;
-        }
-
-        .day-tabs-container::-webkit-scrollbar {
-            display: none;
-        }
-
-        .day-tabs {
-            display: flex;
-            gap: 10px;
-            min-width: min-content;
-        }
-
-        .day-tab {
-            background: #f5f5f5;
-            padding: 12px 20px;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            white-space: nowrap;
-            flex-shrink: 0;
-            border: 2px solid transparent;
-        }
-
-        .day-tab:hover {
-            background: #e8e8e8;
-        }
-
-        .day-tab.active {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-color: #667eea;
-        }
-
-        .day-tab .day-name {
-            font-weight: bold;
-            font-size: 14px;
-        }
-
-        .day-tab .day-date {
-            font-size: 12px;
-            opacity: 0.8;
-            margin-top: 2px;
-        }
-
-        /* Content Area */
-        .content {
-            display: none;
-        }
-
-        .content.active {
-            display: block;
-        }
-
-        .day-content {
-            display: none;
-        }
-
-        .day-content.active {
-            display: block;
-        }
-
-        .day-header {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 20px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        }
-
-        .day-header h2 {
-            color: #667eea;
-            font-size: 24px;
-            margin-bottom: 5px;
-        }
-
-        .day-header .subtitle {
-            color: #666;
-            font-size: 14px;
-            margin-bottom: 10px;
-        }
-
-        .day-header .motivation {
-            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
-            padding: 12px;
-            border-radius: 8px;
-            color: #2d3436;
-            font-size: 14px;
-            margin-top: 10px;
-        }
-
-        .time-block {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 15px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            transition: all 0.3s ease;
-        }
-
-        .time-block.current-time {
-            background: #FFF3E0;
-            border-left: 4px solid #FF6B35;
-            box-shadow: 0 2px 8px rgba(255, 107, 53, 0.2);
-        }
-
-        .time-block.past-time {
-            opacity: 0.6;
-        }
-
-        .time-block .time {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 8px 15px;
-            border-radius: 20px;
-            display: inline-block;
-            font-size: 14px;
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-
-        .time-block .title {
-            font-size: 18px;
-            color: #2d3436;
-            font-weight: bold;
-            margin: 10px 0;
-        }
-
-        .time-block .tasks {
-            margin: 15px 0;
-        }
-
-        .task-item {
-            display: flex;
-            align-items: flex-start;
-            margin: 8px 0;
-            gap: 10px;
-        }
-
-        .task-item input[type="checkbox"] {
-            margin-top: 3px;
-            width: 18px;
-            height: 18px;
-            cursor: pointer;
-        }
-
-        .task-item label {
-            flex: 1;
-            cursor: pointer;
-            line-height: 1.6;
-        }
-
-        .task-item input[type="checkbox"]:checked + label {
-            text-decoration: line-through;
-            opacity: 0.6;
-        }
-
-        .food, .note {
-            margin: 10px 0;
-            padding: 12px;
-            border-radius: 8px;
-            font-size: 14px;
-        }
-
-        .food {
-            background: #e8f5e9;
-            color: #2e7d32;
-        }
-
-        .note {
-            background: #fff3e0;
-            color: #e65100;
-        }
-
-        /* Shopping Tab */
-        .shopping-content {
-            background: white;
-            border-radius: 15px;
-            padding: 25px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-        }
-
-        .shopping-content h2 {
-            color: #667eea;
-            font-size: 24px;
-            margin-bottom: 20px;
-        }
-
-        .budget-info {
-            background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 20px;
-            text-align: center;
-        }
-
-        .budget-info h3 {
-            font-size: 18px;
-            color: #2d3436;
-        }
-
-        .shopping-section {
-            margin: 30px 0;
-        }
-
-        .shopping-section h3 {
-            color: #667eea;
-            font-size: 20px;
-            margin-bottom: 15px;
-            border-bottom: 2px solid #667eea;
-            padding-bottom: 10px;
-        }
-
-        .shopping-item {
-            padding: 15px;
-            border-bottom: 1px solid #eee;
-            display: grid;
-            gap: 5px;
-        }
-
-        .shopping-item:last-child {
-            border-bottom: none;
-        }
-
-        .item-name {
-            font-weight: bold;
-            color: #2d3436;
-            font-size: 16px;
-        }
-
-        .item-quantity {
-            color: #667eea;
-            font-size: 14px;
-        }
-
-        .item-reason {
-            color: #666;
-            font-size: 13px;
-            font-style: italic;
-        }
-
-        .skip-item {
-            background: #f8f9fa;
-            padding: 12px;
-            border-radius: 8px;
-            margin: 8px 0;
-            border-left: 4px solid #28a745;
-        }
-
-        .skip-item .item-name {
-            color: #28a745;
-        }
-
-        /* Leftover Predictions Table */
-        .leftover-predictions {
-            margin-top: 30px;
-            background: #f8f9fa;
-            border-radius: 10px;
-            padding: 20px;
-        }
-
-        .leftover-predictions h3 {
-            color: #667eea;
-            margin-bottom: 15px;
-        }
-
-        .predictions-table {
-            width: 100%;
-            border-collapse: collapse;
-            background: white;
-            border-radius: 8px;
-            overflow: hidden;
-        }
-
-        .predictions-table th,
-        .predictions-table td {
-            padding: 12px;
-            text-align: left;
-            border-bottom: 1px solid #eee;
-        }
-
-        .predictions-table th {
-            background: #667eea;
-            color: white;
-            font-weight: bold;
-        }
-
-        .predictions-table tr:last-child td {
-            border-bottom: none;
-        }
-
-        .next-update {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            color: white;
-            padding: 15px;
-            border-radius: 8px;
-            text-align: center;
-            margin-top: 15px;
-            font-weight: bold;
-        }
-
-        /* Recipes Tab */
-        .recipes-content {
-            display: grid;
-            gap: 20px;
-        }
-
-        .recipe-card {
-            background: white;
-            border-radius: 15px;
-            padding: 25px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        }
-
-        .recipe-card h3 {
-            color: #667eea;
-            font-size: 22px;
-            margin-bottom: 15px;
-        }
-
-        .recipe-meta {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-
-        .meta-item {
-            background: #f8f9fa;
-            padding: 10px;
-            border-radius: 8px;
-            text-align: center;
-            font-size: 13px;
-        }
-
-        .meta-item strong {
-            display: block;
-            color: #667eea;
-            margin-bottom: 5px;
-            text-transform: uppercase;
-        }
-
-        .ingredients, .instructions {
-            margin: 20px 0;
-        }
-
-        .ingredients h4, .instructions h4 {
-            color: #2d3436;
-            margin-bottom: 10px;
-            font-size: 16px;
-        }
-
-        .ingredients ul, .instructions ol {
-            margin-left: 20px;
-        }
-
-        .ingredients li, .instructions li {
-            margin: 5px 0;
-            line-height: 1.6;
-        }
-
-        .recipe-video {
-            margin-top: 15px;
-        }
-
-        .recipe-video a {
-            display: inline-block;
-            background: #ff0000;
-            color: white;
-            padding: 12px 24px;
-            border-radius: 25px;
-            text-decoration: none;
-            font-weight: bold;
-            transition: all 0.3s ease;
-        }
-
-        .recipe-video a:hover {
-            background: #cc0000;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(255, 0, 0, 0.3);
-        }
-
-        .recipe-notes {
-            background: #fff3e0;
-            padding: 12px;
-            border-radius: 8px;
-            color: #e65100;
-            margin-top: 15px;
-            font-size: 14px;
-        }
-
-        /* Bottom Navigation */
-        .bottom-nav {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: white;
-            box-shadow: 0 -5px 15px rgba(0,0,0,0.2);
-            display: flex;
-            justify-content: space-around;
-            padding: 10px 0;
-            z-index: 1000;
-        }
-
-        .nav-item {
-            flex: 1;
-            text-align: center;
-            padding: 10px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            border: none;
-            background: none;
-            color: #666;
-        }
-
-        .nav-item:hover {
-            background: #f5f5f5;
-        }
-
-        .nav-item.active {
-            color: #667eea;
-            font-weight: bold;
-        }
-
-        .nav-item .icon {
-            font-size: 24px;
-            margin-bottom: 5px;
-        }
-
-        .nav-item .label {
-            font-size: 12px;
-        }
-
-        /* Scroll to Top Button */
-        .scroll-top {
-            position: fixed;
-            bottom: 100px;
-            right: 20px;
-            width: 56px;
-            height: 56px;
-            background: #FF6B35;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            font-size: 24px;
-            cursor: pointer;
-            box-shadow: 0 4px 12px rgba(255, 107, 53, 0.4);
-            opacity: 0;
-            visibility: hidden;
-            transition: all 0.3s ease;
-            z-index: 999;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .scroll-top.visible {
-            opacity: 1;
-            visibility: visible;
-        }
-
-        .scroll-top:hover {
-            background: #e85a2a;
-            transform: translateY(-5px);
-        }
-
-        /* Mobile Responsive */
-        @media (max-width: 600px) {
-            .container {
-                padding: 10px;
-            }
-
-            .header h1 {
-                font-size: 24px;
-            }
-
-            .day-tab {
-                padding: 10px 15px;
-            }
-
-            .recipe-meta {
-                grid-template-columns: 1fr;
-            }
-
-            .exam-countdown {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Weekly Schedule Manager V5.1</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="import-functions.js" defer></script>
 </head>
 <body>
     <div class="container">
         <div class="header">
-            <h1>Ivan's Weekly Schedule <span class="version-badge">V4.1</span></h1>
-            <p>December 8-14, 2025 • **Final Rota & Rule Compliance** 🚴</p>
-            
-            <div class="exam-countdown">
-                <div class="countdown-box">
-                    <h3>📝 English Exam (Done!)</h3>
-                    <div class="time" id="englishCountdown">Completed! 🎉</div>
-                </div>
-                <div class="countdown-box math">
-                    <h3>📐 Math Exam</h3>
-                    <div class="time" id="mathCountdown">Loading...</div>
+            <div class="header-title">
+                <h1>
+                    <span class="static-name" id="staticName">Ivan</span>
+                    <input type="text" class="editable-name" id="editableName" value="Ivan" />
+                    's Weekly Schedule
+                    <span class="version-badge">V5.1</span>
+                </h1>
+            </div>
+            <div class="date-info">
+                <div class="date-display" id="dateDisplay">December 2025 🚴</div>
+                <input type="text" class="editable-date" id="editableDate" placeholder="e.g., December 2025 🚴" />
+            </div>
+            <div class="mode-buttons">
+                <button class="mode active" id="calendarMode">📅 Calendar</button>
+                <button class="mode" id="editMode">✏️ Edit</button>
+                <button class="mode" id="manageDefaultsBtn" style="display: none;">⚙️ Manage Defaults</button>
+            </div>
+
+            <div class="important-events">
+                <div class="events-container" id="eventsContainer">
+                    <!-- Events will be dynamically added -->
                 </div>
             </div>
         </div>
@@ -644,49 +39,58 @@
             <div class="day-nav-wrapper">
                 <button class="nav-arrow" id="prevDay">‹</button>
                 <div class="day-tabs-container">
-                    <div class="day-tabs">
-                        <div class="day-tab" data-day="monday">
-                            <div class="day-name">Monday</div>
-                            <div class="day-date">Dec 8</div>
-                        </div>
-                        <div class="day-tab" data-day="tuesday">
-                            <div class="day-name">Tuesday</div>
-                            <div class="day-date">Dec 9</div>
-                        </div>
-                        <div class="day-tab" data-day="wednesday">
-                            <div class="day-name">Wednesday</div>
-                            <div class="day-date">Dec 10</div>
-                        </div>
-                        <div class="day-tab" data-day="thursday">
-                            <div class="day-name">Thursday</div>
-                            <div class="day-date">Dec 11</div>
-                        </div>
-                        <div class="day-tab" data-day="friday">
-                            <div class="day-name">Friday</div>
-                            <div class="day-date">Dec 12</div>
-                        </div>
-                        <div class="day-tab" data-day="saturday">
-                            <div class="day-name">Saturday</div>
-                            <div class="day-date">Dec 13</div>
-                        </div>
-                        <div class="day-tab" data-day="sunday">
-                            <div class="day-name">Sunday</div>
-                            <div class="day-date">Dec 14</div>
-                        </div>
+                    <div class="day-tabs" id="dayTabsContainer">
+                        <!-- Day tabs will be dynamically generated -->
                     </div>
                 </div>
                 <button class="nav-arrow" id="nextDay">›</button>
+                <button class="add-day-btn" id="addDayBtn" title="Add New Day/Week">➕</button>
             </div>
         </div>
 
-        <div class="content active" id="scheduleContent">
-            </div>
+        <div class="content active" id="scheduleContent"></div>
 
         <div class="content" id="shoppingContent">
+            <div class="shopping-content" style="max-width: 900px; margin: 0 auto;">
+                <!-- Import Button -->
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
+                    <button onclick="openImportShopping()" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; border: none; padding: 12px 24px; border-radius: 10px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(79, 172, 254, 0.3); transition: all 0.3s ease; font-size: 15px; display: flex; align-items: center; gap: 8px;"
+                            onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(79, 172, 254, 0.4)';"
+                            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(79, 172, 254, 0.3)';">
+                        <span style="font-size: 18px;">🛒</span>
+                        <span>Import Shopping</span>
+                    </button>
+                </div>
+                
+                <div id="shoppingDisplay" style="background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); min-height: 200px;">
+                    <div style="text-align: center; color: #999; padding: 40px 20px;">
+                        <p style="font-size: 18px; margin: 0;">📝 No shopping list yet</p>
+                        <p style="font-size: 14px; margin: 10px 0 0 0;">Use "🛒 Import Shopping" button above to add your list</p>
+                    </div>
+                </div>
             </div>
+        </div>
 
         <div class="content" id="recipesContent">
+            <div class="recipes-content" style="max-width: 900px; margin: 0 auto;">
+                <!-- Import Button -->
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 20px;">
+                    <button onclick="openImportRecipes()" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white; border: none; padding: 12px 24px; border-radius: 10px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(67, 233, 123, 0.3); transition: all 0.3s ease; font-size: 15px; display: flex; align-items: center; gap: 8px;"
+                            onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(67, 233, 123, 0.4)';"
+                            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(67, 233, 123, 0.3)';">
+                        <span style="font-size: 18px;">👨‍🍳</span>
+                        <span>Import Recipes</span>
+                    </button>
+                </div>
+                
+                <div id="recipesDisplay" style="background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); min-height: 200px;">
+                    <div style="text-align: center; color: #999; padding: 40px 20px;">
+                        <p style="font-size: 18px; margin: 0;">👨‍🍳 No recipes yet</p>
+                        <p style="font-size: 14px; margin: 10px 0 0 0;">Use "👨‍🍳 Import Recipes" button above to add recipes</p>
+                    </div>
+                </div>
             </div>
+        </div>
     </div>
 
     <div class="bottom-nav">
@@ -706,1522 +110,695 @@
 
     <button class="scroll-top" id="scrollTop">↑</button>
 
-    <script id="systemInstructions" type="application/json">
-    {
-        "version": "4.1",
-        "lastUpdated": "2025-12-08",
-        "instructions": "Strict compliance with 07:00 wake, 30-min routine, 30-min Bike ride travel, and 'Straight to Bed' rule for late shifts. Hindi now 10 min daily on non-late-shift nights."
-    }
-    </script>
-
-    <script>
-        const scheduleData = {
-            "metadata": {
-                "owner": "Ivan",
-                "generated": "2025-12-08",
-                "period": "December 8-14, 2025",
-                "version": "4.1 (Final Rota & Rules)",
-                "foodInventory": {
-                    "lastUpdate": "2025-12-08",
-                    "current": {
-                        "eggs": 8,
-                        "pasta": "1000g",
-                        "bananas": 0,
-                        "milk": "2000ml",
-                        "chicken": "0g (fresh/frozen)",
-                        "bread": "0 loaves"
-                    },
-                    "predictedLeftovers": {
-                        "eggs": "0 (used all 8 old eggs, used 6 new eggs)",
-                        "pasta": "~700g (still lots!)",
-                        "bananas": "0",
-                        "milk": "~1300ml",
-                        "chicken": "0g",
-                        "bread": "0"
-                    }
-                }
-            },
-            "exams": {
-                "english": {
-                    "date": "2025-12-11T09:30:00",
-                    "name": "Functional Skills English Level 1"
-                },
-                "math": {
-                    "date": "2025-12-16T09:30:00",
-                    "name": "Functional Skills Math Level 1"
-                }
-            },
-            "days": {
-                // MONDAY, DECEMBER 8
-                "monday": {
-                    "date": "2025-12-08",
-                    "title": "Monday December 8",
-                    "subtitle": "Day Off - Max Math Prep + Shopping!",
-                    "motivation": "🎯 Use this day to shop, study Math, and get organized for the week!",
-                    "blocks": [
-                        {
-                            "time": "07:00-07:30",
-                            "title": "🌅 Morning Routine (30 min)",
-                            "tasks": [
-                                "Wake at 07:00",
-                                "Shower",
-                                "Get dressed"
-                            ],
-                            "note": "✅ Must keep routine to 30 minutes! Phone away by 22:00."
-                        },
-                        {
-                            "time": "07:30-08:00",
-                            "title": "🍳 Breakfast",
-                            "tasks": [
-                                "Scrambled eggs (2 eggs)",
-                                "Toast with PB",
-                                "Water"
-                            ],
-                            "food": "🍽️ Eggs + Toast (using leftovers!)"
-                        },
-                        {
-                            "time": "08:00-09:30",
-                            "title": "📚 Math Study: Key Concepts",
-                            "tasks": [
-                                "Review formulas and main topics",
-                                "Practice geometry problems"
-                            ],
-                            "note": "💡 Light exercise break at 09:00 (5 min)"
-                        },
-                        {
-                            "time": "09:30-10:30",
-                            "title": "🛒 Shopping Time",
-                            "tasks": [
-                                "Walk to Tesco/Asda",
-                                "Buy only what's on list!",
-                                "Budget £5-20",
-                                "Find Alarm Clock"
-                            ],
-                            "note": "⚠️ CRITICAL: Must buy alarm clock today!"
-                        },
-                        {
-                            "time": "10:30-12:00",
-                            "title": "📚 Math Study: Practice Exam",
-                            "tasks": [
-                                "Timed practice section (60 min)",
-                                "Review errors"
-                            ]
-                        },
-                        {
-                            "time": "12:00-13:00",
-                            "title": "🍝 Lunch (Portion Control)",
-                            "tasks": [
-                                "Cook Simple Pasta (150g from 1kg supply)",
-                                "Cook for 2, eat half today, save half for next meal",
-                                "Eat Banana (1 of 5 new)"
-                            ],
-                            "food": "🍽️ Pasta + Sauce"
-                        },
-                        {
-                            "time": "13:00-17:00",
-                            "title": "💻 Web Development Session (4 hours)",
-                            "tasks": [
-                                "Web dev project work (90 min)",
-                                "Light exercise/scroll break (30 min)",
-                                "Web dev project work (90 min)",
-                                "Total 3 hours of 5-hour goal done today!"
-                            ],
-                            "note": "🎯 Focus on reducing waste of time on scrolling. Goal: 1-2 hours screentime for scrolling/leisure."
-                        },
-                        {
-                            "time": "17:00-19:00",
-                            "title": "📐 Math Study: Focused Practice",
-                            "tasks": [
-                                "Focus on weak areas identified in practice exam",
-                                "Go over word problems"
-                            ]
-                        },
-                        {
-                            "time": "19:00-20:00",
-                            "title": "Dinner (Portion Control)",
-                            "tasks": [
-                                "Cook Chicken (New)",
-                                "Simple rice or veg side",
-                                "Cook for 2, eat half today, save half for Thursday dinner"
-                            ],
-                            "food": "🍽️ Chicken meal (New Chicken!)"
-                        },
-                        {
-                            "time": "20:00-22:00",
-                            "title": "✅ Prepare for tomorrow / Chill",
-                            "tasks": [
-                                "Set out clothes and uniform",
-                                "Review Math notes for Tuesday College"
-                            ]
-                        },
-                        {
-                            "time": "22:00-22:30",
-                            "title": "🌙 Evening Routine",
-                            "tasks": [
-                                "Brush teeth",
-                                "Set NEW ALARM CLOCK!",
-                                "Phone in different room (22:00 rule!)"
-                            ]
-                        },
-                        {
-                            "time": "22:50-23:00",
-                            "title": "🗣️ Hindi Practice",
-                            "tasks": [
-                                "10 minutes of vocabulary review (Goal: 1/7)"
-                            ]
-                        },
-                        {
-                            "time": "23:00",
-                            "title": "😴 Sleep",
-                            "tasks": [
-                                "Lights out at 23:00",
-                                "8 hours sleep"
-                            ]
-                        }
-                    ]
-                },
-                // TUESDAY, DECEMBER 9
-                "tuesday": {
-                    "date": "2025-12-09",
-                    "title": "Tuesday December 9",
-                    "subtitle": "College Math + Late Work Shift",
-                    "motivation": "💪 Normal college day + long work shift. Stay focused!",
-                    "blocks": [
-                        {
-                            "time": "07:00-07:30",
-                            "title": "🌅 Morning Routine (30 min)",
-                            "tasks": [
-                                "Wake with ALARM CLOCK!",
-                                "Shower",
-                                "Get dressed"
-                            ],
-                            "note": "💡 First day with new alarm!"
-                        },
-                        {
-                            "time": "07:30-08:00",
-                            "title": "🍳 Breakfast",
-                            "tasks": [
-                                "Scrambled eggs (2 eggs)",
-                                "Toast",
-                                "Eat Banana (2 of 5 new)"
-                            ],
-                            "food": "🍽️ Eggs + toast (using leftovers!)"
-                        },
-                        {
-                            "time": "08:00-08:55",
-                            "title": "📚 Quick Review / Prep",
-                            "tasks": [
-                                "Final look at Math notes",
-                                "Pack college bag"
-                            ]
-                        },
-                        {
-                            "time": "08:55-09:25",
-                            "title": "🚴 Bike to College",
-                            "tasks": [
-                                "30-minute BIKE ride",
-                                "Arrive 09:25 (5 min early!)"
-                            ],
-                            "note": "✅ Bike ride rule enforced."
-                        },
-                        {
-                            "time": "09:30-12:30",
-                            "title": "🏛️ College: Functional Skills Math",
-                            "tasks": [
-                                "Take notes",
-                                "Ask questions about the exam"
-                            ]
-                        },
-                              
-                             {
-                            "time": "12:30-13:15",
-                            "title": "🛒 Shopping Time",
-                            "tasks": [
-                                "Walk to Tesco",
-                                "Buy only what's on list!",
-                                "Budget £5-20",
-                                "Find Alarm Clock"
-                            ],
-                            "note": "⚠️ CRITICAL: Must buy alarm clock today!"
-                        },
-
-
-                        {
-                            "time": "13:15-13:45",
-                            "title": "🚴 Bike Home",
-                            "tasks": [                              
-                                "30-minute BIKE ride"
-                            ]
-                        },
-                        {
-                            "time": "13:45-14:10",
-                            "title": "🍝 Lunch (Leftovers)",
-                            "tasks": [
-                                "Leftover Simple Pasta (150g from 1kg supply)",
-                                "Water"
-                            ],
-                            "food": "🍽️ Pasta leftovers"
-                        },
-                        {
-                            "time": "14:10-16:00",
-                            "title": "📝 English & Math Review",
-                            "tasks": [
-                                "Light English review (1 hour)",
-                                "Math practice problems (2 hours)"
-                            ]
-                        },
-                        {
-                            "time": "16:00-16:44",
-                            "title": "👔 Get Ready for Work",
-                            "tasks": [
-                                "Change into uniform",
-                                "Pack water and snack"
-                            ]
-                        },
-                        {
-                            "time": "16:44-16:57",
-                            "title": "🚶 Walk to Work",
-                            "tasks": [
-                                "13-minute walk",
-                                "Arrive 16:57 for 17:00 start (3 min early!)"
-                            ]
-                        },
-                        {
-                            "time": "17:00-23:30",
-                            "title": "💼 Work Shift: Nando's",
-                            "tasks": [
-                                "6.5-hour shift"
-                            ],
-                            "food": "🍽️ Staff meal (FREE!)"
-                        },
-                        {
-                            "time": "23:30-23:43",
-                            "title": "🚶 Walk Home",
-                            "tasks": [
-                                "13-minute walk"
-                            ]
-                        },
-                        {
-                            "time": "23:43-23:53",
-                            "title": "🚿 Quick Shower (10 min)",
-                            "tasks": [
-                                "Must shower after work!",
-                                "Set alarms"
-                            ],
-                            "note": "❌ NO HINDI: 'Straight to Bed' rule enforced for late arrival."
-                        },
-                        {
-                            "time": "23:53-00:00",
-                            "title": "😴 Wind Down & Sleep",
-                            "tasks": [
-                                "Phone away at 22:00, or immediately upon arrival",
-                                "Lights out (later start due to late shift!)"
-                            ]
-                        }
-                    ]
-                },
-                // WEDNESDAY, DECEMBER 10
-                "wednesday": {
-                    "date": "2025-12-10",
-                    "title": "Wednesday December 10",
-                    "subtitle": "Work Day - Focused Morning Study",
-                    "motivation": "📝 Work in the afternoon. Crush English prep in the morning – tomorrow is exam day!",
-                    "blocks": [
-                        {
-                            "time": "07:00-07:30",
-                            "title": "🌅 Morning Routine (30 min)",
-                            "tasks": [
-                                "Wake with alarm clock",
-                                "Shower",
-                                "Get ready"
-                            ]
-                        },
-                        {
-                            "time": "07:30-08:00",
-                            "title": "🍳 Breakfast",
-                            "tasks": [
-                                "Scrambled eggs (2 eggs)",
-                                "Toast",
-                                "Eat Banana (3 of 5 new)"
-                            ],
-                            "food": "🍽️ Eggs + toast (using leftovers!)"
-                        },
-                        {
-                            "time": "08:00-10:00",
-                            "title": "📚 Light English Review",
-                            "tasks": [
-                                "Review key points (don't cram!)",
-                                "Calm confidence building",
-                                "Organize materials for tomorrow"
-                            ],
-                            "note": "💡 LIGHT review only! You're ready!"
-                        },
-                        {
-                            "time": "10:00-11:30",
-                            "title": "📐 Math Study",
-                            "tasks": [
-                                "Practice speed and accuracy with basic arithmetic",
-                                "Review calculator use"
-                            ]
-                        },
-                        {
-                            "time": "11:30-11:44",
-                            "title": "👔 Get Ready for Work",
-                            "tasks": [
-                                "Change into uniform",
-                                "Pack water and snack"
-                            ]
-                        },
-                        {
-                            "time": "11:44-11:57",
-                            "title": "🚶 Walk to Work",
-                            "tasks": [
-                                "13-minute walk",
-                                "Arrive 11:57 for 12:00 start (3 min early!)"
-                            ]
-                        },
-                        {
-                            "time": "12:00-21:00",
-                            "title": "💼 Work Shift: Nando's",
-                            "tasks": [
-                                "9-hour shift"
-                            ],
-                            "food": "🍽️ Staff meal (FREE!)"
-                        },
-                        {
-                            "time": "21:00-21:13",
-                            "title": "🚶 Walk Home",
-                            "tasks": [
-                                "13-minute walk"
-                            ]
-                        },
-                        {
-                            "time": "21:13-21:23",
-                            "title": "🚿 Quick Shower (10 min)",
-                            "tasks": [
-                                "Must shower after work!"
-                            ]
-                        },
-                        {
-                            "time": "21:23-22:30",
-                            "title": "📝 Final Exam Prep / Chill",
-                            "tasks": [
-                                "Lay out exam clothes, pens, ID",
-                                "Light snack if hungry"
-                            ],
-                            "note": "💡 Get a good 8-hour sleep! This is key."
-                        },
-                        {
-                            "time": "22:50-23:00",
-                            "title": "🗣️ Hindi Practice",
-                            "tasks": [
-                                "10 minutes of vocabulary review (Goal: 2/7)"
-                            ]
-                        },
-                        {
-                            "time": "23:00",
-                            "title": "😴 Sleep",
-                            "tasks": [
-                                "Lights out at 23:00"
-                            ]
-                        }
-                    ]
-                },
-                // THURSDAY, DECEMBER 11 (EXAM DAY)
-                "thursday": {
-                    "date": "2025-12-11",
-                    "title": "Thursday December 11 - ENGLISH EXAM!",
-                    "subtitle": "Exam Morning + Full Afternoon Math/Goals (NO WORK)",
-                    "motivation": "📝 Trust your preparation! Today is your exam, followed by a full day of study/goals!",
-                    "blocks": [
-                        {
-                            "time": "07:00-07:30",
-                            "title": "🌅 Morning Routine (30 min)",
-                            "tasks": [
-                                "Wake with alarm clock",
-                                "Shower",
-                                "Get dressed"
-                            ]
-                        },
-                        {
-                            "time": "07:30-08:00",
-                            "title": "🍳 Brain Fuel Breakfast",
-                            "tasks": [
-                                "Scrambled eggs (2 eggs)",
-                                "Toast",
-                                "Eat Banana (4 of 5 new)",
-                                "Drink water calmly"
-                            ],
-                            "food": "🍽️ Brain-power breakfast! (using leftovers!)"
-                        },
-                        {
-                            "time": "08:00-08:30",
-                            "title": "📝 Final Check & Prep",
-                            "tasks": [
-                                "Pack pens, pencils, ID",
-                                "Light review (5-10 min MAX)",
-                                "Positive affirmations"
-                            ],
-                            "note": "💡 You know this! Trust yourself!"
-                        },
-                        {
-                            "time": "08:30-09:00",
-                            "title": "🚴 Bike to College (Exam)",
-                            "tasks": [
-                                "30-minute BIKE ride",
-                                "Arrive 09:00 (30 min early!)",
-                                "Find exam room, settle nerves"
-                            ],
-                            "note": "✅ Bike ride rule enforced."
-                        },
-                        {
-                            "time": "09:30-11:30",
-                            "title": "📝 ENGLISH EXAM",
-                            "tasks": [
-                                "Read questions carefully",
-                                "Manage time wisely"
-                            ],
-                            "note": "💪 Trust your preparation!"
-                        },
-                        {
-                            "time": "11:30-12:00",
-                            "title": "🎉 EXAM DONE! / Bike Home",
-                            "tasks": [
-                                "Deep breath - you did it!",
-                                "Bike home (30 min)"
-                            ],
-                            "note": "🥳 Focus on Math now!"
-                        },
-                        {
-                            "time": "12:00-13:00",
-                            "title": "🍝 Lunch (Leftovers)",
-                            "tasks": [
-                                "Leftover Simple Pasta (150g from 1kg supply)",
-                                "15 minutes of relaxing, NO study"
-                            ],
-                            "food": "🍽️ Quick/Simple Lunch (Last of the planned pasta!)"
-                        },
-                        {
-                            "time": "13:00-16:00",
-                            "title": "📐 Math Prep Session",
-                            "tasks": [
-                                "Shift focus to Math (next week's exam)",
-                                "Practice problems on calculator skills (3 hours total)"
-                            ]
-                        },
-                        {
-                            "time": "16:00-17:00",
-                            "title": "🏋️ Light Exercise & Rest",
-                            "tasks": [
-                                "Go for a walk/short jog",
-                                "Home exercise (30 min)"
-                            ],
-                            "note": "💡 Goal: Light exercise achieved!"
-                        },
-                        {
-                            "time": "17:00-19:00",
-                            "title": "Dinner & Prep",
-                            "tasks": [
-                                "Leftover Chicken meal (from Monday)",
-                                "Prepare uniform for Friday shift"
-                            ],
-                            "food": "🍽️ Leftover Chicken Meal (Portion control payoff!)"
-                        },
-                        {
-                            "time": "19:00-22:00",
-                            "title": "📚 Math Review/Free Time",
-                            "tasks": [
-                                "Final Math review session (1 hour)",
-                                "Reduce screentime (scroll/leisure)"
-                            ]
-                        },
-                        {
-                            "time": "22:00-22:50",
-                            "title": "🌙 Evening Routine",
-                            "tasks": [
-                                "Shower",
-                                "Brush teeth",
-                                "Phone away 22:00!"
-                            ]
-                        },
-                        {
-                            "time": "22:50-23:00",
-                            "title": "🗣️ Hindi Practice",
-                            "tasks": [
-                                "10 minutes of vocabulary review (Goal: 3/7)"
-                            ]
-                        },
-                        {
-                            "time": "23:00",
-                            "title": "😴 Sleep",
-                            "tasks": [
-                                "Lights out at 23:00"
-                            ]
-                        }
-                    ]
-                },
-                // FRIDAY, DECEMBER 12
-                "friday": {
-                    "date": "2025-12-12",
-                    "title": "Friday December 12",
-                    "subtitle": "Work Day - Morning Math Focus + Late Shift",
-                    "motivation": "💪 Late work shift. Get Math done first thing!",
-                    "blocks": [
-                        {
-                            "time": "07:00-07:30",
-                            "title": "🌅 Morning Routine (30 min)",
-                            "tasks": [
-                                "Wake with alarm",
-                                "Shower",
-                                "Get ready"
-                            ]
-                        },
-                        {
-                            "time": "07:30-08:00",
-                            "title": "🍳 Breakfast",
-                            "tasks": [
-                                "Scrambled eggs (2 eggs)",
-                                "Toast",
-                                "Water"
-                            ],
-                            "food": "🍽️ Eggs + toast (using LAST of the old eggs!)"
-                        },
-                        {
-                            "time": "08:00-12:30",
-                            "title": "📐 Math Study: Focused Practice",
-                            "tasks": [
-                                "Review past test papers/weak areas (2 hours)",
-                                "Focus on any identified gaps"
-                            ],
-                            "note": "💡 Use this free morning for the exam next week!"
-                        },
-                        {
-                            "time": "12:30-13:00",
-                            "title": "🍝 Lunch (Quick)",
-                            "tasks": [
-                                "Quick, easy meal (e.g., sandwich, instant noodles)",
-                                "Eat Banana (5 of 5 new)"
-                            ],
-                            "food": "🍽️ Quick Lunch"
-                        },
-                        {
-                            "time": "13:00-16:44",
-                            "title": "📚 Relax / Final Prep",
-                            "tasks": [
-                                "Light reading/music",
-                                "Prepare uniform and bag for work"
-                            ],
-                            "note": "💡 No Web Dev today - saving energy for the shift."
-                        },
-                        {
-                            "time": "16:44-16:57",
-                            "title": "🚶 Walk to Work",
-                            "tasks": [
-                                "13-minute walk",
-                                "Arrive 16:57 for 17:00 start (3 min early!)"
-                            ]
-                        },
-                        {
-                            "time": "17:00-23:30",
-                            "title": "💼 Work Shift: Nando's",
-                            "tasks": [
-                                "6.5-hour shift"
-                            ],
-                            "food": "🍽️ Staff meal (FREE!)"
-                        },
-                        {
-                            "time": "23:30-23:43",
-                            "title": "🚶 Walk Home",
-                            "tasks": [
-                                "13-minute walk"
-                            ]
-                        },
-                        {
-                            "time": "23:43-23:53",
-                            "title": "🚿 Quick Shower (10 min)",
-                            "tasks": [
-                                "Must shower after work!",
-                                "Set alarms"
-                            ],
-                            "note": "❌ NO HINDI: 'Straight to Bed' rule enforced for late arrival."
-                        },
-                        {
-                            "time": "23:53-00:00",
-                            "title": "😴 Wind Down & Sleep",
-                            "tasks": [
-                                "Phone away",
-                                "Lights out (later start due to late shift!)"
-                            ]
-                        }
-                    ]
-                },
-                // SATURDAY, DECEMBER 13
-                "saturday": {
-                    "date": "2025-12-13",
-                    "title": "Saturday December 13",
-                    "subtitle": "Work Day - Focused Morning Goals",
-                    "motivation": "💪 New shift time: 16:00-22:00. Get Math review and goals done first!",
-                    "blocks": [
-                        {
-                            "time": "07:00-07:30",
-                            "title": "🌅 Morning Routine (30 min)",
-                            "tasks": [
-                                "Wake with alarm",
-                                "Shower",
-                                "Get ready"
-                            ]
-                        },
-                        {
-                            "time": "07:30-08:00",
-                            "title": "🍳 Breakfast",
-                            "tasks": [
-                                "Scrambled eggs (2 eggs - from new pack)",
-                                "Toast",
-                                "Water"
-                            ],
-                            "food": "🍽️ Eggs + toast (Using newly bought eggs!)"
-                        },
-                        {
-                            "time": "08:00-12:00",
-                            "title": "📐 Math Study Review",
-                            "tasks": [
-                                "Full practice test (timed 90 min)",
-                                "Review errors immediately (90 min)",
-                                "Total 4 hours of focused study"
-                            ]
-                        },
-                        {
-                            "time": "12:00-13:00",
-                            "title": "🍝 Lunch",
-                            "tasks": [
-                                "Quick, easy lunch",
-                                "Water"
-                            ],
-                            "food": "🍽️ Quick Lunch"
-                        },
-                        {
-                            "time": "13:00-15:44",
-                            "title": "📚 Chill / Get Ready",
-                            "tasks": [
-                                "Light reading or stretching",
-                                "Prepare uniform and bag for work"
-                            ]
-                        },
-                        {
-                            "time": "15:44-15:57",
-                            "title": "🚶 Walk to Work",
-                            "tasks": [
-                                "13-minute walk",
-                                "Arrive 15:57 for 16:00 start (3 min early!)"
-                            ]
-                        },
-                        {
-                            "time": "16:00-22:00",
-                            "title": "💼 Work Shift: Nando's",
-                            "tasks": [
-                                "6-hour shift"
-                            ],
-                            "food": "🍽️ Staff meal (FREE!)"
-                        },
-                        {
-                            "time": "22:00-22:13",
-                            "title": "🚶 Walk Home",
-                            "tasks": [
-                                "13-minute walk"
-                            ]
-                        },
-                        {
-                            "time": "22:13-22:23",
-                            "title": "🚿 Quick Shower (10 min)",
-                            "tasks": [
-                                "Must shower after work!"
-                            ]
-                        },
-                        {
-                            "time": "22:50-23:00",
-                            "title": "🗣️ Hindi Practice",
-                            "tasks": [
-                                "10 minutes of vocabulary review (Goal: 4/7)"
-                            ]
-                        },
-                        {
-                            "time": "23:00",
-                            "title": "😴 Sleep",
-                            "tasks": [
-                                "Good rest"
-                            ]
-                        }
-                    ]
-                },
-                // SUNDAY, DECEMBER 14
-                "sunday": {
-                    "date": "2025-12-14",
-                    "title": "Sunday December 14",
-                    "subtitle": "Work Day - Goals, Web Dev & Final Shift",
-                    "motivation": "🎉 Use your morning for Web Dev goals, then crush the final shift of the week!",
-                    "blocks": [
-                        {
-                            "time": "08:00-08:30",
-                            "title": "🌅 Morning Routine (30 min)",
-                            "tasks": [
-                                "Wake up, easy start",
-                                "Shower",
-                                "Get dressed"
-                            ]
-                        },
-                        {
-                            "time": "08:30-09:00",
-                            "title": "🍳 Breakfast",
-                            "tasks": [
-                                "Scrambled eggs (2 eggs - from new pack)",
-                                "Toast with PB",
-                                "Water"
-                            ],
-                            "food": "🍽️ Eggs + toast (Using newly bought eggs!)"
-                        },
-                        {
-                            "time": "09:00-13:00",
-                            "title": "💻 Web Development Session (4 hours)",
-                            "tasks": [
-                                "Web dev project work (90 min)",
-                                "Light exercise/scroll break (30 min)",
-                                "Web dev project work (90 min)",
-                                "Total 7 hours of 5-hour goal complete! (Goal Achieved!)"
-                            ]
-                        },
-                        {
-                            "time": "13:00-14:00",
-                            "title": "🍝 Lunch & Prep",
-                            "tasks": [
-                                "Quick, easy lunch (sandwich/soup)",
-                                "Prepare uniform and bag for work"
-                            ],
-                            "food": "🍽️ Quick Lunch"
-                        },
-                        {
-                            "time": "14:00-16:14",
-                            "title": "📐 Math Study / Gym Prep",
-                            "tasks": [
-                                "Light Math review for the coming week's classes",
-                                "Organize notes",
-                                "Prepare yourself for the gym (e.g., stretching, planning routine)"
-                            ],
-                            "note": "💡 All goals for the week achieved! (Web Dev, Hindi, Exercise)"
-                        },
-                        {
-                            "time": "16:14-16:27",
-                            "title": "🚶 Walk to Work",
-                            "tasks": [
-                                "13-minute walk",
-                                "Arrive 16:27 for 16:30 start (3 min early!)"
-                            ]
-                        },
-                        {
-                            "time": "16:30-23:30",
-                            "title": "💼 Work Shift: Nando's",
-                            "tasks": [
-                                "7-hour shift"
-                            ],
-                            "food": "🍽️ Staff meal (FREE!)"
-                        },
-                        {
-                            "time": "23:30-23:43",
-                            "title": "🚶 Walk Home",
-                            "tasks": [
-                                "13-minute walk"
-                            ]
-                        },
-                        {
-                            "time": "23:43-23:53",
-                            "title": "🚿 Quick Shower (10 min)",
-                            "tasks": [
-                                "Must shower after work!",
-                                "Set alarms for Monday"
-                            ],
-                            "note": "❌ NO HINDI: 'Straight to Bed' rule enforced for late arrival."
-                        },
-                        {
-                            "time": "23:53-00:00",
-                            "title": "😴 Wind Down & Sleep",
-                            "tasks": [
-                                "Lights out (later start due to late shift!)"
-                            ]
-                        }
-                    ]
-                }
-            },
-            "shopping": {
-                "week_of": "2025-12-08",
-                "shop_day": "Tuesday Dec 9",
-                "shop_time": "12:30-13:15",
-                "timing_note": "CRITICAL! Need items + Alarm Clock today!",
-                "budget": "£5-20",
-                "estimated_total": "£15.50",
-                "reasoning": [
-                    "Very low budget this week thanks to massive pasta and milk leftovers!",
-                    "Using 8 leftover eggs for breakfasts (Mon-Fri). Need 6 new eggs for Sat/Sun/next week.",
-                    "Using 300g of existing 1kg pasta supply (2 meals) = FREE carbs!",
-                    "5 free staff meals this week!"
-                ],
-                "list": [
-                    {
-                        "item": "Alarm clock",
-                        "quantity": "1",
-                        "price": "£5-8",
-                        "reason": "Crucial for reducing phone use and ensuring 07:00 wake-up goal."
-                    },
-                    {
-                        "item": "Eggs",
-                        "quantity": "6-pack",
-                        "price": "~£1.50",
-                        "reason": "Need 14 total for the week (7 breakfasts). Have 8 left, need to buy 6."
-                    },
-                    {
-                        "item": "Bananas",
-                        "quantity": "5",
-                        "price": "~£1.00",
-                        "reason": "All 7 from last week are gone. Need 5 for daily snacks."
-                    },
-                    {
-                        "item": "Chicken Breast",
-                        "quantity": "300g",
-                        "price": "~£3.00",
-                        "reason": "For 2 non-staff meal dinners (Mon, Thu)."
-                    },
-                    {
-                        "item": "Bread loaf",
-                        "quantity": "1",
-                        "price": "~£1.00",
-                        "reason": "Staple for toast/sandwiches. Assuming old one is finished."
-                    }
-                ],
-                "skip_items": [
-                    {
-                        "item": "Pasta",
-                        "quantity": "700g left",
-                        "reason": "You have plenty (1kg!). Will use only ~300g this week."
-                    },
-                    {
-                        "item": "Milk",
-                        "quantity": "2 Litres left",
-                        "reason": "Enough for cereal/tea for multiple weeks."
-                    }
-                ]
-            },
-            "recipes": {
-                "scrambled_eggs": {
-                    "name": "Quick Scrambled Eggs",
-                    "difficulty": "Beginner",
-                    "time": "5 minutes",
-                    "servings": "1 serving (2 eggs)",
-                    "ingredients": [
-                        "2 eggs (from your supply!)",
-                        "Splash of milk (you have 2L!)",
-                        "Butter/Oil",
-                        "Salt & Pepper"
-                    ],
-                    "instructions": [
-                        "Beat 2 eggs with splash milk and seasoning",
-                        "Melt butter/oil in pan medium heat",
-                        "Pour eggs in",
-                        "Scrape from the edges towards center (don't stir constantly!)",
-                        "Cook until set but still moist (2-3 min)",
-                        "Serve on toast"
-                    ],
-                    "video": "https://www.youtube.com/watch?v=PboC4pXyq_Q",
-                    "notes": "💡 Perfect high-protein breakfast. Use your leftover eggs!"
-                },
-                "omelette": {
-                    "name": "Simple Omelette",
-                    "difficulty": "Beginner",
-                    "time": "10 minutes",
-                    "servings": "1 serving (2 eggs)",
-                    "ingredients": [
-                        "2 eggs (from your supply!)",
-                        "Tiny bit milk",
-                        "Salt",
-                        "Oil for pan",
-                        "Optional: chopped onion, carrots, whatever veg"
-                    ],
-                    "instructions": [
-                        "Beat 2 eggs with splash milk and salt",
-                        "Heat pan medium-high with bit of oil",
-                        "Pour eggs in, let spread across pan",
-                        "Cook 2 minutes without stirring",
-                        "When edges set, add any veg on half",
-                        "Fold omelette in half with spatula",
-                        "Cook 1 more minute",
-                        "Slide onto plate"
-                    ],
-                    "video": "https://www.youtube.com/watch?v=4RoLavF2ZLU",
-                    "notes": "💡 Works great with your carrots or onions! Simple and filling."
-                },
-                "simple_pasta": {
-                    "name": "Simple Pasta with Sauce",
-                    "difficulty": "Beginner",
-                    "time": "15 minutes",
-                    "servings": "2 portions (eat half, save half!)",
-                    "ingredients": [
-                        "150g pasta (from your 1kg supply!)",
-                        "1 tin tomato sauce (from shopping)",
-                        "1 small onion chopped (you have 5!)",
-                        "Bit of oil",
-                        "Salt, any spices you have"
-                    ],
-                    "instructions": [
-                        "Boil water in pot with pinch salt",
-                        "Add 150g pasta, cook 8-10 min (read package)",
-                        "Meanwhile: heat oil in pan, cook chopped onion 3 min",
-                        "Add tomato sauce to onions, stir, heat through",
-                        "Drain pasta, toss with sauce. Serve 1 portion, save 1 for next day."
-                    ],
-                    "video": "https://www.youtube.com/watch?v=F_fX2V7H47c",
-                    "notes": "💡 Quick, cheap, and easy. Use your huge pasta stockpile. Make 2 portions - lunch today and tomorrow! Portion control!"
-                },
-                "chicken_pasta": {
-                    "name": "Chicken Meal Prep (Rice/Veg)",
-                    "difficulty": "Easy",
-                    "time": "25 minutes",
-                    "servings": "2 servings (eat half, save half!)",
-                    "ingredients": [
-                        "300g chicken breast (from shopping)",
-                        "Rice or simple veg side",
-                        "Sauce/spices (what you have)"
-                    ],
-                    "instructions": [
-                        "Cook rice/veg in one pot/pan.",
-                        "Cook chicken in a separate pan until done (approx 10-12 min).",
-                        "Serve 150g chicken with half of the rice/veg.",
-                        "Store the other half for the next non-work dinner."
-                    ],
-                    "video": "https://www.youtube.com/results?search_query=simple+chicken+and+rice+meal+prep",
-                    "notes": "💡 Use your new chicken. Good post-study meal. Make two portions!"
-                }
-            },
-            "history": {
-                "week1": {
-                    "period": "December 7-13, 2025 (Original Schedule)",
-                    "shopping": {
-                        "budget": "£22",
-                        "items": ["Alarm clock (£5-8)", "Bread (£1)", "Tomato sauce (£0.80)", "Bananas x3 (£0.60)"]
-                    },
-                    "recipesUsed": [
-                        "scrambled_eggs",
-                        "omelette",
-                        "simple_pasta",
-                        "chicken_pasta",
-                        "instant_noodles"
-                    ],
-                    "leftoverTracking": {
-                        "eggs": "8",
-                        "pasta": "1000g",
-                        "milk": "2000ml",
-                        "bananas": "0",
-                        "bread": "0",
-                        "chicken": "0"
-                    },
-                    "notes": "V2 system launched! The user had high leftovers from initial stock-up/purchases. Shopping was minimal."
-                }
-            }
-        };
-
-        // Initialize app
-        document.addEventListener('DOMContentLoaded', function() {
-            initializeApp();
-        });
-
-        // --- Core Functions (Keep Exactly As Is) ---
-
-        function initializeApp() {
-            renderSchedule();
-            renderShopping();
-            renderRecipes();
-            setupNavigation();
-            setupDayNavigation();
-            setupCheckboxes();
-            loadCheckboxStates();
-            setupScrollToTop();
-            calculateAndDisplayCountdowns();
-            setInterval(calculateAndDisplayCountdowns, 60000); // Update countdowns every minute
-            
-            // Find today's day and activate its tab/content
-            const today = new Date().getDay(); // 0 = Sunday, 1 = Monday, etc.
-            const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-            const todayName = dayNames[today];
-            const todayTab = document.querySelector(`.day-tab[data-day="${todayName}"]`);
-            
-            // If the current day is in the displayed week (Dec 8-14 is Mon-Sun)
-            const scheduleStartDay = new Date('2025-12-08').getDay(); // Monday = 1
-            const scheduleEndDay = new Date('2025-12-14').getDay(); // Sunday = 0
-            
-            // Logic to determine which day to show by default (to avoid showing the wrong Sunday)
-            let defaultDayName = 'monday'; // Default to Monday
-            
-            if (todayName === 'sunday' && new Date().getDate() === 14) {
-                 defaultDayName = 'sunday';
-            } else if (today >= scheduleStartDay || today === scheduleEndDay) {
-                // If today is Mon (1) to Sat (6), use today's tab
-                if (todayName !== 'sunday') {
-                    defaultDayName = todayName;
-                }
-            }
-
-            const defaultTab = document.querySelector(`.day-tab[data-day="${defaultDayName}"]`);
-            
-            // Remove active from all tabs first
-            document.querySelectorAll('.day-tab').forEach(t => t.classList.remove('active'));
-            
-            // Activate the determined default tab
-            if (defaultTab) {
-                defaultTab.classList.add('active');
-                showDay(defaultDayName);
-                updateCurrentTimeHighlight(defaultDayName);
-                autoScrollToCurrentTime();
-            } else {
-                // Fallback to the very first tab in the list (Monday)
-                const firstTab = document.querySelector('.day-tabs .day-tab');
-                if (firstTab) {
-                    firstTab.classList.add('active');
-                    showDay(firstTab.dataset.day);
-                }
-            }
-
-        }
-
-
-        function renderSchedule() {
-            const container = document.getElementById('scheduleContent');
-            let html = '';
-
-            for (const dayName in scheduleData.days) {
-                const day = scheduleData.days[dayName];
-                html += `
-                <div class="day-content" id="${dayName}Content">
-                    <div class="day-header">
-                        <h2>${day.title}</h2>
-                        <div class="subtitle">${day.subtitle}</div>
-                        <div class="motivation">${day.motivation}</div>
+    <!-- Edit Modal -->
+    <div class="modal" id="editModal">
+        <div class="modal-content">
+            <h2 id="modalTitle">Edit Time Block</h2>
+            <div class="error-message" id="errorMessage"></div>
+            <form id="editForm">
+                <div class="form-group">
+                    <label for="blockTime">Time (HH:MM-HH:MM):</label>
+                    <div class="input-with-icon">
+                        <input type="text" id="blockTime" placeholder="e.g., 07:00-08:00" required />
+                        <button type="button" class="icon-btn" id="timePickerBtn" title="Pick Time">🕐</button>
                     </div>
-                `;
-
-                day.blocks.forEach((block, index) => {
-                    const blockId = `${dayName}-block-${index}`;
-                    html += `
-                    <div class="time-block" data-time="${block.time}">
-                        <div class="time">${block.time}</div>
-                        <div class="title">${block.title}</div>
-                    `;
-
-                    if (block.food) {
-                        html += `<div class="food">${block.food}</div>`;
-                    }
-                    if (block.note) {
-                        html += `<div class="note">${block.note}</div>`;
-                    }
-
-                    if (block.tasks && block.tasks.length > 0) {
-                        html += '<div class="tasks">';
-                        block.tasks.forEach((task, taskIndex) => {
-                            const taskId = `${blockId}-task-${taskIndex}`;
-                            html += `
-                                <div class="task-item">
-                                    <input type="checkbox" id="${taskId}">
-                                    <label for="${taskId}">${task}</label>
-                                </div>
-                            `;
-                        });
-                        html += '</div>';
-                    }
-
-                    html += '</div>'; // End time-block
-                });
-
-                html += '</div>'; // End day-content
-            }
-
-            container.innerHTML = html;
-        }
-
-
-        function showDay(day) {
-            document.querySelectorAll('.day-content').forEach(content => {
-                content.classList.remove('active');
-            });
-            document.getElementById(`${day}Content`).classList.add('active');
-        }
-
-        function renderShopping() {
-            const container = document.getElementById('shoppingContent');
-            const shopping = scheduleData.shopping;
-            const predictions = scheduleData.metadata.foodInventory.predictedLeftovers;
-
-            let html = `
-                <div class="shopping-content">
-                    <h2>🛒 Shopping List - ${shopping.shop_day}</h2>
-                    <div class="budget-info">
-                        <h3>Budget: ${shopping.budget} (Estimated: ${shopping.estimated_total})</h3>
-                        <div style="margin-top: 10px; font-size: 14px;">
-                            <strong>⏰ Shopping Time:</strong> ${shopping.shop_time}<br>
-                            <strong style="color: #e65100;">⚠️ ${shopping.timing_note}</strong>
+                    <div class="time-picker" id="timePicker" style="display: none;">
+                        <div class="time-picker-section">
+                            <label>Start:</label>
+                            <select id="startHour"></select>
+                            <span>:</span>
+                            <select id="startMinute"></select>
                         </div>
-                    </div>
-
-                    <div class="shopping-section">
-                        <h3>🧠 Smart Shopping Strategy:</h3>
-                        <ul>
-                            ${shopping.reasoning.map(r => `<li>${r}</li>`).join('')}
-                        </ul>
-                    </div>
-
-                    <div class="shopping-section">
-                        <h3>✨ What to Buy (Low-Cost List):</h3>
-                    `;
-
-            shopping.list.forEach(item => {
-                html += `
-                        <div class="shopping-item">
-                            <div class="item-name">${item.item}</div>
-                            <div class="item-quantity">Quantity: ${item.quantity}${item.price ? ` (~${item.price})` : ''}</div>
-                            <div class="item-reason">${item.reason}</div>
+                        <div class="time-picker-section">
+                            <label>End:</label>
+                            <select id="endHour"></select>
+                            <span>:</span>
+                            <select id="endMinute"></select>
                         </div>
-                    `;
-            });
-            html += '</div><div class="shopping-section"><h3>✅ Items You DON\'T Need (Using What You Have!):</h3>';
-
-            shopping.skip_items.forEach(item => {
-                html += `
-                        <div class="skip-item">
-                            <div class="item-name">${item.item}</div>
-                            <div class="item-quantity">You have: ${item.quantity}</div>
-                            <div class="item-reason">Reason: ${item.reason}</div>
-                        </div>
-                    `;
-            });
-
-            html += `
-                    </div>
-
-                    <div class="leftover-predictions">
-                        <h3>📊 Estimated Leftovers for Next Week (Dec 15-21)</h3>
-                        <p style="font-size: 14px; margin-bottom: 10px;">This is what we project you'll have left for next week's meal planning:</p>
-                        <table class="predictions-table">
-                            <thead>
-                                <tr>
-                                    <th>Item</th>
-                                    <th>Status (Next Week Start)</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr><td>Eggs</td><td>${predictions.eggs}</td></tr>
-                                <tr><td>Pasta</td><td>${predictions.pasta}</td></tr>
-                                <tr><td>Milk</td><td>${predictions.milk}</td></tr>
-                                <tr><td>Bananas</td><td>${predictions.bananas}</td></tr>
-                                <tr><td>Chicken</td><td>${predictions.chicken}</td></tr>
-                                <tr><td>Bread</td><td>${predictions.bread}</td></tr>
-                            </tbody>
-                        </table>
-                        <div class="next-update">Next schedule and shopping list update needed by Dec 15!</div>
+                        <button type="button" class="btn-small" onclick="applyTimePicker()">Apply</button>
                     </div>
                 </div>
-            `;
-            container.innerHTML = html;
-        }
-
-        function renderRecipes() {
-            const container = document.getElementById('recipesContent');
-            const recipes = scheduleData.recipes;
-            let html = '<div class="recipes-content">';
-
-            for (const recipeKey in recipes) {
-                const recipe = recipes[recipeKey];
-                html += `
-                <div class="recipe-card">
-                    <h3>${recipe.name}</h3>
-
-                    <div class="recipe-meta">
-                        <div class="meta-item">
-                            <strong>Difficulty</strong>
-                            <span>${recipe.difficulty}</span>
-                        </div>
-                        <div class="meta-item">
-                            <strong>Time</strong>
-                            <span>${recipe.time}</span>
-                        </div>
-                        <div class="meta-item">
-                            <strong>Servings</strong>
-                            <span>${recipe.servings}</span>
-                        </div>
+                <div class="form-group">
+                    <label for="blockTitle">Title:</label>
+                    <div class="input-with-icon">
+                        <input type="text" id="blockTitle" placeholder="e.g., Morning Routine" required />
+                        <button type="button" class="icon-btn" id="titleSuggestBtn" title="Common Titles">📋</button>
                     </div>
+                    <div class="title-suggestions" id="titleSuggestions" style="display: none;"></div>
+                    <div class="emoji-suggestions" id="emojiSuggestions"></div>
+                </div>
+                <div class="form-group">
+                    <label for="blockTasks">Tasks (one per line):</label>
+                    <textarea id="blockTasks" placeholder="Wake up&#10;Shower&#10;Get dressed"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="blockNote">Note (optional):</label>
+                    <textarea id="blockNote" placeholder="Any additional notes"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="blockVideo">YouTube Video Link (optional):</label>
+                    <input type="url" id="blockVideo" placeholder="https://www.youtube.com/watch?v=..." />
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="applyToAllDays" />
+                        Apply this time block to all days as default
+                    </label>
+                </div>
+                <div class="modal-buttons">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-                    <div class="ingredients">
-                        <h4>Ingredients</h4>
-                        <ul>
-                            ${recipe.ingredients.map(i => `<li>${i}</li>`).join('')}
-                        </ul>
-                    </div>
-
-                    <div class="instructions">
-                        <h4>Instructions</h4>
-                        <ol>
-                            ${recipe.instructions.map(i => `<li>${i}</li>`).join('')}
-                        </ol>
-                    </div>
-
-                    <div class="recipe-notes">${recipe.notes}</div>
-
-                    <div class="recipe-video">
-                        <a href="${recipe.video}" target="_blank">Watch Recipe Video 🎬</a>
+    <!-- Event Modal -->
+    <div class="modal" id="eventModal">
+        <div class="modal-content">
+            <h2 id="eventModalTitle">Add Important Event</h2>
+            <form id="eventForm">
+                <div class="form-group">
+                    <label for="eventName">Event Name:</label>
+                    <input type="text" id="eventName" placeholder="e.g., Math Exam" required />
+                </div>
+                <div class="form-group">
+                    <label for="eventDate">Date & Time:</label>
+                    <input type="datetime-local" id="eventDate" required />
+                </div>
+                <div class="form-group">
+                    <label for="eventColor">Color:</label>
+                    <div class="color-options" id="colorOptions">
+                        <label class="color-option">
+                            <input type="radio" name="color" value="pink" checked />
+                            <span class="color-square" style="background: #f093fb;"></span>
+                            <span>Pink</span>
+                        </label>
+                        <label class="color-option">
+                            <input type="radio" name="color" value="blue" />
+                            <span class="color-square" style="background: #4facfe;"></span>
+                            <span>Blue</span>
+                        </label>
+                        <label class="color-option">
+                            <input type="radio" name="color" value="green" />
+                            <span class="color-square" style="background: #43e97b;"></span>
+                            <span>Green</span>
+                        </label>
+                        <label class="color-option">
+                            <input type="radio" name="color" value="orange" />
+                            <span class="color-square" style="background: #fa709a;"></span>
+                            <span>Orange</span>
+                        </label>
+                        <label class="color-option">
+                            <input type="radio" name="color" value="purple" />
+                            <span class="color-square" style="background: #a8c0ff;"></span>
+                            <span>Purple</span>
+                        </label>
+                        <label class="color-option">
+                            <input type="radio" name="color" value="red" />
+                            <span class="color-square" style="background: #ff6b6b;"></span>
+                            <span>Red</span>
+                        </label>
+                        <label class="color-option">
+                            <input type="radio" name="color" value="yellow" />
+                            <span class="color-square" style="background: #feca57;"></span>
+                            <span>Yellow</span>
+                        </label>
+                        <label class="color-option">
+                            <input type="radio" name="color" value="teal" />
+                            <span class="color-square" style="background: #1dd1a1;"></span>
+                            <span>Teal</span>
+                        </label>
                     </div>
                 </div>
-                `;
-            }
+                <div class="modal-buttons">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeEventModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-            html += '</div>';
-            container.innerHTML = html;
-        }
+    <!-- Manage Defaults Modal -->
+    <div class="modal" id="manageDefaultsModal">
+        <div class="modal-content">
+            <h2>⚙️ Manage Default Blocks</h2>
+            <p style="color: #666; margin-bottom: 20px;">These blocks will be automatically added to all NEW days you create.</p>
+            <div id="defaultBlocksList" style="margin-bottom: 20px;">
+                <!-- Default blocks will be listed here -->
+            </div>
+            <div class="modal-buttons">
+                <button type="button" class="btn btn-secondary" onclick="closeDefaultsModal()">Close</button>
+            </div>
+        </div>
+    </div>
 
-        function setupNavigation() {
-            const navItems = document.querySelectorAll('.nav-item');
-            const contents = document.querySelectorAll('.content');
-
-            navItems.forEach(item => {
-                item.addEventListener('click', () => {
-                    const tab = item.dataset.tab;
-
-                    // Remove active from all
-                    navItems.forEach(n => n.classList.remove('active'));
-                    contents.forEach(c => c.classList.remove('active'));
-
-                    // Add active to clicked item and content
-                    item.classList.add('active');
-                    document.getElementById(tab + 'Content').classList.add('active');
-                });
-            });
-        }
-
-        function setupDayNavigation() {
-            const tabs = document.querySelectorAll('.day-tab');
-            const prevBtn = document.getElementById('prevDay');
-            const nextBtn = document.getElementById('nextDay');
-            const dayArray = Array.from(tabs);
-
-            tabs.forEach(tab => {
-                tab.addEventListener('click', () => {
-                    const day = tab.dataset.day;
-                    showDay(day);
-
-                    // Remove active from all tabs
-                    tabs.forEach(t => t.classList.remove('active'));
-                    // Add active to clicked tab
-                    tab.classList.add('active');
-
-                    // Update current time highlighting for this day
-                    updateCurrentTimeHighlight(day);
-
-                    // Update button states
-                    currentIndex = dayArray.findIndex(t => t.classList.contains('active'));
-                    updateNavButtons(currentIndex, dayArray.length);
-                });
-            });
-
-            // Arrow navigation
-            let currentIndex = dayArray.findIndex(t => t.classList.contains('active'));
-            if (currentIndex === -1) currentIndex = 0; // Default to first day
-
-            prevBtn.addEventListener('click', () => {
-                if (currentIndex > 0) {
-                    currentIndex--;
-                    dayArray[currentIndex].click();
-                }
-            });
-
-            nextBtn.addEventListener('click', () => {
-                if (currentIndex < dayArray.length - 1) {
-                    currentIndex++;
-                    dayArray[currentIndex].click();
-                }
-            });
-
-            function updateNavButtons(index, total) {
-                prevBtn.disabled = (index === 0);
-                nextBtn.disabled = (index === total - 1);
+    <!-- Add Day/Week Modal -->
+    <div class="modal" id="addDayModal">
+        <div class="modal-content">
+            <h2>Add Day or Week</h2>
+            <form id="addDayForm">
+                <!-- Quick Week Planner Section -->
+                <div style="margin-bottom: 20px; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px;">
+                    <div style="text-align: center; margin-bottom: 15px;">
+                        <h3 style="margin: 0 0 8px 0; color: white; font-size: 20px;">📝 Quick Week Planner</h3>
+                        <p style="margin: 0; color: rgba(255,255,255,0.95); font-size: 14px;">Fill form → Get prompts → Use any AI → Import back</p>
+                    </div>
+                    
+                    <button type="button" onclick="openPromptGenerator()" style="width: 100%; padding: 16px; background: white; color: #667eea; border: none; border-radius: 10px; font-size: 17px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: all 0.3s ease;">
+                        📝 Generate Prompts (Schedule + Shopping + Recipes)
+                    </button>
+                    
+                    <div style="margin-top: 15px; padding: 15px; background: rgba(255,255,255,0.1); border-radius: 8px; border-left: 3px solid white;">
+                        <p style="margin: 0; color: white; font-size: 13px; line-height: 1.6;">
+                            <strong>How it works:</strong><br>
+                            1️⃣ Fill form with your schedule info<br>
+                            2️⃣ Copy the generated prompt<br>
+                            3️⃣ Paste into ChatGPT/Claude/any AI<br>
+                            4️⃣ Copy what the AI creates<br>
+                            5️⃣ Use buttons below to import each part 👇
+                        </p>
+                    </div>
+                </div>
                 
-                // Also scroll the tabs container to keep the active tab centered
-                const activeTab = dayArray[index];
-                const container = document.querySelector('.day-tabs-container');
-                const scrollPos = activeTab.offsetLeft - container.offsetWidth / 2 + activeTab.offsetWidth / 2;
-                container.scrollTo({
-                    left: scrollPos,
-                    behavior: 'smooth'
-                });
-            }
-
-            // Initial button state
-            updateNavButtons(currentIndex, dayArray.length);
-        }
-
-        function setupCheckboxes() {
-            document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
-                // Ensure unique IDs for all checkboxes for local storage
-                if (!checkbox.id) {
-                    let parentBlock = checkbox.closest('.time-block');
-                    let dayContent = checkbox.closest('.day-content');
-                    if (parentBlock && dayContent) {
-                        let day = dayContent.id.replace('Content', '');
-                        let blockTime = parentBlock.dataset.time.replace(/[^a-zA-Z0-9]/g, '');
-                        let taskIndex = Array.from(parentBlock.querySelectorAll('input[type="checkbox"]')).indexOf(checkbox);
-                        checkbox.id = `${day}-${blockTime}-task-${taskIndex}`;
-                        checkbox.nextElementSibling.setAttribute('for', checkbox.id);
-                    }
-                }
+                <!-- Import Buttons Section -->
+                <div style="margin-bottom: 20px; padding: 20px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); border-radius: 12px;">
+                    <div style="text-align: center; margin-bottom: 15px;">
+                        <h3 style="margin: 0 0 8px 0; color: white; font-size: 18px;">📥 Import AI Response</h3>
+                        <p style="margin: 0; color: rgba(255,255,255,0.95); font-size: 13px;">Choose what to import:</p>
+                    </div>
+                    
+                    <div style="display: grid; gap: 10px;">
+                        <button type="button" onclick="openImportSchedule()" style="width: 100%; padding: 14px; background: white; color: #f5576c; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: all 0.3s ease;">
+                            📅 Import Schedule (Days & Time Blocks)
+                        </button>
+                        
+                        <button type="button" onclick="openImportShopping()" style="width: 100%; padding: 14px; background: white; color: #00b4d8; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: all 0.3s ease;">
+                            🛒 Import Shopping List (Fill Table)
+                        </button>
+                        
+                        <button type="button" onclick="openImportRecipes()" style="width: 100%; padding: 14px; background: white; color: #06d6a0; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: all 0.3s ease;">
+                            👨‍🍳 Import Recipes (Fill Table)
+                        </button>
+                    </div>
+                    
+                    <div style="margin-top: 12px; padding: 12px; background: rgba(255,255,255,0.2); border-radius: 6px; text-align: center;">
+                        <p style="margin: 0; color: white; font-size: 12px;">
+                            💡 Import all together or one at a time!
+                        </p>
+                    </div>
+                </div>
                 
-                checkbox.addEventListener('change', (event) => {
-                    saveCheckboxState(event.target.id, event.target.checked);
-                });
-            });
-        }
+                <!-- Manual Day/Week Addition Section -->
+                <div style="padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #6c757d;">
+                    <p style="margin: 0 0 12px 0; font-size: 14px; color: #495057; font-weight: 600;">
+                        ⚙️ Or add manually:
+                    </p>
+                    
+                    <div class="form-group">
+                        <label>Add:</label>
+                        <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                            <label style="flex: 1;">
+                                <input type="radio" name="addType" value="day" checked />
+                                Single Day
+                            </label>
+                            <label style="flex: 1;">
+                                <input type="radio" name="addType" value="week" />
+                                Whole Week
+                            </label>
+                        </div>
+                    </div>
+                <div class="form-group" id="dayDateGroup">
+                    <label for="dayDate">Date (any format):</label>
+                    <input type="text" id="dayDate" placeholder="11/12/2025 or 2025-12-11 or 11-12-25" />
+                    <small>Accepts: dd/mm/yyyy, dd-mm-yyyy, yyyy-mm-dd, yyyy/mm/dd, dd/mm/yy</small>
+                </div>
+                <div class="form-group" id="weekDateGroup" style="display: none;">
+                    <label for="weekStartDate">Week Start Date (any format):</label>
+                    <input type="text" id="weekStartDate" placeholder="11/12/2025" />
+                    <small style="color: #e74c3c; font-weight: 500;">⚠️ Week will start from this EXACT date (not Monday). For example: If you enter Friday 12/12, your week will be Friday→Saturday→Sunday→Monday→Tuesday→Wednesday→Thursday</small>
+                </div>
+                <div class="form-group" id="workScheduleGroup" style="display: none;">
+                    <label>
+                        <input type="checkbox" id="addWorkSchedule" />
+                        Add work schedule to specific days
+                    </label>
+                    <div id="workScheduleDetails" style="display: none; margin-top: 10px;">
+                        <p style="margin-bottom: 10px; color: #666; font-size: 14px;">Select days and set work times for each:</p>
+                        <div class="work-day-item" style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px;">
+                            <label style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                                <input type="checkbox" class="work-day-check" value="1" />
+                                <strong>Monday</strong>
+                            </label>
+                            <div class="work-day-times" style="display: none; padding-left: 30px;">
+                                <input type="time" class="work-start" value="09:00" style="margin-right: 5px;" /> to 
+                                <input type="time" class="work-end" value="17:00" style="margin-left: 5px;" />
+                            </div>
+                        </div>
+                        <div class="work-day-item" style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px;">
+                            <label style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                                <input type="checkbox" class="work-day-check" value="2" />
+                                <strong>Tuesday</strong>
+                            </label>
+                            <div class="work-day-times" style="display: none; padding-left: 30px;">
+                                <input type="time" class="work-start" value="09:00" style="margin-right: 5px;" /> to 
+                                <input type="time" class="work-end" value="17:00" style="margin-left: 5px;" />
+                            </div>
+                        </div>
+                        <div class="work-day-item" style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px;">
+                            <label style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                                <input type="checkbox" class="work-day-check" value="3" />
+                                <strong>Wednesday</strong>
+                            </label>
+                            <div class="work-day-times" style="display: none; padding-left: 30px;">
+                                <input type="time" class="work-start" value="09:00" style="margin-right: 5px;" /> to 
+                                <input type="time" class="work-end" value="17:00" style="margin-left: 5px;" />
+                            </div>
+                        </div>
+                        <div class="work-day-item" style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px;">
+                            <label style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                                <input type="checkbox" class="work-day-check" value="4" />
+                                <strong>Thursday</strong>
+                            </label>
+                            <div class="work-day-times" style="display: none; padding-left: 30px;">
+                                <input type="time" class="work-start" value="09:00" style="margin-right: 5px;" /> to 
+                                <input type="time" class="work-end" value="17:00" style="margin-left: 5px;" />
+                            </div>
+                        </div>
+                        <div class="work-day-item" style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px;">
+                            <label style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                                <input type="checkbox" class="work-day-check" value="5" />
+                                <strong>Friday</strong>
+                            </label>
+                            <div class="work-day-times" style="display: none; padding-left: 30px;">
+                                <input type="time" class="work-start" value="09:00" style="margin-right: 5px;" /> to 
+                                <input type="time" class="work-end" value="17:00" style="margin-left: 5px;" />
+                            </div>
+                        </div>
+                        <div class="work-day-item" style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px;">
+                            <label style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                                <input type="checkbox" class="work-day-check" value="6" />
+                                <strong>Saturday</strong>
+                            </label>
+                            <div class="work-day-times" style="display: none; padding-left: 30px;">
+                                <input type="time" class="work-start" value="09:00" style="margin-right: 5px;" /> to 
+                                <input type="time" class="work-end" value="17:00" style="margin-left: 5px;" />
+                            </div>
+                        </div>
+                        <div class="work-day-item" style="margin-bottom: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px;">
+                            <label style="display: flex; align-items: center; gap: 10px; margin-bottom: 5px;">
+                                <input type="checkbox" class="work-day-check" value="0" />
+                                <strong>Sunday</strong>
+                            </label>
+                            <div class="work-day-times" style="display: none; padding-left: 30px;">
+                                <input type="time" class="work-start" value="09:00" style="margin-right: 5px;" /> to 
+                                <input type="time" class="work-end" value="17:00" style="margin-left: 5px;" />
+                            </div>
+                        </div>
+                        
+                        <!-- Simple Commute Option -->
+                        <div style="margin-top: 20px; padding: 15px; background: #e8f5e9; border-radius: 8px; border-left: 4px solid #4caf50;">
+                            <label style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                                <input type="checkbox" id="addCommute" />
+                                <span style="font-weight: 500;">🚶 Add commute blocks</span>
+                            </label>
+                            <div id="commuteSettings" style="display: none; padding-left: 30px;">
+                                <label style="font-size: 13px; color: #666; display: block; margin-bottom: 10px;">
+                                    One-way commute duration: 
+                                    <input type="number" id="commuteDuration" value="15" min="1" max="120" style="width: 60px; padding: 4px; margin: 0 5px;" /> minutes
+                                </label>
+                                <p style="margin: 10px 0 0 0; font-size: 11px; color: #666; font-style: italic; line-height: 1.4;">
+                                    💡 Adds commute TO work (before work starts) and FROM work (after work ends).<br>
+                                    📌 Example: Work 16:00-23:30 with 15 min commute becomes:<br>
+                                    • 15:45-16:00 🚶 Commute to work<br>
+                                    • 16:00-23:30 💼 Work<br>
+                                    • 23:30-23:45 🚶 Commute home
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </div> <!-- Close manual section -->
+                
+                <div class="modal-buttons">
+                    <button type="submit" class="btn btn-primary">Add</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeAddDayModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
 
-        function calculateAndDisplayCountdowns() {
-            const now = new Date();
-            const englishEl = document.getElementById('englishCountdown');
-            const mathEl = document.getElementById('mathCountdown');
-            const englishDate = new Date(scheduleData.exams.english.date);
-            const mathDate = new Date(scheduleData.exams.math.date);
-
-            const formatCountdown = (targetDate, element) => {
-                const diff = targetDate.getTime() - now.getTime();
-                if (diff > 0) {
-                    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-                    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-                    element.textContent = `${days}d ${hours}h`;
-                } else {
-                    element.textContent = 'Completed! 🎉';
-                }
-            };
-
-            // English Exam (Dec 11) is in the past now (assuming it's after the user is asking for the update)
-            if (englishDate.getTime() < now.getTime() && englishEl) {
-                englishEl.textContent = 'Completed! 🎉';
-            } else if (englishEl) {
-                 formatCountdown(englishDate, englishEl);
-            }
-
-            // Math Exam (Dec 16)
-            if (mathEl) {
-                formatCountdown(mathDate, mathEl);
-            }
-        }
-
-
-        function updateCurrentTimeHighlight(dayName) {
-            const now = new Date();
-            const blocks = document.querySelectorAll(`#${dayName}Content .time-block`);
+    <!-- Prompt Generator Modal -->
+    <div id="promptGeneratorModal" class="modal">
+        <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px; border-radius: 12px 12px 0 0; margin: -20px -20px 20px -20px; position: sticky; top: -20px; z-index: 10;">
+                <h2 style="margin: 0; color: white; display: flex; align-items: center; gap: 12px; font-size: 26px;">
+                    📋 Weekly Schedule Form
+                    <button onclick="closePromptGenerator()" style="margin-left: auto; background: rgba(255,255,255,0.2); border: none; color: white; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 500;">✕ Close</button>
+                </h2>
+                <p style="margin: 12px 0 0 0; color: rgba(255,255,255,0.95); font-size: 15px;">Fill in your details to get a custom schedule prompt!</p>
+            </div>
             
-            blocks.forEach(block => {
-                block.classList.remove('current-time', 'past-time');
+            <form id="promptGeneratorForm" style="padding: 25px;">
                 
-                const timeStr = block.dataset.time; // e.g., "17:00-23:30"
-                const [startTimeStr, endTimeStr] = timeStr.split('-');
+                <!-- Week Start Date -->
+                <div style="background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); padding: 20px; border-radius: 12px; margin-bottom: 25px;">
+                    <h3 style="margin: 0 0 15px 0; color: #2c3e50; font-size: 20px;">📅 Week Information</h3>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #34495e;">Week start date:</label>
+                        <input type="date" id="promptWeekDate" style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 15px;" />
+                        <p style="margin: 8px 0 0 0; font-size: 13px; color: #e74c3c; font-weight: 600; line-height: 1.5;">
+                            ⚠️ Week will start from this EXACT date (not Monday)!<br>
+                            Example: Select Friday 12/12 → Week is Friday→Saturday→Sunday→Monday→Tuesday→Wednesday→Thursday
+                        </p>
+                    </div>
+                </div>
                 
-                // Helper to convert HH:MM to minutes since midnight
-                const timeToMinutes = (t) => {
-                    if (!t) return 0;
-                    const [h, m] = t.split(':').map(Number);
-                    return (h * 60) + m;
-                };
-
-                const currentTimeInMinutes = (now.getHours() * 60) + now.getMinutes();
-                let startTimeInMinutes = timeToMinutes(startTimeStr);
-                let endTimeInMinutes = timeToMinutes(endTimeStr);
-
-                // Handle times that cross midnight (e.g., 23:30-00:00)
-                if (endTimeInMinutes < startTimeInMinutes) {
-                    endTimeInMinutes += (24 * 60); // Add a day's worth of minutes
-                    // We only check if current time is within this block if the day is 'today'
-                    // For highlighting logic, we assume all blocks are relative to the start of the day.
-                    // The time check handles the rollover naturally if we adjust the 'now' time logic for cross-midnight.
-                    // For simplicity, we just check relative to the day on display.
-                }
-
-                // If end time is missing (e.g., "23:00"), assume 1 hour duration.
-                if (!endTimeStr) {
-                    endTimeInMinutes = startTimeInMinutes + 60; // Default 1 hour
-                }
+                <!-- Work Schedule -->
+                <div style="background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%); padding: 20px; border-radius: 12px; margin-bottom: 25px;">
+                    <h3 style="margin: 0 0 15px 0; color: #2c3e50; font-size: 20px;">💼 Work Schedule</h3>
+                    
+                    <div id="workDaysContainer">
+                        <!-- Will be populated by JavaScript -->
+                    </div>
+                    
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 2px solid rgba(0,0,0,0.1);">
+                        <label style="display: flex; align-items: center; gap: 10px; font-weight: 500;">
+                            <input type="checkbox" id="promptAddCommute" style="width: 18px; height: 18px;" />
+                            <span>Add commute blocks (</span>
+                            <input type="number" id="promptCommuteDuration" value="15" min="1" max="120" style="width: 70px; padding: 8px; border: 2px solid #ddd; border-radius: 6px;" />
+                            <span>minutes)</span>
+                        </label>
+                    </div>
+                </div>
                 
-                // Logic to highlight only if the user is currently viewing today's schedule
-                const today = new Date().getDay();
-                const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-                const currentDayName = dayNames[today];
+                <!-- Study -->
+                <div style="background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%); padding: 20px; border-radius: 12px; margin-bottom: 25px; color: white;">
+                    <h3 style="margin: 0 0 15px 0; font-size: 20px;">📚 Study Information</h3>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">What are you studying?</label>
+                        <input type="text" id="promptStudySubjects" placeholder="e.g., Functional Skills English Level 1, Math Level 1" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Exam dates (if any):</label>
+                        <input type="text" id="promptExamDates" placeholder="e.g., English: Dec 11, Math: Dec 16" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Study hours per day:</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="number" id="promptStudyHours" value="2" min="0" max="8" step="0.5" style="width: 100px; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
+                            <label style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.2); padding: 10px 15px; border-radius: 8px;">
+                                <input type="checkbox" id="promptStudyAIDecide" style="width: 16px; height: 16px;" />
+                                <span style="font-size: 14px;">Let AI decide</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 0;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Topics to focus on:</label>
+                        <textarea id="promptStudyTopics" placeholder="e.g., Math: fractions, percentages&#10;English: reading comprehension, grammar" rows="3" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;"></textarea>
+                    </div>
+                </div>
                 
-                if (currentDayName === dayName) {
-                    // Adjust current time if checking a past day of a cross-midnight block
-                    let checkCurrentTime = currentTimeInMinutes;
-
-                    // If the block crosses midnight (e.g., 23:30 - 00:00) and it's the next day
-                    // This logic is complex for general scheduling and can be simplified:
-
-                    if (currentTimeInMinutes >= startTimeInMinutes && currentTimeInMinutes < endTimeInMinutes) {
-                        block.classList.add('current-time');
-                    } else if (currentTimeInMinutes >= endTimeInMinutes) {
-                        block.classList.add('past-time');
-                    }
-                }
-            });
-        }
-
-        function autoScrollToCurrentTime() {
-            const now = new Date();
-            const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-            const todayName = dayNames[now.getDay()]; 
-
-            // Only auto-scroll if viewing today
-            const activeTab = document.querySelector('.day-tab.active');
-            if (activeTab && activeTab.dataset.day === todayName) {
-                updateCurrentTimeHighlight(todayName);
-
-                // Scroll to current time block
-                const currentBlock = document.querySelector('.time-block.current-time');
-                if (currentBlock) {
-                    currentBlock.scrollIntoView({
-                        behavior: 'smooth',
-                        block: 'center'
-                    });
-                }
-            }
-        }
-
-
-        function setupScrollToTop() {
-            const scrollBtn = document.getElementById('scrollTop');
+                <!-- Meals & Pantry -->
+                <div style="background: linear-gradient(135deg, #55efc4 0%, #00b894 100%); padding: 20px; border-radius: 12px; margin-bottom: 25px; color: white;">
+                    <h3 style="margin: 0 0 15px 0; font-size: 20px;">🍳 Meals & Shopping</h3>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Food preferences:</label>
+                        <input type="text" id="promptFoodPrefs" placeholder="e.g., simple, quick, vegetarian" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
+                    </div>
+                    
+                    <div style="margin-bottom: 15px; padding: 15px; background: rgba(255,255,255,0.15); border-radius: 8px;">
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                            <input type="checkbox" id="promptFreeMeals" style="width: 20px; height: 20px;" />
+                            <span style="font-weight: 600; font-size: 15px;">🍽️ I get free meals at work</span>
+                        </label>
+                        <p style="margin: 8px 0 0 0; font-size: 13px; opacity: 0.9; padding-left: 30px;">
+                            If checked, AI will reduce shopping list and plan meals accordingly
+                        </p>
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">What's in your pantry/fridge?</label>
+                        <div style="background: white; border-radius: 8px; padding: 15px; color: #2c3e50;">
+                            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                                <input type="text" id="pantryItemInput" placeholder="Add item (e.g., pasta, eggs, milk)" style="flex: 1; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;" />
+                                <button type="button" onclick="addPantryItem()" style="padding: 10px 20px; background: #00b894; color: white; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">+ Add</button>
+                            </div>
+                            <div id="pantryList" style="display: flex; flex-wrap: wrap; gap: 8px; min-height: 40px;">
+                                <!-- Pantry items will appear here -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 0;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Budget:</label>
+                        <select id="promptBudget" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;">
+                            <option value="low">Low (£10-15/week)</option>
+                            <option value="moderate" selected>Moderate (£20-30/week)</option>
+                            <option value="flexible">Flexible (£30+/week)</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Hobbies -->
+                <div style="background: linear-gradient(135deg, #fab1a0 0%, #e17055 100%); padding: 20px; border-radius: 12px; margin-bottom: 25px; color: white;">
+                    <h3 style="margin: 0 0 15px 0; font-size: 20px;">🎯 Hobbies & Interests</h3>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Hobbies you want time for:</label>
+                        <input type="text" id="promptHobbies" placeholder="e.g., Hindi learning, coding projects, guitar" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
+                    </div>
+                    
+                    <div style="margin-bottom: 0;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Hobby time per day:</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="number" id="promptHobbyHours" value="1" min="0" max="5" step="0.5" style="width: 100px; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
+                            <label style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.2); padding: 10px 15px; border-radius: 8px;">
+                                <input type="checkbox" id="promptHobbyAIDecide" style="width: 16px; height: 16px;" />
+                                <span style="font-size: 14px;">Let AI decide</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- One-Off Tasks -->
+                <div style="background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%); padding: 20px; border-radius: 12px; margin-bottom: 25px; color: white;">
+                    <h3 style="margin: 0 0 15px 0; font-size: 20px;">✅ One-Off Tasks & Errands</h3>
+                    <div style="margin-bottom: 0;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Important things to fit in this week:</label>
+                        <textarea id="promptOneOffTasks" placeholder="e.g.,&#10;- Clean the room&#10;- Repair the bike&#10;- Order new bike tyre&#10;- Call doctor" rows="5" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;"></textarea>
+                        <p style="margin: 8px 0 0 0; font-size: 13px; opacity: 0.9;">📌 AI will find perfect time slots for these tasks!</p>
+                    </div>
+                </div>
+                
+                <!-- Sleep & Rest -->
+                <div style="background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%); padding: 20px; border-radius: 12px; margin-bottom: 25px; color: white;">
+                    <h3 style="margin: 0 0 15px 0; font-size: 20px;">😴 Sleep & Rest</h3>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Preferred sleep schedule:</label>
+                        <input type="text" id="promptSleep" value="23:00-07:00" placeholder="e.g., 23:00-07:00" style="width: 200px; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
+                    </div>
+                    
+                    <div style="margin-bottom: 0;">
+                        <label style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.2); padding: 12px; border-radius: 8px;">
+                            <input type="checkbox" id="promptRelax" checked style="width: 18px; height: 18px;" />
+                            <span style="font-weight: 500;">Include relaxation/free time blocks</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <button type="button" onclick="generatePrompt()" style="width: 100%; padding: 18px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); transition: all 0.3s ease;">
+                    🚀 Generate AI Prompt
+                </button>
+            </form>
             
-            window.addEventListener('scroll', () => {
-                if (window.pageYOffset > 300) {
-                    scrollBtn.classList.add('visible');
-                } else {
-                    scrollBtn.classList.remove('visible');
-                }
-            });
+            <div id="generatedPromptSection" style="display: none; padding: 25px; background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); border-radius: 12px; margin-top: 20px;">
+                <h3 style="margin: 0 0 12px 0; color: #2e7d32; font-size: 22px;">✅ Your AI Prompt is Ready!</h3>
+                <p style="margin: 0 0 15px 0; font-size: 15px; color: #388e3c;">Copy this and paste into ChatGPT, Claude, or any AI:</p>
+                <textarea id="generatedPromptText" readonly style="width: 100%; height: 300px; padding: 15px; border: 3px solid #4caf50; border-radius: 10px; font-family: 'Courier New', monospace; font-size: 13px; resize: vertical; background: white;"></textarea>
+                <button onclick="copyPrompt()" style="width: 100%; padding: 15px; background: #4caf50; color: white; border: none; border-radius: 10px; font-size: 17px; font-weight: bold; cursor: pointer; margin-top: 12px; box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);">
+                    📋 Copy Prompt to Clipboard
+                </button>
+                <div style="margin-top: 20px; padding: 15px; background: white; border-left: 4px solid #ff9800; border-radius: 8px;">
+                    <p style="margin: 0 0 8px 0; font-size: 15px; color: #e65100; font-weight: 600;">📌 Next Steps:</p>
+                    <ol style="margin: 8px 0 0 20px; padding: 0; color: #5d4037; line-height: 1.8;">
+                        <li>Click "Copy Prompt" above</li>
+                        <li>Go to ChatGPT.com or Claude.ai</li>
+                        <li>Paste and send the prompt</li>
+                        <li>AI will give you: Schedule + Shopping + Recipes</li>
+                        <li>Use these buttons to import each part:</li>
+                        <li style="list-style: none; margin-top: 8px;">
+                            <span style="background: #f5576c; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin-right: 4px;">📥 Import Schedule</span>
+                            <span style="background: #00f2fe; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin-right: 4px;">🛒 Import Shopping</span>
+                            <span style="background: #38f9d7; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">👨‍🍳 Import Recipes</span>
+                        </li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Response Importer Modal -->
+    <!-- Import Schedule Modal -->
+    <div id="importScheduleModal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 20px; border-radius: 12px 12px 0 0; margin: -20px -20px 20px -20px;">
+                <h2 style="margin: 0; color: white; display: flex; align-items: center; gap: 10px;">
+                    📥 Import Schedule
+                    <button onclick="closeImportSchedule()" style="margin-left: auto; background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">✕ Close</button>
+                </h2>
+                <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">Paste daily schedule blocks here!</p>
+            </div>
             
-            scrollBtn.addEventListener('click', () => {
-                window.scrollTo({
-                    top: 0,
-                    behavior: 'smooth'
-                });
-            });
-        }
+            <div style="padding: 20px;">
+                <label style="display: block; margin-bottom: 10px; font-weight: 500;">Paste Schedule (Days & Time Blocks):</label>
+                <textarea id="scheduleInput" placeholder="=== FRIDAY — 12 Dec 2025 ===
 
-        function saveCheckboxState(id, checked) {
-            localStorage.setItem(id, checked);
-        }
+07:00-07:30 | Morning Routine | Wake up, shower
+07:30-08:00 | Breakfast | Eggs and toast
+08:00-10:00 | Study | Math practice
+..." style="width: 100%; height: 300px; padding: 15px; border: 2px solid #ddd; border-radius: 8px; font-family: monospace; font-size: 12px; resize: vertical;"></textarea>
+                
+                <button onclick="importSchedule()" style="width: 100%; padding: 15px; background: #f5576c; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 15px;">
+                    ✨ Import Days!
+                </button>
+                
+                <div style="margin-top: 15px; padding: 12px; background: #fff3e0; border-radius: 6px; border-left: 4px solid #ff9800;">
+                    <p style="margin: 0; font-size: 13px; color: #e65100; line-height: 1.5;">
+                        <strong>💡 Format:</strong> Each day starts with === DAY NAME === and blocks are one per line: TIME | TITLE | Tasks
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
 
-        function loadCheckboxStates() {
-            document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
-                const saved = localStorage.getItem(checkbox.id);
-                if (saved === 'true') {
-                    checkbox.checked = true;
-                }
-            });
+    <!-- Import Shopping List Modal -->
+    <div id="importShoppingModal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 20px; border-radius: 12px 12px 0 0; margin: -20px -20px 20px -20px;">
+                <h2 style="margin: 0; color: white; display: flex; align-items: center; gap: 10px;">
+                    🛒 Import Shopping List
+                    <button onclick="closeImportShopping()" style="margin-left: auto; background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">✕ Close</button>
+                </h2>
+                <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">Paste any shopping list - the app will beautify it!</p>
+            </div>
+            
+            <div style="padding: 20px;">
+                <label style="display: block; margin-bottom: 10px; font-weight: 500;">Paste Shopping List (any format):</label>
+                <textarea id="shoppingInput" placeholder="Just paste your shopping list here!
+
+Examples - all work:
+Potatoes
+Potatoes 2kg
+Potatoes (2-3kg)
+- Onions (1kg)
+• Butter 250g
+1. Bread - 1 loaf
+Eggs (12) organic
+Milk, 2 liters
+
+The app will parse and beautify it automatically!" style="width: 100%; height: 300px; padding: 15px; border: 2px solid #ddd; border-radius: 8px; font-family: monospace; font-size: 12px; resize: vertical;"></textarea>
+                
+                <button onclick="importShopping()" style="width: 100%; padding: 15px; background: #00f2fe; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 15px;">
+                    ✨ Import & Beautify Shopping List!
+                </button>
+                
+                <div style="margin-top: 15px; padding: 12px; background: #e8f5e9; border-radius: 6px; border-left: 4px solid #4caf50;">
+                    <p style="margin: 0; font-size: 13px; color: #2e7d32; line-height: 1.5;">
+                        <strong>💡 Smart Parser:</strong> Paste any format! The app automatically extracts items, quantities, and notes, then displays them beautifully in the Shopping table.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Recipes Modal -->
+    <div id="importRecipesModal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); padding: 20px; border-radius: 12px 12px 0 0; margin: -20px -20px 20px -20px;">
+                <h2 style="margin: 0; color: white; display: flex; align-items: center; gap: 10px;">
+                    👨‍🍳 Import Recipes
+                    <button onclick="closeImportRecipes()" style="margin-left: auto; background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">✕ Close</button>
+                </h2>
+                <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">Paste any recipes - the app will beautify them!</p>
+            </div>
+            
+            <div style="padding: 20px;">
+                <label style="display: block; margin-bottom: 10px; font-weight: 500;">Paste Recipes (any format):</label>
+                <textarea id="recipesInput" placeholder="Just paste your recipes here!
+
+Examples - all work:
+
+🍳 Scrambled Eggs
+Ingredients: 2 eggs, butter, salt
+Instructions: Beat eggs, melt butter, cook, season
+Video: https://youtube.com/watch?v=xxxxx
+
+Simple Pasta
+What you need: pasta, olive oil, garlic
+How to: Boil pasta, fry garlic in oil, mix together
+
+Recipe 3: Fried Rice
+You need: rice, egg, soy sauce
+Cook rice, scramble egg, mix with soy sauce
+Tutorial: https://youtube.com/watch?v=xxxxx
+
+The app will parse and beautify automatically!" style="width: 100%; height: 300px; padding: 15px; border: 2px solid #ddd; border-radius: 8px; font-family: monospace; font-size: 12px; resize: vertical;"></textarea>
+                
+                <button onclick="importRecipes()" style="width: 100%; padding: 15px; background: #38f9d7; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 15px;">
+                    ✨ Import & Beautify Recipes!
+                </button>
+                
+                <div style="margin-top: 15px; padding: 12px; background: #fff9c4; border-radius: 6px; border-left: 4px solid #fbc02d;">
+                    <p style="margin: 0; font-size: 13px; color: #f57f17; line-height: 1.5;">
+                        <strong>💡 Smart Parser:</strong> Paste any format! The app automatically extracts recipe names, ingredients, instructions, and YouTube links, then displays them beautifully in the Recipes table with clickable video buttons!
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
-    </script>
+        
+        .ai-message {
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            border-radius: 12px;
+            max-width: 85%;
+            line-height: 1.5;
+        }
+        
+        .ai-message-assistant {
+            background: white;
+            border: 2px solid #667eea;
+            margin-right: auto;
+        }
+        
+        .ai-message-user {
+            background: #667eea;
+            color: white;
+            margin-left: auto;
+        }
+        
+        .ai-message-system {
+            background: #4caf50;
+            color: white;
+            margin: 0 auto;
+            text-align: center;
+            font-weight: 500;
+        }
+    </style>
+
+    <script src="script.js"></script>
 </body>
 </html>
