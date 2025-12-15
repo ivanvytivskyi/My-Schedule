@@ -1,5 +1,5 @@
 // Service Worker for Weekly Schedule Manager
-const CACHE_NAME = 'schedule-manager-v6.1';
+const CACHE_NAME = 'schedule-manager-v6.2';
 const urlsToCache = [
   '/',
   '/index.html',
