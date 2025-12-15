@@ -40,11 +40,11 @@ let quickAddProducts = {
             { name: "Milk (Semi-Skimmed)", unit: "2.272L", price: 1.65, defaultQty: 1},
             { name: "Milk (Whole)", unit: "2.272L", price: 1.65, defaultQty: 1 },
             { name: "Milk (Skimmed)", unit: "2.272L", price: 1.65, defaultQty: 1 },
-            { name: "Eggs (Barn)", unit: "pack of 10", price: 1.43, defaultQty: 1 },
-            { name: "Cream (Double)", unit: "300ml", price: 1.50, defaultQty: 1 }
+            { name: "British Barn Eggs", unit: "pack of 10", price: 1.43, defaultQty: 1 },
+            { name: "BUTTERPAK (SPRESDABLE Slightly Salted)", unit: "500g", price:2.18, defaultQty: 1 }
         ],
         "🍞 Bread & Bakery": [
-            { name: "White Toastie Bread Sliced", unit: "loaf of 800g", price: 0.75, defaultQty: 1 },
+            { name: "White Toastie Bread Thick Sliced", unit: "loaf of 800g", price: 0.75, defaultQty: 1 },
             { name: "Nevills Plain Croissants", unit: "pack of 8", price: 1.39, defaultQty: 1 },
             { name: "Nevills Plain White Tortilla", unit: "pack of 8", price: 0.99, defaultQty: 1 }
         ],
@@ -53,8 +53,8 @@ let quickAddProducts = {
             { name: "White Fish", unit: "kg", price: 8.00, defaultQty: 0.3 }
         ],
         "🥬 Vegetables": [
-            { name: "Potatoes", unit: "kg", price: 1.20, defaultQty: 1 },
-            { name: "Onions", unit: "kg", price: 0.90, defaultQty: 1 },
+            { name: "All Rounder Potatoes", unit: "Pack of 2kg", price: 1.20, defaultQty: 1 },
+            { name: "BRITISH BROWN ONIONS", unit: "kg", price: 0.99, defaultQty: 1 },
             { name: "Carrots", unit: "kg", price: 0.70, defaultQty: 1 },
             { name: "Tomatoes", unit: "kg", price: 2.00, defaultQty: 0.5 },
             { name: "Cucumbers", unit: "each", price: 0.60, defaultQty: 1 },
@@ -62,8 +62,8 @@ let quickAddProducts = {
             
         ],
         "🍎 Fruits": [
-            { name: "Apples (Gala)", unit: "kg", price: 1.80, defaultQty: 1 },
-            { name: "Bananas", unit: "kg", price: 1.00, defaultQty: 1 },
+            { name: "Apples (ROSEDENE FARMS)", unit: "pack of 6", price: 0.80, defaultQty: 1 },
+            { name: "Banana Loose", unit: "kg", price: 0.90, defaultQty: 1 },
             { name: "Oranges", unit: "kg", price: 1.50, defaultQty: 1 }
         ],
         "🍚 Pantry & Staples": [
@@ -73,15 +73,11 @@ let quickAddProducts = {
             { name: "Sugar (White)", unit: "1kg", price: 1.20, defaultQty: 1 },
             
             { name: "Vegetable Oil", unit: "1L", price: 2.50, defaultQty: 1 },
-            { name: "Salt", unit: "750g", price: 0.55, defaultQty: 1 },
-            { name: "Black Pepper", unit: "100g", price: 1.50, defaultQty: 1 }
+            { name: "BRITISH COOKING SALT", unit: "1.5g", price: 1.90, defaultQty: 1 },
+            { name: "Black Peppercorns", unit: "250g", price: 4.40, defaultQty: 1 }
         ],
         "🥫 Canned & Packaged": [
-            { name: "Chopped Tomatoes", unit: "400g tin", price: 0.45, defaultQty: 2 },
-            { name: "Baked Beans", unit: "420g tin", price: 0.50, defaultQty: 2 },
-            { name: "Chickpeas", unit: "400g tin", price: 0.50, defaultQty: 1 },
-            { name: "Tuna Chunks", unit: "145g tin", price: 1.00, defaultQty: 2 },
-            { name: "Soup (Tomato)", unit: "400g tin", price: 0.70, defaultQty: 1 }
+            { name: "Grower's Harvest Chopped Tomatoes", unit: "400g tin", price: 0.43, defaultQty: 1 }
         ],
         "🥤 Drinks": [
             { name: "Orange Juice", unit: "1L", price: 1.50, defaultQty: 1 },
