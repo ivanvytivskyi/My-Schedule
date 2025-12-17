@@ -129,6 +129,15 @@ let quickAddProducts = {
             { name: "Apples", unit: "kg", price: 1.49, defaultQty: 1 },
             { name: "Bananas", unit: "kg", price: 0.89, defaultQty: 1 },
             { name: "Oranges", unit: "kg", price: 1.29, defaultQty: 1 }
+        ],
+        "🍫 Sweets": [
+            { name: "fin Carre Milk Chocolate", unit: "Chocolate bar of 100g", price: 0.99, defaultQty: 1 },
+            { name: "Onions", unit: "1kg", price: 0.79, defaultQty: 1 },
+            { name: "Carrots", unit: "1kg", price: 0.59, defaultQty: 1 },
+            { name: "Tomatoes", unit: "500g", price: 0.99, defaultQty: 1 }
+        ],
+        "🥜 Spreads":[
+            {name:" Mister CHOC Peanut Butter Crunch", unit: "Bottle of 340g", price: 0.99, defautQty: 1 },
         ]
     }
 };
