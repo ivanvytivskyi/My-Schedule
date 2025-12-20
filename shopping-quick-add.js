@@ -538,6 +538,10 @@ function renderQuickAddModal() {
     const isEditMode = window.quickAddEditMode || false;
     const currencySymbol = getCurrencySymbol();
     
+    // Save scroll position before re-rendering
+    const scrollContainer = document.getElementById('quickAddScrollContent');
+    const savedScrollPosition = scrollContainer ? scrollContainer.scrollTop : 0;
+    
     // Build index arrays for safe onclick handling
     shopsArray = Object.keys(quickAddProducts);
     categoriesMap = {};
@@ -777,6 +781,14 @@ function renderQuickAddModal() {
     `;
     
     container.innerHTML = html;
+    
+    // Restore scroll position after re-rendering
+    setTimeout(() => {
+        const scrollContainer = document.getElementById('quickAddScrollContent');
+        if (scrollContainer && savedScrollPosition > 0) {
+            scrollContainer.scrollTop = savedScrollPosition;
+        }
+    }, 0);
 }
 
 // Toggle item selection
