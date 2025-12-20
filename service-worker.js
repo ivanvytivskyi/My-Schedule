@@ -1,5 +1,5 @@
 // Service Worker for Weekly Schedule Manager
-const CACHE_VERSION = '7.0'; // INCREMENT THIS FOR EACH UPDATE!
+const CACHE_VERSION = '7.1'; // INCREMENT THIS FOR EACH UPDATE!
 const CACHE_NAME = `schedule-manager-v${CACHE_VERSION}`;
 const urlsToCache = [
   '/',
