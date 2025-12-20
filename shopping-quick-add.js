@@ -538,10 +538,6 @@ function renderQuickAddModal() {
     const isEditMode = window.quickAddEditMode || false;
     const currencySymbol = getCurrencySymbol();
     
-    // Save scroll position before re-rendering
-    const scrollContainer = document.getElementById('quickAddScrollContent');
-    const savedScrollPosition = scrollContainer ? scrollContainer.scrollTop : 0;
-    
     // Build index arrays for safe onclick handling
     shopsArray = Object.keys(quickAddProducts);
     categoriesMap = {};
@@ -575,9 +571,6 @@ function renderQuickAddModal() {
             <p style="color: #666; margin: 10px 0;">Click items to select, then adjust quantity and price</p>
             <button onclick="clearAllItems()" style="padding: 8px 16px; background: #f44336; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">✕ Clear All</button>
         </div>
-        
-        <!-- Scrollable content wrapper -->
-        <div id="quickAddScrollContent" style="max-height: calc(90vh - 350px); overflow-y: auto; padding-right: 5px; margin-bottom: 15px;">
     `;
     
     // Loop through shops
@@ -755,25 +748,25 @@ function renderQuickAddModal() {
         return sum + (qty * price);
     }, 0);
     
-    // Close the scrollable content wrapper
-    html += `</div>`; // Close quickAddScrollContent
+    // Add spacer before sticky footer (mobile fix)
+    html += `<div style="height: 40px;"></div>`;
     
-    // Sticky footer - flex-shrink: 0 keeps it at bottom
+    // Sticky footer with totals and buttons
     html += `
-        <div style="flex-shrink: 0; background: white; padding: 15px 0 0 0; border-top: 3px solid #e0e0e0; margin-top: auto;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
-                <div style="font-size: 16px; font-weight: 600; color: #2c3e50;">
+        <div style="position: sticky; bottom: 0; background: white; padding: 20px; margin: 0 -20px -20px -20px; border-top: 2px solid #e0e0e0; border-radius: 0 0 12px 12px; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); z-index: 100;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                <div style="font-size: 18px; font-weight: 600; color: #2c3e50;">
                     Selected: ${selectedCount} items
                 </div>
-                <div style="font-size: 18px; font-weight: bold; color: #27ae60;">
+                <div style="font-size: 20px; font-weight: bold; color: #27ae60;">
                     Total: ${currencySymbol}${(totalPrice || 0).toFixed(2)}
                 </div>
             </div>
-            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <button onclick="closeQuickAdd()" style="flex: 1; min-width: 100px; padding: 12px; background: #f44336; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button onclick="closeQuickAdd()" style="flex: 1; min-width: 120px; padding: 15px; background: #f44336; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 15px;">
                     ✕ Cancel
                 </button>
-                <button onclick="addSelectedToShopping()" style="flex: 2; min-width: 150px; padding: 12px; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">
+                <button onclick="addSelectedToShopping()" style="flex: 2; min-width: 180px; padding: 15px; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 15px;">
                     🛒 Add ${selectedCount} Items
                 </button>
             </div>
@@ -781,14 +774,6 @@ function renderQuickAddModal() {
     `;
     
     container.innerHTML = html;
-    
-    // Restore scroll position after re-rendering
-    setTimeout(() => {
-        const scrollContainer = document.getElementById('quickAddScrollContent');
-        if (scrollContainer && savedScrollPosition > 0) {
-            scrollContainer.scrollTop = savedScrollPosition;
-        }
-    }, 0);
 }
 
 // Toggle item selection
