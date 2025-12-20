@@ -1150,15 +1150,72 @@ function saveCategoryNameInline(shopIndex, catIndex, newName) {
     }
 }
 
-// Load custom products from localStorage
+// ========================================
+// SMART MERGE - Preserve user data + add new defaults
+// ========================================
 function loadCustomProducts() {
     const saved = localStorage.getItem('quickAddProducts');
-    if (saved) {
-        try {
-            quickAddProducts = JSON.parse(saved);
-        } catch (e) {
-            console.error('Error loading custom products:', e);
-        }
+    
+    if (!saved) {
+        // First time - just use defaults
+        console.log('[Quick Add] First time load - using defaults');
+        return;
+    }
+    
+    try {
+        const userProducts = JSON.parse(saved);
+        const defaultProducts = quickAddProducts; // Save reference to defaults defined in code
+        
+        // Store original defaults for comparison
+        const originalDefaults = JSON.parse(JSON.stringify(defaultProducts));
+        
+        // Start with user's saved data
+        quickAddProducts = userProducts;
+        
+        console.log('[Quick Add] Merging user data with new defaults...');
+        
+        // Merge: Add new shops/categories/items from defaults
+        Object.keys(originalDefaults).forEach(shop => {
+            // Add new shop if it doesn't exist
+            if (!quickAddProducts[shop]) {
+                console.log(`[Quick Add] Adding new shop: ${shop}`);
+                quickAddProducts[shop] = originalDefaults[shop];
+                return;
+            }
+            
+            // Shop exists - merge categories
+            Object.keys(originalDefaults[shop]).forEach(category => {
+                // Add new category if it doesn't exist
+                if (!quickAddProducts[shop][category]) {
+                    console.log(`[Quick Add] Adding new category: ${shop} -> ${category}`);
+                    quickAddProducts[shop][category] = originalDefaults[shop][category];
+                    return;
+                }
+                
+                // Category exists - merge items
+                const defaultItems = originalDefaults[shop][category];
+                const userItems = quickAddProducts[shop][category];
+                
+                // Create a map of existing items by name
+                const userItemNames = new Set(userItems.map(item => item.name.toLowerCase()));
+                
+                // Add new default items that don't exist
+                defaultItems.forEach(defaultItem => {
+                    if (!userItemNames.has(defaultItem.name.toLowerCase())) {
+                        console.log(`[Quick Add] Adding new item: ${shop} -> ${category} -> ${defaultItem.name}`);
+                        quickAddProducts[shop][category].push(defaultItem);
+                    }
+                });
+            });
+        });
+        
+        // Save merged data back to localStorage
+        localStorage.setItem('quickAddProducts', JSON.stringify(quickAddProducts));
+        console.log('[Quick Add] Merge complete!');
+        
+    } catch (e) {
+        console.error('[Quick Add] Error loading/merging custom products:', e);
+        // If error, keep defaults
     }
 }
 
