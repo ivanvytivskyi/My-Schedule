@@ -102,9 +102,10 @@ let quickAddProducts = {
             { name: "Pasta (Spaghetti)", unit: "500g", price: 0.80, defaultQty: 1 },
             { name: "Flour (Plain)", unit: "1.5kg", price: 1.10, defaultQty: 1 },
             { name: "Sugar (White)", unit: "1kg", price: 1.20, defaultQty: 1 },
+            { name: "Buckwheat Groats", unit: "1kg", price: 2.20, defaultQty: 1 },
             
             { name: "Vegetable Oil", unit: "1L", price: 2.50, defaultQty: 1 },
-            { name: "BRITISH COOKING SALT", unit: "1.5g", price: 1.90, defaultQty: 1 },
+            { name: "BRITISH COOKING SALT", unit: "1.5kg", price: 1.90, defaultQty: 1 },
             { name: "Black Peppercorns", unit: "250g", price: 4.40, defaultQty: 1 }
         ],
         "🥫 Canned & Packaged": [
