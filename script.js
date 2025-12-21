@@ -1713,6 +1713,12 @@ function renderShopping() {
     }
 }
 
+function clearGeneratedShopping() {
+    localStorage.removeItem('shoppingListHTML');
+    if (typeof renderShopping === 'function') renderShopping();
+    alert('🗑️ Shopping list cleared.');
+}
+
 // Shopping Edit Mode
 let shoppingEditMode = false;
 
@@ -1818,6 +1824,236 @@ function recalculateShopTotals(table) {
         totalCells[1].textContent = `£${totalPrice.toFixed(2)}`;
         totalCells[2].textContent = `Total Qty: ${totalQty % 1 !== 0 ? totalQty.toFixed(1) : totalQty}`;
     }
+}
+
+// ========================================
+// HOME INVENTORY ("PRODUCTS AT HOME")
+// ========================================
+
+function openHomeInventoryModal() {
+    const modal = document.getElementById('homeInventoryModal');
+    if (!modal) return;
+    modal.classList.add('active');
+    
+    const shopSelect = document.getElementById('homeInventoryShop');
+    if (shopSelect) {
+        populateShopOptions(shopSelect, null, true);
+        shopSelect.add(new Option('Tap (custom water)', 'Tap'));
+    }
+    
+    const saved = loadHomeInventory();
+    const defaultShop = shopSelect?.value || 'Tesco';
+    renderHomeInventoryChecklist(defaultShop, saved);
+    
+    if (shopSelect) {
+        shopSelect.onchange = () => renderHomeInventoryChecklist(shopSelect.value, saved);
+    }
+}
+
+function closeHomeInventoryModal() {
+    const modal = document.getElementById('homeInventoryModal');
+    if (modal) modal.classList.remove('active');
+}
+
+function saveHomeInventory() {
+    const shopSelect = document.getElementById('homeInventoryShop');
+    const currentShop = shopSelect?.value || 'Tesco';
+    const saved = loadHomeInventory();
+    const kept = saved.filter(item => item.shop !== currentShop);
+    const currentSelections = collectHomeChecklistSelections(currentShop);
+    const items = [...kept, ...currentSelections];
+    
+    localStorage.setItem('homeInventory', JSON.stringify(items));
+    renderHomeInventoryTable();
+    closeHomeInventoryModal();
+    alert('✅ Saved products at home.');
+}
+
+function loadHomeInventory() {
+    try {
+        const data = localStorage.getItem('homeInventory');
+        if (!data) return [];
+        const parsed = JSON.parse(data);
+        return Array.isArray(parsed) ? parsed.map(item => ({
+            shop: item.shop,
+            category: item.category,
+            itemName: item.itemName,
+            unit: item.unit || item.unitLabel || '',
+            price: item.price,
+            qtyAvailablePacks: item.qtyAvailablePacks ?? item.qtyAvailable ?? 0,
+            qtyUnits: item.qtyUnits ?? item.qtyAvailable ?? 0,
+            unitLabel: item.unitLabel || item.unit || ''
+        })) : [];
+    } catch (e) {
+        console.error('Failed to parse homeInventory', e);
+        return [];
+    }
+}
+
+function renderHomeInventoryTable() {
+    const container = document.getElementById('homeInventoryDisplay');
+    if (!container) return;
+    
+    const inventory = loadHomeInventory();
+    if (!inventory || inventory.length === 0) {
+        container.innerHTML = `
+            <div style="margin-top: 12px; background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 12px; padding: 16px; color: #6b7280;">
+                🏠 No products at home yet. Click "Products at Home" to add them.
+            </div>
+        `;
+        return;
+    }
+    
+    const rows = inventory.map(item => {
+        const qtyDisplay = item.qtyUnits === Infinity
+            ? 'Unlimited'
+            : item.qtyUnits
+                ? `${item.qtyUnits} ${item.unitLabel || ''}`.trim()
+                : `${(item.qtyAvailablePacks || 0).toFixed(2)} packs`;
+        return `
+            <tr>
+                <td style="border: 1px solid #e5e7eb; padding: 10px;">${item.shop}</td>
+                <td style="border: 1px solid #e5e7eb; padding: 10px;">${item.itemName}</td>
+                <td style="border: 1px solid #e5e7eb; padding: 10px;">${item.unitLabel || item.unit}</td>
+                <td style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">${qtyDisplay}</td>
+            </tr>
+        `;
+    }).join('');
+    
+    container.innerHTML = `
+        <div style="margin-top: 12px; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+            <div style="padding: 12px 16px; background: #fff7ed; color: #9a3412; font-weight: 700;">🏠 Products at Home</div>
+            <table style="width: 100%; border-collapse: collapse; background: white;">
+                <thead>
+                    <tr style="background: #f9fafb; color: #374151;">
+                        <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left;">Shop</th>
+                        <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left;">Item</th>
+                        <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left;">Unit</th>
+                        <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">Quantity at home</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+function renderHomeInventoryChecklist(shop, savedInventory) {
+    const container = document.getElementById('homeInventoryChecklist');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    const checklistData = shop === 'Tap'
+        ? [{ name: 'Tap water', unit: 'L', price: 0, packSize: 1, category: 'Water' }]
+        : buildChecklistDataForShop(shop);
+    
+    const savedForShop = savedInventory.filter(item => item.shop === shop);
+    
+    checklistData.forEach(item => {
+        const saved = savedForShop.find(s => normalizeName(s.itemName) === normalizeName(item.name));
+        const isChecked = Boolean(saved);
+        const qtyVal = saved?.qtyUnits === Infinity ? '' : (saved?.qtyUnits || '');
+        const row = document.createElement('div');
+        row.className = 'home-checklist-row';
+        row.style.display = 'grid';
+        row.style.gridTemplateColumns = 'auto 1fr 120px 100px';
+        row.style.gap = '10px';
+        row.style.alignItems = 'center';
+        row.style.padding = '10px';
+        row.style.border = '1px solid #e5e7eb';
+        row.style.borderRadius = '10px';
+        row.style.background = isChecked ? '#ecfdf3' : '#fff';
+        
+        row.innerHTML = `
+            <input type="checkbox" class="home-check" ${isChecked ? 'checked' : ''} />
+            <div>
+                <div style="font-weight: 700; color: #111827;">${item.name}</div>
+                <div style="color: #6b7280; font-size: 12px;">${item.unit} · ${item.category || ''}</div>
+            </div>
+            <input type="number" class="home-qty" min="0" step="0.01" ${item.name.toLowerCase().includes('tap water') ? 'disabled' : ''} placeholder="Qty" value="${qtyVal}">
+            <span style="color: #374151; font-weight: 600;">${item.unit}</span>
+        `;
+        
+        const checkbox = row.querySelector('.home-check');
+        const qtyInput = row.querySelector('.home-qty');
+        
+        checkbox.addEventListener('change', () => {
+            row.style.background = checkbox.checked ? '#ecfdf3' : '#fff';
+        });
+        
+        container.appendChild(row);
+        // Store metadata
+        row.dataset.itemName = item.name;
+        row.dataset.unit = item.unit;
+        row.dataset.price = item.price;
+        row.dataset.packsize = item.packSize;
+    });
+}
+
+function buildChecklistDataForShop(shop) {
+    const catalog = quickAddProducts?.[shop] || {};
+    const list = [];
+    Object.entries(catalog).forEach(([category, items]) => {
+        items.forEach(item => {
+            list.push({
+                name: item.name,
+                unit: item.unit || '',
+                price: item.price ?? 0,
+                packSize: item.defaultQty || extractNumericFromUnit(item.unit) || 1,
+                category
+            });
+        });
+    });
+    return list;
+}
+
+function collectHomeChecklistSelections(shop) {
+    const container = document.getElementById('homeInventoryChecklist');
+    if (!container) return [];
+    const rows = Array.from(container.querySelectorAll('.home-checklist-row'));
+    const selections = [];
+    
+    rows.forEach(row => {
+        const checked = row.querySelector('.home-check')?.checked;
+        if (!checked) return;
+        const qtyInput = row.querySelector('.home-qty');
+        const itemName = row.dataset.itemName;
+        const unit = row.dataset.unit;
+        const price = parseFloat(row.dataset.price) || 0;
+        const packSize = parseFloat(row.dataset.packsize) || 1;
+        
+        const isTap = shop === 'Tap' && itemName.toLowerCase().includes('tap water');
+        const qtyUnits = isTap ? Infinity : parseFloat(qtyInput?.value);
+        if (isTap || (!isNaN(qtyUnits) && qtyUnits > 0)) {
+            selections.push({
+                shop,
+                category: '',
+                itemName,
+                unit,
+                price,
+                qtyAvailablePacks: isTap ? Infinity : qtyUnits / packSize,
+                qtyUnits: isTap ? Infinity : qtyUnits,
+                unitLabel: unit
+            });
+        }
+    });
+    
+    return selections;
+}
+
+function populatePreferredShopSelect() {
+    const select = document.getElementById('shoppingPreferredShop');
+    if (!select) return;
+    const shops = quickAddProducts ? Object.keys(quickAddProducts) : [];
+    if (shops.length === 0) {
+        select.innerHTML = `<option value="Tesco">Tesco</option>`;
+        select.value = 'Tesco';
+        return;
+    }
+    select.innerHTML = shops.map(shop => `<option value="${shop}">${shop}</option>`).join('');
+    select.value = shops.includes('Tesco') ? 'Tesco' : shops[0];
 }
 
 function renderRecipes() {
@@ -3209,6 +3445,10 @@ document.addEventListener('DOMContentLoaded', function() {
             commuteDuration.value = this.value;
         });
     }
+
+    renderHomeInventoryTable();
+    populatePreferredShopSelect();
+    setTimeout(populatePreferredShopSelect, 400);
 });
 
 console.log('✅ New manual add interface handlers loaded!');
