@@ -2944,6 +2944,8 @@ function openPromptGenerator() {
     // Populate work days
     populateWorkDays(today);
     
+    populatePromptShopSelect();
+    
     // Render pantry items
     renderPantryItems();
 }
@@ -2982,6 +2984,19 @@ function populateWorkDays(date) {
     
     html += '</div>';
     container.innerHTML = html;
+}
+
+function populatePromptShopSelect() {
+    const select = document.getElementById('promptShop');
+    if (!select) return;
+    const shops = quickAddProducts ? Object.keys(quickAddProducts) : [];
+    if (!shops.length) {
+        select.innerHTML = '<option value="Tesco">Tesco</option>';
+        select.value = 'Tesco';
+        return;
+    }
+    select.innerHTML = shops.map((shop) => `<option value="${shop}">${shop}</option>`).join('');
+    select.value = shops.includes('Tesco') ? 'Tesco' : shops[0];
 }
 
 // Listen for date changes
@@ -3045,6 +3060,18 @@ function closeResponseImporter() {
 function generatePrompt() {
     // Get all form data
     const weekDate = document.getElementById('promptWeekDate').value || new Date().toISOString().split('T')[0];
+    const selectedShop = document.getElementById('promptShop')?.value || 'Tesco';
+    const batchDuration = document.querySelector('input[name="batchDuration"]:checked')?.value || '1';
+    const dietaryFilters = {
+        vegetarian: document.getElementById('dietVegetarian')?.checked || false,
+        vegan: document.getElementById('dietVegan')?.checked || false,
+        nutFree: document.getElementById('dietNutFree')?.checked || false,
+        dairyFree: document.getElementById('dietDairyFree')?.checked || false,
+        glutenFree: document.getElementById('dietGlutenFree')?.checked || false
+    };
+    const dietarySummary = typeof describeDietaryFilters === 'function'
+        ? describeDietaryFilters(dietaryFilters)
+        : 'None';
     
     // Get work schedule from time inputs - CORRECTLY this time
     let workSchedule = '';
@@ -3087,6 +3114,9 @@ function generatePrompt() {
     const oneOffTasks = document.getElementById('promptOneOffTasks').value;
     const sleepSchedule = document.getElementById('promptSleep').value;
     const includeRelax = document.getElementById('promptRelax').checked;
+    const recipePromptSection = typeof buildRecipePromptSection === 'function'
+        ? buildRecipePromptSection({ shop: selectedShop, batchDuration, filters: dietaryFilters })
+        : '';
     
     // Format the week start date nicely
     const weekDateObj = new Date(weekDate);
@@ -3114,6 +3144,9 @@ ${studyTopics ? `- Focus topics:\n${studyTopics}` : ''}
 - Preferences: ${foodPrefs || 'No preferences'}
 - Current pantry: ${pantry || 'Empty - need to buy everything'}
 - Budget: ${budget}
+- Preferred shop: ${selectedShop}
+- Batch cook duration: ${batchDuration} day(s) worth of meals per batch recipe
+- Dietary filters: ${dietarySummary}
 ${freeMeals ? '- IMPORTANT: I get FREE meals at work! Reduce shopping accordingly and note this in schedule.' : '- No free meals at work - need to plan all meals myself.'}
 
 🎯 HOBBIES:
@@ -3158,7 +3191,9 @@ CORRECT FORMAT EXAMPLE:
 
 ... (continue for all 7 consecutive days)
 
-📋 SHOPPING LIST (LIGHT — free meals at work!)
+${recipePromptSection ? `${recipePromptSection}\n\n` : ''}📋 SHOPPING LIST (LIGHT — free meals at work!)
+
+IMPORTANT: Tie shopping + meals to the recipes above using their IDs (R1, R11, R50, etc.).
 
 IMPORTANT: Format this beautifully with emojis, clear sections, and visual appeal!
 
