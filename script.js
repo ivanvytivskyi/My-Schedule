@@ -3398,6 +3398,8 @@ function importAIResponse() {
 function parseAndCreateSchedule(response) {
     console.log('=== PARSING STARTED ===');
     
+    const detectedRecipeIDs = new Set();
+    
     // Clean up the response - handle ALL dash types
     const originalLength = response.length;
     response = response.replace(/–/g, '-'); // En-dash
@@ -3530,12 +3532,31 @@ function parseAndCreateSchedule(response) {
                 }
                 
                 if (title || tasks.length > 0) {
+                    const blockText = `${title} ${tasks.join(' ')}`.trim();
+                    const recipeMatches = blockText.match(/R\d+/gi) || [];
+                    let recipeID = null;
+                    let recipeName = null;
+                    recipeMatches.forEach(id => {
+                        const upperId = id.toUpperCase();
+                        const recipe = typeof getRecipe === 'function' ? getRecipe(upperId) : null;
+                        if (recipe) {
+                            detectedRecipeIDs.add(upperId);
+                            if (!recipeID) {
+                                recipeID = upperId;
+                                recipeName = recipe.name;
+                            }
+                        }
+                    });
+                    
                     blocks.push({
                         time: `${startTime}-${endTime}`,
                         title: title || tasks[0] || 'Activity',
                         tasks: tasks.length > 0 ? tasks : ['Activity'],
                         note: '',
-                        video: ''
+                        video: '',
+                        recipeID,
+                        recipeName,
+                        isLeftover: /leftover/i.test(blockText)
                     });
                 }
             }
@@ -3635,6 +3656,26 @@ function parseAndCreateSchedule(response) {
     console.log('Rendering tabs and schedule...');
     renderDayTabs();
     renderSchedule();
+    
+    // Merge any detected recipe IDs into "This Week" and auto-select Quick Add items
+    if (typeof extractRecipeIDs === 'function') {
+        extractRecipeIDs(response).forEach(id => detectedRecipeIDs.add(id));
+    }
+    const uniqueRecipeIDs = [...detectedRecipeIDs];
+    if (uniqueRecipeIDs.length > 0) {
+        console.log(`Linking ${uniqueRecipeIDs.length} recipe IDs to This Week and Quick Add`, uniqueRecipeIDs);
+        if (Array.isArray(selectedRecipesThisWeek)) {
+            selectedRecipesThisWeek = [...new Set([...selectedRecipesThisWeek, ...uniqueRecipeIDs])];
+            if (typeof saveSelectedRecipes === 'function') saveSelectedRecipes();
+            if (typeof renderThisWeekRecipes === 'function') renderThisWeekRecipes();
+        }
+        
+        const quickAddItems = typeof mapRecipesToQuickAdd === 'function' ? mapRecipesToQuickAdd(uniqueRecipeIDs) : [];
+        if (quickAddItems.length > 0 && typeof autoSelectQuickAddItems === 'function') {
+            autoSelectQuickAddItems(quickAddItems);
+        }
+    }
+    
     saveToLocalStorage();
     
     // Show first day that was created
