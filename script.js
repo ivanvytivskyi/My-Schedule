@@ -1820,6 +1820,178 @@ function recalculateShopTotals(table) {
     }
 }
 
+// ========================================
+// HOME INVENTORY ("PRODUCTS AT HOME")
+// ========================================
+
+function openHomeInventoryModal() {
+    const modal = document.getElementById('homeInventoryModal');
+    if (!modal) return;
+    modal.classList.add('active');
+    
+    const rowsContainer = document.getElementById('homeInventoryRows');
+    if (rowsContainer) {
+        rowsContainer.innerHTML = '';
+    }
+    
+    const existing = loadHomeInventory();
+    if (existing.length === 0) {
+        addHomeInventoryRow();
+    } else {
+        existing.forEach(item => addHomeInventoryRow(item));
+    }
+}
+
+function closeHomeInventoryModal() {
+    const modal = document.getElementById('homeInventoryModal');
+    if (modal) modal.classList.remove('active');
+}
+
+function addHomeInventoryRow(data = {}) {
+    const rowsContainer = document.getElementById('homeInventoryRows');
+    if (!rowsContainer) return;
+    
+    const row = document.createElement('div');
+    row.className = 'home-inventory-row';
+    row.style.display = 'grid';
+    row.style.gridTemplateColumns = '1.2fr 1.8fr 0.8fr 0.6fr auto';
+    row.style.gap = '8px';
+    row.style.alignItems = 'center';
+    
+    row.innerHTML = `
+        <select class="home-shop" style="padding: 8px; border: 1px solid #d1d5db; border-radius: 8px;"></select>
+        <select class="home-item" style="padding: 8px; border: 1px solid #d1d5db; border-radius: 8px;">
+            <option value="">Select item</option>
+        </select>
+        <input type="number" class="home-qty" min="0" step="1" placeholder="Packs" style="padding: 8px; border: 1px solid #d1d5db; border-radius: 8px; width: 100%;" />
+        <input type="text" class="home-unit" placeholder="Unit" style="padding: 8px; border: 1px solid #d1d5db; border-radius: 8px; width: 100%;" disabled />
+        <button type="button" class="danger-btn home-remove">✕</button>
+    `;
+    
+    rowsContainer.appendChild(row);
+    
+    const shopSelect = row.querySelector('.home-shop');
+    const itemSelect = row.querySelector('.home-item');
+    const qtyInput = row.querySelector('.home-qty');
+    const unitInput = row.querySelector('.home-unit');
+    const removeBtn = row.querySelector('.home-remove');
+    
+    populateShopOptions(shopSelect, data.shop || (quickAddProducts && quickAddProducts['Tesco'] ? 'Tesco' : null));
+    populateItemOptions(itemSelect, shopSelect.value, data.itemName, data.category);
+    
+    if (typeof data.qtyAvailable !== 'undefined') qtyInput.value = data.qtyAvailable;
+    if (data.unit) unitInput.value = data.unit;
+    
+    shopSelect.addEventListener('change', () => {
+        populateItemOptions(itemSelect, shopSelect.value);
+        unitInput.value = '';
+    });
+    
+    itemSelect.addEventListener('change', () => {
+        const selected = itemSelect.selectedOptions[0];
+        unitInput.value = selected?.dataset.unit || '';
+    });
+    
+    removeBtn.addEventListener('click', () => row.remove());
+}
+
+function saveHomeInventory() {
+    const rows = document.querySelectorAll('.home-inventory-row');
+    const items = [];
+    rows.forEach(row => {
+        const shop = row.querySelector('.home-shop')?.value;
+        const itemName = row.querySelector('.home-item')?.value;
+        const unit = row.querySelector('.home-unit')?.value;
+        const qty = parseFloat(row.querySelector('.home-qty')?.value);
+        const category = row.querySelector('.home-item')?.selectedOptions?.[0]?.dataset.category;
+        const price = parseFloat(row.querySelector('.home-item')?.selectedOptions?.[0]?.dataset.price);
+        
+        if (shop && itemName && !isNaN(qty) && qty > 0) {
+            items.push({
+                shop,
+                category: category || '',
+                itemName,
+                unit: unit || '',
+                price: isNaN(price) ? 0 : price,
+                qtyAvailable: qty
+            });
+        }
+    });
+    
+    localStorage.setItem('homeInventory', JSON.stringify(items));
+    renderHomeInventoryTable();
+    closeHomeInventoryModal();
+    alert('✅ Saved products at home.');
+}
+
+function loadHomeInventory() {
+    try {
+        const data = localStorage.getItem('homeInventory');
+        if (!data) return [];
+        const parsed = JSON.parse(data);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+        console.error('Failed to parse homeInventory', e);
+        return [];
+    }
+}
+
+function renderHomeInventoryTable() {
+    const container = document.getElementById('homeInventoryDisplay');
+    if (!container) return;
+    
+    const inventory = loadHomeInventory();
+    if (!inventory || inventory.length === 0) {
+        container.innerHTML = `
+            <div style="margin-top: 12px; background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 12px; padding: 16px; color: #6b7280;">
+                🏠 No products at home yet. Click "Products at Home" to add them.
+            </div>
+        `;
+        return;
+    }
+    
+    const rows = inventory.map(item => `
+        <tr>
+            <td style="border: 1px solid #e5e7eb; padding: 10px;">${item.shop}</td>
+            <td style="border: 1px solid #e5e7eb; padding: 10px;">${item.itemName}</td>
+            <td style="border: 1px solid #e5e7eb; padding: 10px;">${item.unit}</td>
+            <td style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">${item.qtyAvailable}</td>
+        </tr>
+    `).join('');
+    
+    container.innerHTML = `
+        <div style="margin-top: 12px; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+            <div style="padding: 12px 16px; background: #fff7ed; color: #9a3412; font-weight: 700;">🏠 Products at Home</div>
+            <table style="width: 100%; border-collapse: collapse; background: white;">
+                <thead>
+                    <tr style="background: #f9fafb; color: #374151;">
+                        <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left;">Shop</th>
+                        <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left;">Item</th>
+                        <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left;">Unit</th>
+                        <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">Quantity (packs)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+function populatePreferredShopSelect() {
+    const select = document.getElementById('shoppingPreferredShop');
+    if (!select) return;
+    const shops = quickAddProducts ? Object.keys(quickAddProducts) : [];
+    if (shops.length === 0) {
+        select.innerHTML = `<option value="Tesco">Tesco</option>`;
+        select.value = 'Tesco';
+        return;
+    }
+    select.innerHTML = shops.map(shop => `<option value="${shop}">${shop}</option>`).join('');
+    select.value = shops.includes('Tesco') ? 'Tesco' : shops[0];
+}
+
 function renderRecipes() {
     // If the new recipe library UI is present, refresh it instead of using legacy text mode
     const recipeGrid = document.getElementById('recipeGrid');
@@ -3209,6 +3381,10 @@ document.addEventListener('DOMContentLoaded', function() {
             commuteDuration.value = this.value;
         });
     }
+
+    renderHomeInventoryTable();
+    populatePreferredShopSelect();
+    setTimeout(populatePreferredShopSelect, 400);
 });
 
 console.log('✅ New manual add interface handlers loaded!');
