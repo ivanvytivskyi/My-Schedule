@@ -957,16 +957,53 @@ function generateShoppingListFromRecipes() {
         .filter(Boolean);
     
     const aggregated = {};
-    const unresolved = [];
+    const fallbackElsewhere = [];
+    const fallbackUnmatched = [];
     const homeInventory = loadHomeInventoryItems();
+    const seenIngredientNames = new Set();
     
     allRecipes.forEach(recipe => {
-        if (!recipe.quickAddItems || recipe.quickAddItems.length === 0) return;
+        const quickItems = (recipe.quickAddItems || []).slice();
         
-        recipe.quickAddItems.forEach(item => {
+        // Always supplement with keyword-derived ingredients from the recipe text
+        if (recipe.display?.ingredients?.length) {
+            recipe.display.ingredients.forEach(text => {
+                const normalized = normalizeName(text);
+                if (seenIngredientNames.has(normalized)) return;
+                const parsedQty = parseIngredientQuantity(text);
+                const match = typeof findIngredientKeywordMatch === 'function'
+                    ? findIngredientKeywordMatch(text, preferredShop)
+                    : null;
+                if (match) {
+                    quickItems.push({
+                        shop: match.shop,
+                        category: match.category,
+                        itemName: match.itemName,
+                        qtyNeeded: parsedQty.qty || match.qtyNeeded || 1,
+                        unit: parsedQty.unit || match.unit || ''
+                    });
+                    seenIngredientNames.add(normalized);
+                } else {
+                    fallbackUnmatched.push({
+                        itemName: text,
+                        unit: parsedQty.unit || '',
+                        qtyNeeded: parsedQty.qty || 1
+                    });
+                    seenIngredientNames.add(normalized);
+                }
+            });
+        }
+        
+        if (!quickItems.length) return;
+        
+        quickItems.forEach(item => {
             const resolved = resolveRecipeItemPreferredShopOnly(item, preferredShop);
             if (!resolved) {
-                unresolved.push(item);
+                fallbackElsewhere.push({
+                    itemName: item.itemName,
+                    unit: item.unit || '',
+                    qtyNeeded: item.qtyNeeded || 1
+                });
                 return;
             }
             
@@ -1034,8 +1071,11 @@ function generateShoppingListFromRecipes() {
         html += buildShoppingTableForShop(shop, items);
     });
     
-    if (unresolved.length > 0) {
-        html += buildUnresolvedTable(unresolved);
+    if (fallbackElsewhere.length > 0) {
+        html += buildUnresolvedTable(fallbackElsewhere, 'Please buy these ingredients somewhere else');
+    }
+    if (fallbackUnmatched.length > 0) {
+        html += buildUnresolvedTable(fallbackUnmatched, 'Please buy these ingredients somewhere else');
     }
     
     // Persist into shopping tab (append, do not overwrite manual lists)
@@ -1056,7 +1096,12 @@ function generateShoppingListFromRecipes() {
 function resolveRecipeItemPreferredShopOnly(item, preferredShop) {
     if (!quickAddProducts || Object.keys(quickAddProducts).length === 0) return null;
     const preferred = findBestProductForShop(item, preferredShop);
-    return preferred || null;
+    if (preferred) return preferred;
+    if (preferredShop !== 'Tesco') {
+        const tesco = findBestProductForShop(item, 'Tesco');
+        if (tesco) return tesco;
+    }
+    return null;
 }
 
 function findBestProductForShop(item, shopName) {
@@ -1108,6 +1153,26 @@ function normalizeName(name) {
     return (name || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
+function parseIngredientQuantity(text) {
+    const normalized = (text || '').trim();
+    const numberMatch = normalized.match(/(\d+(?:\.\d+)?)/);
+    let qty = numberMatch ? parseFloat(numberMatch[1]) : 1;
+    const unitMatch = normalized.match(/\d+(?:\.\d+)?\s*([a-zA-Z]+)$/);
+    const unit = unitMatch ? unitMatch[1].toLowerCase() : '';
+    if (!isFinite(qty) || qty <= 0) qty = 1;
+    return { qty, unit };
+}
+
+function ingredientKeywordsFromText(text) {
+    const stop = new Set(['fresh', 'ripe', 'small', 'medium', 'large', 'minced', 'chopped', 'sliced', 'diced', 'ground', 'crushed', 'optional', 'taste', 'pinch', 'handful', 'packed']);
+    return (text || '')
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean)
+        .filter(w => !stop.has(w));
+}
+
 function extractNumericFromUnit(unit) {
     if (!unit) return null;
     const match = unit.replace(',', '.').match(/([\d\.]+)/);
@@ -1147,9 +1212,9 @@ function buildShoppingTableForShop(shop, items) {
     
     return `
         <div class="shopping-list-block" data-shop="${shop}" style="margin-bottom: 24px; page-break-inside: avoid; border: 2px solid #e5e7eb; border-radius: 10px; overflow: hidden;">
-            <div style="${style.header}; display:flex; align-items:center; justify-content:space-between;">
-                <h3 style="${style.title}">${shop}</h3>
-                <button class="list-delete-btn" style="margin-left:8px; background: white; border: 1px solid #d1d5db; border-radius: 6px; padding: 4px 8px; cursor: pointer; font-weight: 700; color: #6b7280;">✕</button>
+            <div style="${style.header}; display:flex; align-items:center; justify-content:center; position:relative;">
+                <h3 style="${style.title}; margin:0 auto;">${shop}</h3>
+                <button class="list-delete-btn" style="position:absolute; right:10px; top:50%; transform: translateY(-50%); background: white; border: 1px solid #d1d5db; border-radius: 6px; padding: 4px 8px; cursor: pointer; font-weight: 700; color: #6b7280;">✕</button>
             </div>
             <table style="width: 100%; border-collapse: collapse;" data-shop="${shop}">
                 <thead>
@@ -1173,7 +1238,7 @@ function buildShoppingTableForShop(shop, items) {
     `;
 }
 
-function buildUnresolvedTable(items) {
+function buildUnresolvedTable(items, title) {
     const rows = items.map(entry => `
         <tr>
             <td style="border: 1px solid #ddd; padding: 10px;">${entry.itemName}</td>
@@ -1184,9 +1249,10 @@ function buildUnresolvedTable(items) {
     `).join('');
     
     return `
-        <div style="margin-bottom: 24px; page-break-inside: avoid; border: 2px dashed #f59e0b; border-radius: 10px; overflow: hidden; background: #fffbeb;">
-            <div style="background: #fbbf24; color: #78350f; padding: 14px 16px; font-weight: 800; font-size: 16px;">
-                Currently selected shop doesn't have these items – buy elsewhere
+        <div class="shopping-list-block" data-shop="Elsewhere" style="margin-bottom: 24px; page-break-inside: avoid; border: 2px dashed #f59e0b; border-radius: 10px; overflow: hidden; background: #fffbeb;">
+            <div style="background: #fbbf24; color: #78350f; padding: 14px 16px; font-weight: 800; font-size: 16px; display:flex; align-items:center; justify-content:space-between;">
+                ${title || 'Currently selected shop does not have these items – buy elsewhere'}
+                <button class="list-delete-btn" style="background: white; border: 1px solid #d1d5db; border-radius: 6px; padding: 4px 8px; cursor: pointer; font-weight: 700; color: #6b7280;">✕</button>
             </div>
             <table style="width: 100%; border-collapse: collapse;">
                 <thead>

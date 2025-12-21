@@ -259,15 +259,35 @@ function importRecipes() {
 </div>`;
         });
         
-        // Display in container
+        // Display in container (legacy text view)
         const container = document.getElementById('recipesDisplay');
-        container.innerHTML = `
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.8; color: #2c3e50;">
-                ${formattedHTML}
-            </div>
-        `;
+        if (container) {
+            container.innerHTML = `
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.8; color: #2c3e50;">
+                    ${formattedHTML}
+                </div>
+            `;
+        }
         
-        // Save to localStorage
+        // Parse recipe IDs and map to Quick Add / This Week
+        const ids = typeof extractRecipeIDs === 'function' ? extractRecipeIDs(input) : [];
+        if (ids.length > 0) {
+            // Merge into This Week
+            if (Array.isArray(selectedRecipesThisWeek)) {
+                const merged = [...new Set([...selectedRecipesThisWeek, ...ids])];
+                selectedRecipesThisWeek = merged;
+                if (typeof saveSelectedRecipes === 'function') saveSelectedRecipes();
+                if (typeof renderThisWeekRecipes === 'function') renderThisWeekRecipes();
+            }
+            
+            // Map to Quick Add items and auto-select
+            const items = typeof mapRecipesToQuickAdd === 'function' ? mapRecipesToQuickAdd(ids) : [];
+            if (items.length > 0 && typeof autoSelectQuickAddItems === 'function') {
+                autoSelectQuickAddItems(items);
+            }
+        }
+        
+        // Save raw text for edit mode
         localStorage.setItem('recipesText', input);
         
         closeImportRecipes();
@@ -278,8 +298,9 @@ function importRecipes() {
         
         const videoCount = (input.match(youtubeRegex) || []).length;
         const videoMsg = videoCount > 0 ? `\n\n✨ ${videoCount} video button${videoCount > 1 ? 's' : ''} added!` : '';
+        const idsMsg = ids.length > 0 ? `\n\n✅ ${ids.length} recipe ID${ids.length > 1 ? 's' : ''} added to \"This Week\" and Quick Add.` : '';
         
-        alert(`👨‍🍳 SUCCESS!\n\nYour beautifully formatted recipes are now displayed!${videoMsg}\n\nCheck the Recipes tab!`);
+        alert(`👨‍🍳 SUCCESS!\n\nYour beautifully formatted recipes are now displayed!${videoMsg}${idsMsg}\n\nCheck the Recipes tab!`);
         
     } catch (error) {
         console.error('Recipes import error:', error);
