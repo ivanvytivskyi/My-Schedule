@@ -1713,6 +1713,12 @@ function renderShopping() {
     }
 }
 
+function clearGeneratedShopping() {
+    localStorage.removeItem('shoppingListHTML');
+    if (typeof renderShopping === 'function') renderShopping();
+    alert('🗑️ Shopping list cleared.');
+}
+
 // Shopping Edit Mode
 let shoppingEditMode = false;
 
@@ -1818,6 +1824,501 @@ function recalculateShopTotals(table) {
         totalCells[1].textContent = `£${totalPrice.toFixed(2)}`;
         totalCells[2].textContent = `Total Qty: ${totalQty % 1 !== 0 ? totalQty.toFixed(1) : totalQty}`;
     }
+}
+
+// ========================================
+// HOME INVENTORY ("PRODUCTS AT HOME")
+// ========================================
+
+function openHomeInventoryModal() {
+    const modal = document.getElementById('homeInventoryModal');
+    if (!modal) return;
+    modal.classList.add('active');
+    
+    const shopSelect = document.getElementById('homeInventoryShop');
+    if (shopSelect) {
+        populateShopOptions(shopSelect, null, true);
+        shopSelect.add(new Option('Tap (custom water)', 'Tap'));
+    }
+    
+    const saved = loadHomeInventory();
+    const defaultShop = shopSelect?.value || 'Tesco';
+    renderHomeInventoryChecklist(defaultShop, saved);
+    
+    if (shopSelect) {
+        shopSelect.onchange = () => renderHomeInventoryChecklist(shopSelect.value, saved);
+    }
+}
+
+function closeHomeInventoryModal() {
+    const modal = document.getElementById('homeInventoryModal');
+    if (modal) modal.classList.remove('active');
+}
+
+function saveHomeInventory() {
+    const shopSelect = document.getElementById('homeInventoryShop');
+    const currentShop = shopSelect?.value || 'Tesco';
+    const saved = loadHomeInventory();
+    const kept = saved.filter(item => item.shop !== currentShop);
+    const currentSelections = collectHomeChecklistSelections(currentShop);
+    const items = [...kept, ...currentSelections];
+    
+    localStorage.setItem('homeInventory', JSON.stringify(items));
+    renderHomeInventoryTable();
+    closeHomeInventoryModal();
+    alert('✅ Saved products at home.');
+}
+
+function loadHomeInventory() {
+    try {
+        const data = localStorage.getItem('homeInventory');
+        if (!data) return [];
+        const parsed = JSON.parse(data);
+        if (!Array.isArray(parsed)) return [];
+        
+        return parsed.map(raw => {
+            const packUnit = raw.packUnit || raw.unit || raw.unitLabel || '';
+            const meta = deriveUnitMetadata(packUnit);
+            const homeUnit = raw.homeUnit || meta.homeUnit;
+            const unitsPerPack = raw.unitsPerPack || meta.unitsPerPack || 1;
+            const isTap = raw.shop === 'Tap';
+            const unlimited = Boolean(raw.unlimited) || isTap || raw.qtyUnits === 'unlimited' || raw.qtyAvailablePacks === 'unlimited';
+            const qtyUnitsRaw = raw.qtyUnits ?? raw.qtyAvailable ?? raw.qtyAvailablePacks ?? 0;
+            const unitLabel = homeUnit;
+            let sanitizedQty = unlimited ? Infinity : sanitizeQuantityForUnit(qtyUnitsRaw, homeUnit, true);
+            if (!unlimited && (sanitizedQty === null || !isFinite(sanitizedQty))) {
+                const packs = sanitizeQuantityForUnit(raw.qtyAvailablePacks ?? qtyUnitsRaw, 'each', true);
+                if (packs !== null && isFinite(packs)) {
+                    sanitizedQty = packs * unitsPerPack;
+                }
+            }
+            const qtyUnits = unlimited ? Infinity : (sanitizedQty ?? 0);
+            
+            return {
+                shop: raw.shop,
+                category: raw.category,
+                itemName: raw.itemName,
+                unit: packUnit,
+                price: raw.price,
+                qtyAvailablePacks: unlimited ? Infinity : (raw.qtyAvailablePacks ?? raw.qtyAvailable ?? (qtyUnits / unitsPerPack)),
+                qtyUnits,
+                unitLabel,
+                homeUnit,
+                packUnit,
+                unitsPerPack,
+                unlimited
+            };
+        });
+    } catch (e) {
+        console.error('Failed to parse homeInventory', e);
+        return [];
+    }
+}
+
+function unitAllowsDecimals(unit = '') {
+    const cleaned = (unit || '').trim().toLowerCase();
+    return ['kg', 'kgs', 'kilogram', 'kilograms', 'l', 'liter', 'liters', 'litre', 'litres'].includes(cleaned);
+}
+
+function deriveUnitMetadata(unit = '') {
+    const packUnit = (unit || '').trim();
+    const lower = packUnit.toLowerCase();
+    const numeric = typeof extractNumericFromUnit === 'function' ? extractNumericFromUnit(packUnit) : parseFloat(packUnit);
+    
+    let homeUnit = 'each';
+    let unitsPerPack = numeric && isFinite(numeric) ? numeric : 1;
+    
+    if (/\bkg\b|kilogram/.test(lower)) {
+        homeUnit = 'kg';
+        unitsPerPack = numeric && isFinite(numeric) ? numeric : 1;
+    } else if (/\bg\b/.test(lower)) {
+        homeUnit = 'g';
+        unitsPerPack = numeric && isFinite(numeric) ? numeric : 1;
+    } else if (/(liter|litre|\bl\b)/.test(lower)) {
+        homeUnit = 'L';
+        unitsPerPack = numeric && isFinite(numeric) ? numeric : 1;
+    } else if (/\bml\b/.test(lower)) {
+        homeUnit = 'ml';
+        unitsPerPack = numeric && isFinite(numeric) ? numeric : 1;
+    } else if (/pack of\s*\d+/i.test(lower)) {
+        homeUnit = 'each';
+        unitsPerPack = numeric && isFinite(numeric) ? numeric : 1;
+    } else if (/pack\b/.test(lower) || /\bhead\b|\bloaf\b|\btin\b|\bbottle\b|\bjar\b|\bcan\b|\bpint\b/.test(lower)) {
+        homeUnit = 'each';
+        unitsPerPack = 1;
+    } else if (/each/.test(lower)) {
+        homeUnit = 'each';
+        unitsPerPack = numeric && isFinite(numeric) ? numeric : 1;
+    }
+    
+    if (!unitsPerPack || !isFinite(unitsPerPack)) unitsPerPack = 1;
+    return { packUnit, homeUnit, unitsPerPack };
+}
+
+function convertUnitsToTarget(value, fromUnit = '', toUnit = '') {
+    if (!isFinite(value)) return value;
+    const from = (fromUnit || '').trim().toLowerCase();
+    const to = (toUnit || '').trim().toLowerCase();
+    if (!from || !to || from === to) return value;
+    
+    const weight = { kg: 1000, g: 1 };
+    const volume = { l: 1000, ml: 1 };
+    
+    if (from in weight && to in weight) {
+        return value * (weight[from] / weight[to]);
+    }
+    if (from in volume && to in volume) {
+        return value * (volume[from] / volume[to]);
+    }
+    return value;
+}
+
+function sanitizeQuantityForUnit(value, unit = '', allowZero = false) {
+    const numeric = parseFloat(value);
+    if (!isFinite(numeric)) return null;
+    if (numeric < 0) return null;
+
+    const decimalsOk = unitAllowsDecimals(unit);
+    if (decimalsOk) {
+        const rounded = Math.round(numeric * 100) / 100;
+        if (!allowZero && rounded <= 0) return null;
+        return rounded;
+    }
+    const whole = Math.floor(numeric);
+    if (!allowZero && whole <= 0) return null;
+    return allowZero ? Math.max(0, whole) : whole;
+}
+
+function formatQuantityForDisplay(qty, unit = '') {
+    if (!isFinite(qty)) return '0';
+    const decimalsOk = unitAllowsDecimals(unit);
+    const safeQty = decimalsOk ? Math.round(qty * 100) / 100 : Math.floor(qty);
+    const str = decimalsOk ? safeQty.toFixed(2) : String(safeQty);
+    return str.replace(/\.0+$/, '').replace(/\.([1-9]*)0+$/, '.$1');
+}
+
+function applyQuantityInputRules(input, unit = '') {
+    if (!input) return;
+    const decimalsOk = unitAllowsDecimals(unit);
+    input.step = decimalsOk ? '0.01' : '1';
+    input.min = '0';
+    input.addEventListener('input', () => {
+        if (input.value === '') return;
+        const sanitized = sanitizeQuantityForUnit(input.value, unit, true);
+        if (sanitized === null) {
+            input.value = '';
+            return;
+        }
+        input.value = decimalsOk
+            ? formatQuantityForDisplay(sanitized, unit)
+            : String(Math.floor(sanitized));
+    });
+}
+
+// Backwards compatibility wrapper
+function decimalsAllowed(unit = '') {
+    return unitAllowsDecimals(unit);
+}
+
+function renderHomeInventoryTable() {
+    const container = document.getElementById('homeInventoryDisplay');
+    if (!container) return;
+    
+    const inventory = loadHomeInventory();
+    if (!inventory || inventory.length === 0) {
+        container.innerHTML = `
+            <div style="margin-top: 12px; background: #f9fafb; border: 1px dashed #d1d5db; border-radius: 12px; padding: 16px; color: #6b7280;">
+                🏠 No products at home yet. Click "Products at Home" to add them.
+            </div>
+        `;
+        return;
+    }
+    
+    const rows = inventory.map(item => {
+        let qtyDisplay = '0';
+        const unitLabel = item.homeUnit || item.unitLabel || item.unit;
+        if (item.unlimited || item.qtyUnits === Infinity) {
+            qtyDisplay = 'Unlimited';
+        } else if (typeof item.qtyUnits === 'number' && !isNaN(item.qtyUnits)) {
+            qtyDisplay = formatQuantityForDisplay(item.qtyUnits, unitLabel);
+        } else if (item.qtyAvailablePacks && isFinite(item.qtyAvailablePacks)) {
+            qtyDisplay = formatQuantityForDisplay(item.qtyAvailablePacks, unitLabel);
+        }
+        return `
+            <tr>
+                <td style="border: 1px solid #e5e7eb; padding: 10px;">${item.shop}</td>
+                <td style="border: 1px solid #e5e7eb; padding: 10px;">${item.itemName}</td>
+                <td style="border: 1px solid #e5e7eb; padding: 10px;">${unitLabel}</td>
+                <td style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">${qtyDisplay}</td>
+            </tr>
+        `;
+    }).join('');
+    
+    container.innerHTML = `
+        <div style="margin-top: 12px; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
+            <div style="padding: 12px 16px; background: #fff7ed; color: #9a3412; font-weight: 700;">🏠 Products at Home</div>
+            <table style="width: 100%; border-collapse: collapse; background: white;">
+                <thead>
+                    <tr style="background: #f9fafb; color: #374151;">
+                        <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left;">Shop</th>
+                        <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left;">Item</th>
+                        <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left;">Unit</th>
+                        <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">Quantity at home</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+function renderHomeInventoryChecklist(shop, savedInventory) {
+    const container = document.getElementById('homeInventoryChecklist');
+    if (!container) return;
+    container.innerHTML = '';
+    
+    const checklistData = shop === 'Tap'
+        ? [{ name: 'Tap water', unit: 'Tap', packUnit: 'Tap', homeUnit: 'L', unitsPerPack: 1, price: 0, packSize: 1, category: 'Water' }]
+        : buildChecklistDataForShop(shop);
+    const currentSaved = Array.isArray(savedInventory) ? savedInventory : loadHomeInventory();
+    const savedForShop = currentSaved.filter(item => item.shop === shop);
+    const grouped = checklistData.reduce((acc, item) => {
+        const category = item.category || 'Other';
+        if (!acc[category]) acc[category] = [];
+        acc[category].push(item);
+        return acc;
+    }, {});
+    
+    const header = document.createElement('div');
+    header.style.cssText = 'display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap;';
+    const badge = document.createElement('div');
+    badge.id = 'homeInventorySelectedCount';
+    badge.style.cssText = 'background: #eef2ff; color: #4338ca; padding: 8px 12px; border-radius: 999px; font-weight: 700;';
+    const clearButton = document.createElement('button');
+    clearButton.textContent = 'Clear all';
+    clearButton.style.cssText = 'border: 1px solid #d1d5db; background: white; color: #374151; padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: 600;';
+    header.appendChild(badge);
+    header.appendChild(clearButton);
+    
+    const gridWrapper = document.createElement('div');
+    gridWrapper.style.cssText = 'display: flex; flex-direction: column; gap: 16px;';
+    
+    const updateSelectedCount = () => {
+        const selected = container.querySelectorAll('.home-card input[type="checkbox"]:checked').length;
+        badge.textContent = `${selected} selected`;
+    };
+    
+    const clearSelections = () => {
+        const checkboxes = container.querySelectorAll('.home-card input[type="checkbox"]');
+        checkboxes.forEach(box => {
+            box.checked = false;
+            const card = box.closest('.home-card');
+            if (!card) return;
+            card.style.borderColor = '#e5e7eb';
+            card.style.background = '#ffffff';
+            card.style.boxShadow = 'none';
+            const qtyRow = card.querySelector('.home-card-qty');
+            if (qtyRow) qtyRow.style.display = 'none';
+            const qtyInput = card.querySelector('.home-qty-input');
+            if (qtyInput) qtyInput.value = '';
+        });
+        updateSelectedCount();
+    };
+    
+    clearButton.addEventListener('click', clearSelections);
+    
+    Object.entries(grouped).forEach(([category, items]) => {
+        const section = document.createElement('div');
+        section.style.cssText = 'border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; background: white;';
+        const sectionHeader = document.createElement('div');
+        sectionHeader.style.cssText = 'background: linear-gradient(135deg, #f9fafb 0%, #eef2ff 100%); padding: 10px 14px; font-weight: 800; color: #4338ca; display: flex; align-items: center; gap: 8px;';
+        sectionHeader.innerHTML = `<span>${category}</span>`;
+        section.appendChild(sectionHeader);
+        
+        const grid = document.createElement('div');
+        grid.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; padding: 12px;';
+        
+        items.forEach(item => {
+            const saved = savedForShop.find(s => normalizeName(s.itemName) === normalizeName(item.name));
+            const isChecked = Boolean(saved);
+            const isTap = shop === 'Tap' || item.name.toLowerCase().includes('tap water');
+            const homeUnit = item.homeUnit || deriveUnitMetadata(item.packUnit || item.unit).homeUnit;
+            const packUnit = item.packUnit || item.unit;
+            const unitsPerPack = item.unitsPerPack || deriveUnitMetadata(packUnit).unitsPerPack || item.packSize || 1;
+            const qtyVal = saved?.qtyUnits === Infinity || saved?.unlimited
+                ? ''
+                : (typeof saved?.qtyUnits === 'number' ? formatQuantityForDisplay(saved.qtyUnits, homeUnit) : '');
+            const card = document.createElement('div');
+            card.className = 'home-card';
+            card.style.cssText = `
+                border: 1px solid ${isChecked ? '#10b981' : '#e5e7eb'};
+                border-radius: 12px;
+                padding: 12px;
+                background: ${isChecked ? '#ecfdf3' : '#ffffff'};
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+                box-shadow: ${isChecked ? '0 8px 24px rgba(16, 185, 129, 0.15)' : 'none'};
+            `;
+            card.dataset.itemName = item.name;
+            card.dataset.unit = packUnit;
+            card.dataset.packunit = packUnit;
+            card.dataset.homeunit = homeUnit;
+            card.dataset.unitsperpack = unitsPerPack;
+            card.dataset.price = item.price;
+            card.dataset.packsize = unitsPerPack;
+            card.dataset.category = category;
+            card.dataset.tap = isTap ? 'true' : 'false';
+            card.dataset.unlimited = (isTap || saved?.unlimited) ? 'true' : 'false';
+            
+            const topRow = document.createElement('div');
+            topRow.style.cssText = 'display: flex; gap: 10px; align-items: flex-start;';
+            topRow.innerHTML = `
+                <input type="checkbox" class="home-card-check" ${isChecked ? 'checked' : ''} style="margin-top: 4px; transform: scale(1.1);" />
+                <div style="flex: 1;">
+                    <div style="font-weight: 800; color: #111827;">${item.name}</div>
+                    <div style="color: #6b7280; font-size: 12px;">Sold as: ${packUnit} · Qty at home uses ${homeUnit}</div>
+                </div>
+                <div style="padding: 6px 10px; background: #f3f4f6; border-radius: 8px; font-weight: 700; color: #374151; font-size: 12px;">${packUnit}</div>
+            `;
+            
+            const qtyRow = document.createElement('div');
+            qtyRow.className = 'home-card-qty';
+            qtyRow.style.cssText = `display: ${isChecked ? 'flex' : 'none'}; align-items: center; gap: 8px; margin-left: 32px; flex-wrap: wrap;`;
+            
+            if (isTap || saved?.unlimited) {
+                qtyRow.innerHTML = `<span style="background: #ecfdf3; color: #047857; padding: 6px 10px; border-radius: 999px; font-weight: 700;">Unlimited (tap)</span>`;
+            } else {
+                qtyRow.innerHTML = `
+                    <span style="color: #374151; font-weight: 600;">Qty at home:</span>
+                    <div style="display: flex; align-items: center; gap: 6px;">
+                        <input type="number" class="home-qty-input" min="0" ${unitAllowsDecimals(homeUnit) ? 'step="0.01"' : 'step="1"'} placeholder="${unitsPerPack || 1}" value="${qtyVal}" style="padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; width: 90px;">
+                        <span style="color: #6b7280; font-weight: 600;">${homeUnit}</span>
+                    </div>
+                `;
+            }
+            
+            card.appendChild(topRow);
+            card.appendChild(qtyRow);
+            grid.appendChild(card);
+            
+            const checkbox = card.querySelector('.home-card-check');
+            
+            const syncSelection = (isSelected) => {
+                card.style.borderColor = isSelected ? '#10b981' : '#e5e7eb';
+                card.style.background = isSelected ? '#ecfdf3' : '#ffffff';
+                card.style.boxShadow = isSelected ? '0 8px 24px rgba(16, 185, 129, 0.15)' : 'none';
+                qtyRow.style.display = isSelected ? 'flex' : 'none';
+                if (!isSelected && !isTap) {
+                    const qtyInput = card.querySelector('.home-qty-input');
+                    if (qtyInput) qtyInput.value = '';
+                }
+                updateSelectedCount();
+            };
+            
+            checkbox?.addEventListener('change', () => syncSelection(checkbox.checked));
+            card.addEventListener('click', (e) => {
+                if (e.target.classList.contains('home-qty-input')) return;
+                const next = !checkbox.checked;
+                checkbox.checked = next;
+                syncSelection(next);
+            });
+
+            const qtyInput = card.querySelector('.home-qty-input');
+            if (qtyInput) {
+                applyQuantityInputRules(qtyInput, homeUnit);
+                qtyInput.addEventListener('click', (e) => e.stopPropagation());
+            }
+        });
+        
+        section.appendChild(grid);
+        gridWrapper.appendChild(section);
+    });
+    
+    container.appendChild(header);
+    container.appendChild(gridWrapper);
+    updateSelectedCount();
+}
+
+function buildChecklistDataForShop(shop) {
+    const catalog = quickAddProducts?.[shop] || {};
+    const list = [];
+    Object.entries(catalog).forEach(([category, items]) => {
+        items.forEach(item => {
+            const meta = deriveUnitMetadata(item.unit);
+            list.push({
+                name: item.name,
+                unit: item.unit || '',
+                packUnit: item.unit || '',
+                homeUnit: meta.homeUnit,
+                unitsPerPack: meta.unitsPerPack,
+                price: item.price ?? 0,
+                packSize: item.defaultQty || meta.unitsPerPack || extractNumericFromUnit(item.unit) || 1,
+                category
+            });
+        });
+    });
+    return list;
+}
+
+function collectHomeChecklistSelections(shop) {
+    const container = document.getElementById('homeInventoryChecklist');
+    if (!container) return [];
+    const cards = Array.from(container.querySelectorAll('.home-card'));
+    const selections = [];
+    
+    cards.forEach(card => {
+        const checked = card.querySelector('.home-card-check')?.checked;
+        if (!checked) return;
+        const qtyInput = card.querySelector('.home-qty-input');
+        const itemName = card.dataset.itemName;
+        const packUnit = card.dataset.packunit || card.dataset.unit;
+        const homeUnit = card.dataset.homeunit || deriveUnitMetadata(packUnit).homeUnit;
+        const price = parseFloat(card.dataset.price) || 0;
+        const unitsPerPack = parseFloat(card.dataset.unitsperpack) || parseFloat(card.dataset.packsize) || 1;
+        const category = card.dataset.category || '';
+        
+        const isTap = card.dataset.tap === 'true' || (shop === 'Tap' && itemName.toLowerCase().includes('tap water'));
+        const unlimited = isTap || card.dataset.unlimited === 'true';
+        const rawValue = qtyInput?.value;
+        const qtyUnits = unlimited ? null : sanitizeQuantityForUnit(rawValue, homeUnit);
+        if (!unlimited && (qtyUnits === null || qtyUnits <= 0)) return;
+        
+        if (unlimited || qtyUnits > 0) {
+            selections.push({
+                shop,
+                category,
+                itemName,
+                unit: packUnit,
+                price,
+                qtyAvailablePacks: unlimited ? 'unlimited' : qtyUnits / unitsPerPack,
+                qtyUnits: unlimited ? 'unlimited' : qtyUnits,
+                unitLabel: homeUnit,
+                homeUnit,
+                packUnit,
+                unitsPerPack,
+                unlimited
+            });
+        }
+    });
+    
+    return selections;
+}
+
+function populatePreferredShopSelect() {
+    const select = document.getElementById('shoppingPreferredShop');
+    if (!select) return;
+    const shops = quickAddProducts ? Object.keys(quickAddProducts) : [];
+    if (shops.length === 0) {
+        select.innerHTML = `<option value="Tesco">Tesco</option>`;
+        select.value = 'Tesco';
+        return;
+    }
+    select.innerHTML = shops.map(shop => `<option value="${shop}">${shop}</option>`).join('');
+    select.value = shops.includes('Tesco') ? 'Tesco' : shops[0];
 }
 
 function renderRecipes() {
@@ -3209,6 +3710,10 @@ document.addEventListener('DOMContentLoaded', function() {
             commuteDuration.value = this.value;
         });
     }
+
+    renderHomeInventoryTable();
+    populatePreferredShopSelect();
+    setTimeout(populatePreferredShopSelect, 400);
 });
 
 console.log('✅ New manual add interface handlers loaded!');
