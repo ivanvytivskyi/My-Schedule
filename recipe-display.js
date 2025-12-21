@@ -1135,8 +1135,8 @@ function buildShoppingTableForShop(shop, items) {
             <tr>
                 <td style="border: 1px solid #ddd; padding: 10px;">${entry.itemName}</td>
                 <td style="border: 1px solid #ddd; padding: 10px;">${entry.packUnit || entry.unit || ''}</td>
-                <td style="border: 1px solid #ddd; padding: 10px; text-align: right;">${priceDisplay}</td>
-                <td style="border: 1px solid #ddd; padding: 10px; text-align: center;">${qtyDisplay}</td>
+                <td class="price-cell" style="border: 1px solid #ddd; padding: 10px; text-align: right;">${priceDisplay}</td>
+                <td class="qty-cell" style="border: 1px solid #ddd; padding: 10px; text-align: center;">${qtyDisplay}</td>
             </tr>
         `;
     }).join('');
@@ -1146,7 +1146,7 @@ function buildShoppingTableForShop(shop, items) {
             <div style="${style.header}">
                 <h3 style="${style.title}">${shop}</h3>
             </div>
-            <table style="width: 100%; border-collapse: collapse;">
+            <table style="width: 100%; border-collapse: collapse;" data-shop="${shop}">
                 <thead>
                     <tr style="background: #f9fafb;">
                         <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">Item</th>
@@ -1157,10 +1157,10 @@ function buildShoppingTableForShop(shop, items) {
                 </thead>
                 <tbody>
                     ${rows}
-                    <tr style="background: #f3f4f6; font-weight: 700;">
+                    <tr class="totals-row" style="background: #f3f4f6; font-weight: 700;">
                         <td colspan="2" style="border: 1px solid #ddd; padding: 10px; text-align: right;">Subtotal</td>
-                        <td style="border: 1px solid #ddd; padding: 10px; text-align: right;">${currency}${total.toFixed(2)}</td>
-                        <td style="border: 1px solid #ddd; padding: 10px; text-align: center;">${items.length} items</td>
+                        <td class="total-price-cell" style="border: 1px solid #ddd; padding: 10px; text-align: right;">${currency}${total.toFixed(2)}</td>
+                        <td class="total-qty-cell" style="border: 1px solid #ddd; padding: 10px; text-align: center;">${items.length} items</td>
                     </tr>
                 </tbody>
             </table>
