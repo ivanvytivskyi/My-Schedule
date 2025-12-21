@@ -957,16 +957,53 @@ function generateShoppingListFromRecipes() {
         .filter(Boolean);
     
     const aggregated = {};
-    const unresolved = [];
+    const fallbackElsewhere = [];
+    const fallbackUnmatched = [];
     const homeInventory = loadHomeInventoryItems();
+    const seenIngredientNames = new Set();
     
     allRecipes.forEach(recipe => {
-        if (!recipe.quickAddItems || recipe.quickAddItems.length === 0) return;
+        const quickItems = (recipe.quickAddItems || []).slice();
         
-        recipe.quickAddItems.forEach(item => {
+        // Always supplement with keyword-derived ingredients from the recipe text
+        if (recipe.display?.ingredients?.length) {
+            recipe.display.ingredients.forEach(text => {
+                const normalized = normalizeName(text);
+                if (seenIngredientNames.has(normalized)) return;
+                const parsedQty = parseIngredientQuantity(text);
+                const match = typeof findIngredientKeywordMatch === 'function'
+                    ? findIngredientKeywordMatch(text, preferredShop)
+                    : null;
+                if (match) {
+                    quickItems.push({
+                        shop: match.shop,
+                        category: match.category,
+                        itemName: match.itemName,
+                        qtyNeeded: parsedQty.qty || match.qtyNeeded || 1,
+                        unit: parsedQty.unit || match.unit || ''
+                    });
+                    seenIngredientNames.add(normalized);
+                } else {
+                    fallbackUnmatched.push({
+                        itemName: text,
+                        unit: parsedQty.unit || '',
+                        qtyNeeded: parsedQty.qty || 1
+                    });
+                    seenIngredientNames.add(normalized);
+                }
+            });
+        }
+        
+        if (!quickItems.length) return;
+        
+        quickItems.forEach(item => {
             const resolved = resolveRecipeItemPreferredShopOnly(item, preferredShop);
             if (!resolved) {
-                unresolved.push(item);
+                fallbackElsewhere.push({
+                    itemName: item.itemName,
+                    unit: item.unit || '',
+                    qtyNeeded: item.qtyNeeded || 1
+                });
                 return;
             }
             
@@ -1034,8 +1071,11 @@ function generateShoppingListFromRecipes() {
         html += buildShoppingTableForShop(shop, items);
     });
     
-    if (unresolved.length > 0) {
-        html += buildUnresolvedTable(unresolved);
+    if (fallbackElsewhere.length > 0) {
+        html += buildUnresolvedTable(fallbackElsewhere, 'Please buy these ingredients somewhere else');
+    }
+    if (fallbackUnmatched.length > 0) {
+        html += buildUnresolvedTable(fallbackUnmatched, 'Please buy these ingredients somewhere else');
     }
     
     // Persist into shopping tab (append, do not overwrite manual lists)
@@ -1056,7 +1096,12 @@ function generateShoppingListFromRecipes() {
 function resolveRecipeItemPreferredShopOnly(item, preferredShop) {
     if (!quickAddProducts || Object.keys(quickAddProducts).length === 0) return null;
     const preferred = findBestProductForShop(item, preferredShop);
-    return preferred || null;
+    if (preferred) return preferred;
+    if (preferredShop !== 'Tesco') {
+        const tesco = findBestProductForShop(item, 'Tesco');
+        if (tesco) return tesco;
+    }
+    return null;
 }
 
 function findBestProductForShop(item, shopName) {
@@ -1106,6 +1151,19 @@ function findBestProductForShop(item, shopName) {
 
 function normalizeName(name) {
     return (name || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function parseIngredientQuantity(text) {
+    const normalized = (text || '').trim();
+    const match = normalized.match(/^(\d+(?:\.\d+)?)\s*([a-zA-Z]+)?/);
+    if (!match) return { qty: 1, unit: '' };
+    const qty = parseFloat(match[1]);
+    const unitRaw = match[2] || '';
+    const unit = unitRaw.toLowerCase();
+    return {
+        qty: isNaN(qty) ? 1 : qty,
+        unit: unit
+    };
 }
 
 function extractNumericFromUnit(unit) {
@@ -1173,7 +1231,7 @@ function buildShoppingTableForShop(shop, items) {
     `;
 }
 
-function buildUnresolvedTable(items) {
+function buildUnresolvedTable(items, title) {
     const rows = items.map(entry => `
         <tr>
             <td style="border: 1px solid #ddd; padding: 10px;">${entry.itemName}</td>
@@ -1186,7 +1244,7 @@ function buildUnresolvedTable(items) {
     return `
         <div style="margin-bottom: 24px; page-break-inside: avoid; border: 2px dashed #f59e0b; border-radius: 10px; overflow: hidden; background: #fffbeb;">
             <div style="background: #fbbf24; color: #78350f; padding: 14px 16px; font-weight: 800; font-size: 16px;">
-                Currently selected shop doesn't have these items – buy elsewhere
+                ${title || 'Currently selected shop does not have these items – buy elsewhere'}
             </div>
             <table style="width: 100%; border-collapse: collapse;">
                 <thead>
