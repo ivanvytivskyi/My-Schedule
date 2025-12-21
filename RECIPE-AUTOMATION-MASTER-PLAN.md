@@ -1331,3 +1331,37 @@ thisWeeksRecipes: JSON.stringify(["R1", "R11", "R15"])
 ---
 
 **END OF MASTER PLAN**
+
+---
+
+## 🔄 UPDATED IMPLEMENTATION PLAN (STATUS CHECK — 04 Jan 2026)
+
+### Snapshot of Completed Work
+- **Recipe database (R1-R30) fully populated** with dietary tags, quick add mappings, instructions, tips, nutrition, and videos. Implemented in `recipe-database.js` with load/save support for custom recipes (R50+).
+- **Recipe UI implemented**: tabs for Library and This Week, filtering, recipe cards, detailed modal, and custom recipe modal with validation and quick-add mapping rows (`recipe-display.js`). Selected recipes persist via localStorage.
+- **Prompt generator integrated with recipes**: dietary filters, shop selection, batch duration, and recipe database section included in prompts (`recipe-prompt-generator.js`, `script.js` generatePrompt()).
+- **Import & parsing pipeline wired**: schedule parser detects recipe IDs/leftovers, recipe importer extracts IDs, maps to quick add, and auto-selects items; shopping generation from selected recipes uses home inventory and keyword fallbacks (`import-functions.js`, `recipe-import-parser.js`, `recipe-display.js`, `script.js`).
+- **Quick Add + inventory foundations** in place to support recipe-driven shopping and pantry-aware prompts (`shopping-quick-add.js`, `script.js`).
+
+### Phase Status vs Original Plan
+- ✅ **PHASE 1: Recipe Database**
+  - STEP 1.1 recipe data structure + 30 defaults delivered.
+  - STEP 1.2 storage, ID generation, and load/save implemented.
+- ✅ **PHASE 2: Recipe Display UI**
+  - Library tab, filters, cards, detailed modal, and This Week tab implemented.
+- ✅ **PHASE 3: Custom Recipe Creation**
+  - Modal form, validation, quick-add mapping rows, save/edit/delete, and persistence live.
+- ✅ **PHASE 4: AI Prompt Enhancement**
+  - Form additions (shop, batch duration, dietary) and recipe database prompt section completed.
+- ✅ **PHASE 5: Import Parser**
+  - Recipe ID extraction, quick add mapping/aggregation, auto-select, and schedule parsing with recipe references working.
+- 🟧 **PHASE 6: Integration & Testing**
+  - Core workflow flows exist, but formal test pass, append/clear behaviors, and mobile/edge validation still need deliberate verification and polish.
+- ⬜ **PHASE 7: Documentation**
+  - User and developer docs not yet created.
+
+### Recommended Next Steps
+1. **Formalize integration tests** for import flows (schedule, recipes, shopping) including append vs clear, invalid IDs, leftovers, and pantry interactions.
+2. **UX polish**: loading/error states during imports, responsive tweaks for recipe modals/grids, and accessibility checks on custom recipe form.
+3. **Documentation**: create `RECIPE-USER-GUIDE.md` and `RECIPE-DEV-DOCS.md` to capture current architecture, workflows, and extension points.
+4. **Performance/consistency pass**: ensure keyword-based ingredient inference and quick add catalog stay aligned across shops; add guardrails for missing price/unit data when aggregating.
