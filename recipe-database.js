@@ -96,7 +96,10 @@ const defaultRecipes = {
         quickAddItems: [
             { shop: "Tesco", category: "🥛 Dairy & Eggs", itemName: "Milk (Semi-Skimmed)", qtyNeeded: 0.2, unit: "L" },
             { shop: "Tesco", category: "🥛 Dairy & Eggs", itemName: "BUTTERPAK", qtyNeeded: 10, unit: "g" },
-            { shop: "Tesco", category: "🚀 Pantry & Staples", itemName: "Sugar (White)", qtyNeeded: 0.01, unit: "kg" }
+            { shop: "Tesco", category: "🚀 Pantry & Staples", itemName: "Sugar (White)", qtyNeeded: 0.01, unit: "kg" },
+            { shop: "Tesco", category: "🚀 Pantry & Staples", itemName: "Buckwheat Groats", qtyNeeded: 0.08, unit: "kg" },
+            { shop: "Tesco", category: "🚀 Pantry & Staples", itemName: "BRITISH COOKING SALT", qtyNeeded: 0.005, unit: "kg" },
+            { shop: "Tesco", category: "🥤 Drinks", itemName: "Water (Still)", qtyNeeded: 0.16, unit: "L" }
         ],
         
         display: {
