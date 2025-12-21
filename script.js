@@ -1821,6 +1821,14 @@ function recalculateShopTotals(table) {
 }
 
 function renderRecipes() {
+    // If the new recipe library UI is present, refresh it instead of using legacy text mode
+    const recipeGrid = document.getElementById('recipeGrid');
+    if (recipeGrid) {
+        if (typeof renderRecipeGrid === 'function') renderRecipeGrid();
+        if (typeof renderThisWeekRecipes === 'function') renderThisWeekRecipes();
+        return;
+    }
+    
     const container = document.getElementById('recipesDisplay');
     
     // Load saved recipes text from localStorage

@@ -11,6 +11,7 @@ let currentFilters = {
     dairyFree: false,
     glutenFree: false
 };
+let editingRecipeId = null;
 
 // ===================================
 // INITIALIZE RECIPE LIBRARY TAB
@@ -28,6 +29,16 @@ function initializeRecipeLibrary() {
             </button>
             <button class="recipe-tab" data-tab="thisweek" style="flex: 1; padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; background: #f0f0f0; color: #333; font-size: 15px;">
                 🍽️ This Week
+            </button>
+        </div>
+        
+        <div class="recipe-actions-bar" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 15px;">
+            <div style="flex: 1; min-width: 220px; color: #4b5563; font-weight: 600; display: flex; align-items: center; gap: 10px;">
+                <span style="font-size: 22px;">✨</span>
+                <span>Save your own dishes as Custom Recipes (IDs auto-start at R50)</span>
+            </div>
+            <button onclick="openCustomRecipeModal()" class="primary-btn">
+                ➕ Add Custom Recipe
             </button>
         </div>
         
@@ -90,6 +101,7 @@ function initializeRecipeLibrary() {
     // Setup event listeners
     setupRecipeTabListeners();
     setupFilterListeners();
+    createCustomRecipeModal();
     
     // Initial render
     renderRecipeGrid();
@@ -208,6 +220,432 @@ function applyFilters(recipes) {
 }
 
 // ===================================
+// CUSTOM RECIPE HELPERS
+// ===================================
+
+function isCustomRecipeId(recipeId) {
+    if (!recipeId || typeof recipeId !== 'string') return false;
+    const numeric = parseInt(recipeId.replace(/[^\d]/g, ''), 10);
+    return !isNaN(numeric) && numeric >= 50;
+}
+
+function refreshRecipeViews() {
+    renderRecipeGrid();
+    renderThisWeekRecipes();
+}
+
+function createCustomRecipeModal() {
+    if (document.getElementById('customRecipeModal')) return;
+    
+    const modal = document.createElement('div');
+    modal.id = 'customRecipeModal';
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content" style="max-width: 900px;">
+            <div style="display: flex; justify-content: space-between; gap: 10px; align-items: center; margin-bottom: 10px;">
+                <h2 id="customRecipeModalTitle" style="margin: 0;">Add Custom Recipe</h2>
+                <div style="display: flex; gap: 8px;">
+                    <button type="button" onclick="closeCustomRecipeModal()" class="secondary-btn">✕ Close</button>
+                    <button type="button" id="deleteCustomRecipeBtn" class="danger-btn" style="display: none;" onclick="confirmDeleteCustomRecipe()">🗑️ Delete</button>
+                </div>
+            </div>
+            
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="customRecipeName">Recipe Name *</label>
+                    <input type="text" id="customRecipeName" required placeholder="e.g., Lemon Herb Chicken" />
+                </div>
+                <div class="form-group">
+                    <label for="customRecipeEmoji">Emoji *</label>
+                    <input type="text" id="customRecipeEmoji" required placeholder="🍋" maxlength="4" />
+                </div>
+                <div class="form-group">
+                    <label for="customRecipeCategory">Category *</label>
+                    <select id="customRecipeCategory" required>
+                        <option value="breakfast">🍳 Breakfast</option>
+                        <option value="batch">🍲 Batch Cook</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="customRecipeServes">Serves *</label>
+                    <input type="number" id="customRecipeServes" min="1" value="1" required />
+                </div>
+                <div class="form-group">
+                    <label for="customPrepTime">Prep Time *</label>
+                    <input type="text" id="customPrepTime" placeholder="10 mins" required />
+                </div>
+                <div class="form-group">
+                    <label for="customCookTime">Cook Time *</label>
+                    <input type="text" id="customCookTime" placeholder="20 mins" required />
+                </div>
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    <label for="customAiPrompt">AI Prompt (ingredients list) *</label>
+                    <input type="text" id="customAiPrompt" placeholder="chicken:300g, rice:200g, garlic:3 cloves" required />
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Dietary Tags</label>
+                <div class="dietary-grid">
+                    <label><input type="checkbox" id="customDietVegetarian" /> Vegetarian</label>
+                    <label><input type="checkbox" id="customDietVegan" /> Vegan</label>
+                    <label><input type="checkbox" id="customDietNuts" /> Contains Nuts</label>
+                    <label><input type="checkbox" id="customDietDairy" /> Contains Dairy</label>
+                    <label><input type="checkbox" id="customDietGluten" /> Contains Gluten</label>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="customDescription">Short Description *</label>
+                <textarea id="customDescription" required placeholder="A quick summary shown on cards..."></textarea>
+            </div>
+            
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="customIngredients">Ingredients (one per line) *</label>
+                    <textarea id="customIngredients" required placeholder="200g chicken breast&#10;1 tbsp olive oil&#10;Salt & pepper"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="customInstructions">Instructions (one step per line) *</label>
+                    <textarea id="customInstructions" required placeholder="Marinate chicken in oil and spices&#10;Sear for 6 minutes each side&#10;Rest, slice, and serve"></textarea>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>Quick Add Mappings *</label>
+                <p style="margin: 6px 0 12px 0; color: #6b7280; font-size: 13px;">Link ingredients to Quick Add items (shop → item → qty & unit). All mappings must be completed before saving.</p>
+                <div id="quickAddMappings" style="display: flex; flex-direction: column; gap: 12px;"></div>
+                <button type="button" class="secondary-btn" onclick="addQuickAddMappingRow()">➕ Add Mapping</button>
+            </div>
+            
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="customTips">Optional Tips (one per line)</label>
+                    <textarea id="customTips" placeholder="Add marinade before cooking&#10;Swap chicken for tofu for vegan"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="customVideo">Video URL (optional)</label>
+                    <input type="url" id="customVideo" placeholder="https://www.youtube.com/watch?v=..." />
+                    <label for="customNutrition" style="margin-top: 12px; display: block;">Nutrition (optional)</label>
+                    <input type="text" id="customNutrition" placeholder="Per serving: 450 cal, 30g protein..." />
+                </div>
+            </div>
+            
+            <div class="modal-buttons" style="display: flex; gap: 10px; margin-top: 10px;">
+                <button type="button" class="secondary-btn" onclick="closeCustomRecipeModal()">Cancel</button>
+                <button type="button" class="primary-btn" onclick="saveCustomRecipe()">💾 Save Recipe</button>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+function addQuickAddMappingRow(data = {}) {
+    const container = document.getElementById('quickAddMappings');
+    if (!container) return;
+    
+    const row = document.createElement('div');
+    row.className = 'quick-add-row';
+    row.innerHTML = `
+        <div class="quick-add-grid">
+            <div>
+                <label style="font-size: 12px; color: #6b7280;">Shop</label>
+                <select class="quick-add-shop" required>
+                    <option value="">Select shop</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size: 12px; color: #6b7280;">Item</label>
+                <select class="quick-add-item" required>
+                    <option value="">Select item</option>
+                </select>
+            </div>
+            <div>
+                <label style="font-size: 12px; color: #6b7280;">Qty</label>
+                <input type="number" class="quick-add-qty" min="0" step="0.01" placeholder="1" required />
+            </div>
+            <div>
+                <label style="font-size: 12px; color: #6b7280;">Unit</label>
+                <input type="text" class="quick-add-unit" placeholder="g, kg, pcs" required />
+            </div>
+            <button type="button" class="danger-btn" aria-label="Remove mapping">✕</button>
+        </div>
+    `;
+    
+    const shopSelect = row.querySelector('.quick-add-shop');
+    const itemSelect = row.querySelector('.quick-add-item');
+    const removeBtn = row.querySelector('.danger-btn');
+    
+    populateShopOptions(shopSelect, data.shop);
+    populateItemOptions(itemSelect, shopSelect.value, data.itemName, data.category);
+    
+    shopSelect.addEventListener('change', () => {
+        populateItemOptions(itemSelect, shopSelect.value);
+    });
+    
+    removeBtn.addEventListener('click', () => {
+        row.remove();
+    });
+    
+    if (data.qtyNeeded !== undefined) {
+        row.querySelector('.quick-add-qty').value = data.qtyNeeded;
+    }
+    if (data.unit) {
+        row.querySelector('.quick-add-unit').value = data.unit;
+    }
+    
+    container.appendChild(row);
+}
+
+function populateShopOptions(selectEl, selectedShop) {
+    if (!selectEl) return;
+    selectEl.innerHTML = '<option value="">Select shop</option>';
+    const shops = quickAddProducts ? Object.keys(quickAddProducts) : [];
+    
+    shops.forEach(shop => {
+        const option = document.createElement('option');
+        option.value = shop;
+        option.textContent = shop;
+        if (selectedShop === shop) option.selected = true;
+        selectEl.appendChild(option);
+    });
+    
+    if (selectedShop && !shops.includes(selectedShop)) {
+        const fallback = document.createElement('option');
+        fallback.value = selectedShop;
+        fallback.textContent = `${selectedShop} (custom)`;
+        fallback.selected = true;
+        selectEl.appendChild(fallback);
+    }
+}
+
+function populateItemOptions(selectEl, shop, selectedItem, selectedCategory) {
+    if (!selectEl) return;
+    selectEl.innerHTML = '<option value="">Select item</option>';
+    if (!shop || !quickAddProducts || !quickAddProducts[shop]) return;
+    
+    Object.entries(quickAddProducts[shop]).forEach(([category, items]) => {
+        items.forEach(item => {
+            const option = document.createElement('option');
+            option.value = item.name;
+            option.textContent = `${category} — ${item.name} (${item.unit})`;
+            option.dataset.category = category;
+            if (selectedItem === item.name && (!selectedCategory || selectedCategory === category)) {
+                option.selected = true;
+            }
+            selectEl.appendChild(option);
+        });
+    });
+    
+    if (selectedItem && !selectEl.value) {
+        const fallback = document.createElement('option');
+        fallback.value = selectedItem;
+        fallback.dataset.category = selectedCategory || 'Custom';
+        fallback.textContent = `${selectedCategory || 'Custom'} — ${selectedItem}`;
+        fallback.selected = true;
+        selectEl.appendChild(fallback);
+    }
+}
+
+function openCustomRecipeModal(recipeId = null) {
+    const modal = document.getElementById('customRecipeModal');
+    if (!modal) return;
+    
+    editingRecipeId = recipeId;
+    const isEdit = Boolean(recipeId);
+    const recipe = isEdit ? getRecipe(recipeId) : null;
+    
+    document.getElementById('customRecipeModalTitle').textContent = isEdit ? 'Edit Custom Recipe' : 'Add Custom Recipe';
+    document.getElementById('deleteCustomRecipeBtn').style.display = isEdit ? 'inline-flex' : 'none';
+    
+    document.getElementById('customRecipeName').value = recipe?.name || '';
+    document.getElementById('customRecipeEmoji').value = recipe?.display?.emoji || '';
+    document.getElementById('customRecipeCategory').value = recipe?.category || 'breakfast';
+    document.getElementById('customRecipeServes').value = recipe?.serves || 1;
+    document.getElementById('customPrepTime').value = recipe?.prepTime || '';
+    document.getElementById('customCookTime').value = recipe?.cookTime || '';
+    document.getElementById('customAiPrompt').value = recipe?.aiPrompt || '';
+    
+    document.getElementById('customDietVegetarian').checked = recipe?.dietary?.vegetarian || false;
+    document.getElementById('customDietVegan').checked = recipe?.dietary?.vegan || false;
+    document.getElementById('customDietNuts').checked = recipe?.dietary?.nuts || false;
+    document.getElementById('customDietDairy').checked = recipe?.dietary?.dairy || false;
+    document.getElementById('customDietGluten').checked = recipe?.dietary?.gluten || false;
+    
+    document.getElementById('customDescription').value = recipe?.display?.description || '';
+    document.getElementById('customIngredients').value = recipe?.display?.ingredients?.join('\n') || '';
+    document.getElementById('customInstructions').value = recipe?.display?.instructions?.join('\n') || '';
+    document.getElementById('customTips').value = recipe?.display?.tips?.join('\n') || '';
+    document.getElementById('customVideo').value = recipe?.display?.video || '';
+    document.getElementById('customNutrition').value = recipe?.display?.nutrition || '';
+    
+    const mappingsContainer = document.getElementById('quickAddMappings');
+    mappingsContainer.innerHTML = '';
+    const mappings = recipe?.quickAddItems && recipe.quickAddItems.length > 0 ? recipe.quickAddItems : [{}];
+    mappings.forEach(mapping => addQuickAddMappingRow(mapping));
+    
+    modal.classList.add('active');
+}
+
+function closeCustomRecipeModal() {
+    const modal = document.getElementById('customRecipeModal');
+    if (modal) {
+        modal.classList.remove('active');
+    }
+    editingRecipeId = null;
+}
+
+function collectQuickAddMappings() {
+    const container = document.getElementById('quickAddMappings');
+    const rows = Array.from(container.querySelectorAll('.quick-add-row'));
+    const mappings = [];
+    let hasError = false;
+    
+    rows.forEach(row => {
+        const shop = row.querySelector('.quick-add-shop')?.value;
+        const itemSelect = row.querySelector('.quick-add-item');
+        const itemName = itemSelect?.value;
+        const category = itemSelect?.selectedOptions?.[0]?.dataset.category;
+        const qty = parseFloat(row.querySelector('.quick-add-qty')?.value);
+        const unit = row.querySelector('.quick-add-unit')?.value?.trim();
+        
+        if (!shop || !itemName || !unit || isNaN(qty) || qty <= 0 || !category) {
+            hasError = true;
+            row.classList.add('has-error');
+            return;
+        }
+        row.classList.remove('has-error');
+        
+        mappings.push({
+            shop,
+            category,
+            itemName,
+            qtyNeeded: qty,
+            unit
+        });
+    });
+    
+    if (hasError || mappings.length === 0) {
+        alert('Please complete all Quick Add mappings (shop, item, quantity, and unit).');
+        return null;
+    }
+    
+    return mappings;
+}
+
+function saveCustomRecipe() {
+    const name = document.getElementById('customRecipeName').value.trim();
+    const emoji = document.getElementById('customRecipeEmoji').value.trim();
+    const category = document.getElementById('customRecipeCategory').value;
+    const serves = parseInt(document.getElementById('customRecipeServes').value, 10) || 1;
+    const prepTime = document.getElementById('customPrepTime').value.trim();
+    const cookTime = document.getElementById('customCookTime').value.trim();
+    const aiPrompt = document.getElementById('customAiPrompt').value.trim();
+    const description = document.getElementById('customDescription').value.trim();
+    
+    const ingredients = document.getElementById('customIngredients').value
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean);
+    const instructions = document.getElementById('customInstructions').value
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean);
+    const tips = document.getElementById('customTips').value
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean);
+    const video = document.getElementById('customVideo').value.trim();
+    const nutrition = document.getElementById('customNutrition').value.trim();
+    
+    if (!name || !emoji || !category || !prepTime || !cookTime || !aiPrompt || !description || ingredients.length === 0 || instructions.length === 0) {
+        alert('Please fill in all required fields.');
+        return;
+    }
+    
+    const quickAddItems = collectQuickAddMappings();
+    if (!quickAddItems) return;
+    
+    const recipeData = {
+        name,
+        category,
+        serves,
+        prepTime,
+        cookTime,
+        aiPrompt,
+        dietary: {
+            vegetarian: document.getElementById('customDietVegetarian').checked,
+            vegan: document.getElementById('customDietVegan').checked,
+            nuts: document.getElementById('customDietNuts').checked,
+            dairy: document.getElementById('customDietDairy').checked,
+            gluten: document.getElementById('customDietGluten').checked
+        },
+        quickAddItems,
+        display: {
+            emoji,
+            description,
+            ingredients,
+            instructions,
+            tips,
+            video: video || null,
+            nutrition: nutrition || null
+        }
+    };
+    
+    if (editingRecipeId) {
+        const updated = updateRecipe(editingRecipeId, recipeData);
+        if (!updated) {
+            alert('Unable to update recipe. Only custom recipes (R50+) can be edited.');
+            return;
+        }
+        alert('✅ Recipe updated!');
+    } else {
+        const newId = addCustomRecipe(recipeData);
+        editingRecipeId = newId;
+        alert(`✅ Recipe saved as ${newId}!`);
+    }
+    
+    refreshRecipeViews();
+    closeCustomRecipeModal();
+}
+
+function confirmDeleteCustomRecipe() {
+    if (!editingRecipeId) return;
+    if (!confirm('Delete this custom recipe? This cannot be undone.')) return;
+    
+    if (deleteRecipe(editingRecipeId)) {
+        selectedRecipesThisWeek = selectedRecipesThisWeek.filter(id => id !== editingRecipeId);
+        saveSelectedRecipes();
+        refreshRecipeViews();
+        closeCustomRecipeModal();
+        alert('🗑️ Custom recipe deleted.');
+    } else {
+        alert('Unable to delete this recipe. Only custom recipes (R50+) can be removed.');
+    }
+}
+
+function handleDeleteFromCard(recipeId) {
+    if (!isCustomRecipeId(recipeId)) return;
+    if (!confirm('Delete this custom recipe?')) return;
+    
+    if (deleteRecipe(recipeId)) {
+        selectedRecipesThisWeek = selectedRecipesThisWeek.filter(id => id !== recipeId);
+        saveSelectedRecipes();
+        refreshRecipeViews();
+        alert('🗑️ Custom recipe deleted.');
+    } else {
+        alert('Unable to delete this recipe. Only custom recipes (R50+) can be removed.');
+    }
+}
+
+function deleteFromRecipeModal(recipeId) {
+    const shouldDelete = confirm('Delete this custom recipe?');
+    if (!shouldDelete) return;
+    closeRecipeModal();
+    handleDeleteFromCard(recipeId);
+}
+// ===================================
 // RECIPE GRID RENDERING
 // ===================================
 
@@ -247,6 +685,7 @@ function createRecipeCard(recipe) {
     if (!recipe.dietary.gluten) tags.push('🌾 Gluten-free');
     
     const categoryBadge = recipe.category === 'breakfast' ? '🍳 Breakfast' : '🍲 Batch Cook';
+    const isCustom = isCustomRecipeId(recipe.id);
     
     return `
         <div class="recipe-card" onclick="openRecipeModal('${recipe.id}')" style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.1); cursor: pointer; transition: all 0.3s ease;">
@@ -256,9 +695,10 @@ function createRecipeCard(recipe) {
                     ${categoryBadge}
                 </div>
                 <h3 style="margin: 10px 0 0 0; font-size: 18px;">${recipe.name}</h3>
+                ${isCustom ? `<div class="custom-recipe-badge">Custom • ${recipe.id}</div>` : ''}
             </div>
             
-            <div style="padding: 20px;">
+            <div style="padding: 20px; position: relative;">
                 <p style="color: #666; font-size: 14px; line-height: 1.5; margin: 0 0 15px 0;">${recipe.display.description}</p>
                 
                 <div style="display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap;">
@@ -273,6 +713,13 @@ function createRecipeCard(recipe) {
                 <div style="display: flex; gap: 5px; flex-wrap: wrap;">
                     ${tags.map(tag => `<span style="background: #f0f0f0; padding: 4px 8px; border-radius: 4px; font-size: 11px; color: #666;">${tag}</span>`).join('')}
                 </div>
+                
+                ${isCustom ? `
+                    <div class="recipe-card-actions">
+                        <button class="secondary-btn" onclick="event.stopPropagation(); openCustomRecipeModal('${recipe.id}');">✏️ Edit</button>
+                        <button class="danger-btn" onclick="event.stopPropagation(); handleDeleteFromCard('${recipe.id}');">🗑️ Delete</button>
+                    </div>
+                ` : ''}
             </div>
         </div>
     `;
@@ -288,6 +735,7 @@ function openRecipeModal(recipeId) {
         alert('Recipe not found!');
         return;
     }
+    const isCustom = isCustomRecipeId(recipe.id);
     
     const modal = document.createElement('div');
     modal.id = 'recipeModal';
@@ -366,10 +814,16 @@ function openRecipeModal(recipeId) {
             </div>
             
             <!-- Buttons -->
-            <div style="display: flex; gap: 10px;">
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                 <button onclick="closeRecipeModal()" style="flex: 1; padding: 14px; background: #f0f0f0; color: #333; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 15px;">
                     ← Back to Library
                 </button>
+                ${isCustom ? `<button onclick="closeRecipeModal(); openCustomRecipeModal('${recipe.id}');" style="flex: 1; padding: 14px; background: #2d9cdb; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 15px;">
+                    ✏️ Edit Custom
+                </button>` : ''}
+                ${isCustom ? `<button onclick="deleteFromRecipeModal('${recipe.id}')" style="flex: 1; padding: 14px; background: #ff6b6b; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 15px;">
+                    🗑️ Delete
+                </button>` : ''}
                 <button onclick="addRecipeToThisWeek('${recipe.id}')" style="flex: 2; padding: 14px; background: linear-gradient(135deg, #4caf50 0%, #45a049 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 15px;">
                     ✅ Add to This Week
                 </button>
@@ -412,6 +866,7 @@ function removeRecipeFromThisWeek(recipeId) {
 
 function renderThisWeekRecipes() {
     const container = document.getElementById('thisWeekRecipes');
+    const missingIds = [];
     
     if (selectedRecipesThisWeek.length === 0) {
         container.innerHTML = `
@@ -431,7 +886,10 @@ function renderThisWeekRecipes() {
     
     selectedRecipesThisWeek.forEach(recipeId => {
         const recipe = getRecipe(recipeId);
-        if (!recipe) return;
+        if (!recipe) {
+            missingIds.push(recipeId);
+            return;
+        }
         
         html += `
             <div style="background: white; border-radius: 12px; padding: 25px; box-shadow: 0 2px 12px rgba(0,0,0,0.08);">
@@ -457,6 +915,11 @@ function renderThisWeekRecipes() {
     
     html += '</div>';
     container.innerHTML = html;
+    
+    if (missingIds.length > 0) {
+        selectedRecipesThisWeek = selectedRecipesThisWeek.filter(id => !missingIds.includes(id));
+        saveSelectedRecipes();
+    }
 }
 
 function saveSelectedRecipes() {
