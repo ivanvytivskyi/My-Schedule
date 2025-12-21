@@ -713,17 +713,19 @@ function renderQuickAddModal() {
                                            step="${product.unit.toLowerCase().includes('kg') ? '0.1' : '1'}" 
                                            min="${product.unit.toLowerCase().includes('kg') ? '0.1' : '1'}"
                                            onclick="event.stopPropagation()"
-                                           onchange="updateQuantity('${itemId}', this.value)"
+                                           oninput="updateQuantity('${itemId}', this.value, this)"
+                                           onchange="updateQuantity('${itemId}', this.value, this)"
                                            style="width: 70px; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
                                     <input type="number" 
                                            value="${selectedShoppingItems[itemId].price || product.price}" 
                                            step="0.01" 
                                            min="0"
                                            onclick="event.stopPropagation()"
-                                           onchange="updatePrice('${itemId}', this.value)"
+                                           oninput="updatePrice('${itemId}', this.value, this)"
+                                           onchange="updatePrice('${itemId}', this.value, this)"
                                            style="width: 70px; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;"
                                            placeholder="${currencySymbol}">
-                                    <div style="flex: 1; text-align: right; padding: 6px; background: #e8f5e9; border-radius: 4px; font-weight: 600; color: #2e7d32; font-size: 13px;">
+                                    <div class="quick-add-line-total" data-item-id="${itemId}" style="flex: 1; text-align: right; padding: 6px; background: #e8f5e9; border-radius: 4px; font-weight: 600; color: #2e7d32; font-size: 13px;">
                                         ${currencySymbol}${((parseFloat(selectedShoppingItems[itemId].quantity) || parseFloat(product.defaultQty) || 0) * (parseFloat(selectedShoppingItems[itemId].price) || parseFloat(product.price) || 0)).toFixed(2)}
                                     </div>
                                 </div>
@@ -763,10 +765,10 @@ function renderQuickAddModal() {
     html += `
         <div style="flex-shrink: 0; background: white; padding: 15px 0 0 0; border-top: 3px solid #e0e0e0; margin-top: auto;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
-                <div style="font-size: 16px; font-weight: 600; color: #2c3e50;">
+                <div id="quickAddSelectedCount" style="font-size: 16px; font-weight: 600; color: #2c3e50;">
                     Selected: ${selectedCount} items
                 </div>
-                <div style="font-size: 18px; font-weight: bold; color: #27ae60;">
+                <div id="quickAddTotalValue" style="font-size: 18px; font-weight: bold; color: #27ae60;">
                     Total: ${currencySymbol}${(totalPrice || 0).toFixed(2)}
                 </div>
             </div>
@@ -783,13 +785,14 @@ function renderQuickAddModal() {
     
     container.innerHTML = html;
     
-    // Restore scroll position after re-rendering
-    setTimeout(() => {
-        const scrollContainer = document.getElementById('quickAddScrollContent');
-        if (scrollContainer && savedScrollPosition > 0) {
-            scrollContainer.scrollTop = savedScrollPosition;
-        }
-    }, 0);
+    // Restore scroll position after re-rendering (immediately and next frame to avoid flicker)
+    const newScrollContainer = document.getElementById('quickAddScrollContent');
+    if (newScrollContainer) {
+        newScrollContainer.scrollTop = savedScrollPosition;
+        requestAnimationFrame(() => {
+            newScrollContainer.scrollTop = savedScrollPosition;
+        });
+    }
 }
 
 // Toggle item selection
@@ -810,19 +813,19 @@ function toggleQuickItem(itemId, product, shop, category) {
 }
 
 // Update quantity
-function updateQuantity(itemId, value) {
-    if (selectedShoppingItems[itemId]) {
-        selectedShoppingItems[itemId].quantity = parseFloat(value) || 1;
-        renderQuickAddModal();
-    }
+function updateQuantity(itemId, value, inputEl) {
+    if (!selectedShoppingItems[itemId]) return;
+    const numeric = parseFloat(value);
+    selectedShoppingItems[itemId].quantity = isNaN(numeric) ? '' : numeric;
+    refreshQuickAddLine(itemId, inputEl);
 }
 
 // Update price
-function updatePrice(itemId, value) {
-    if (selectedShoppingItems[itemId]) {
-        selectedShoppingItems[itemId].price = parseFloat(value) || 0;
-        renderQuickAddModal();
-    }
+function updatePrice(itemId, value, inputEl) {
+    if (!selectedShoppingItems[itemId]) return;
+    const numeric = parseFloat(value);
+    selectedShoppingItems[itemId].price = isNaN(numeric) ? '' : numeric;
+    refreshQuickAddLine(itemId, inputEl);
 }
 
 // Clear all items
@@ -831,6 +834,36 @@ function clearAllItems() {
     renderQuickAddModal();
 }
 
+function refreshQuickAddFooterTotals() {
+    const selectedCount = Object.keys(selectedShoppingItems).length;
+    const currencySymbol = getCurrencySymbol();
+    const totalPrice = Object.values(selectedShoppingItems).reduce((sum, item) => {
+        const qty = parseFloat(item.quantity) || 0;
+        const price = parseFloat(item.price) || 0;
+        return sum + (qty * price);
+    }, 0);
+    const selectedEl = document.getElementById('quickAddSelectedCount');
+    const totalEl = document.getElementById('quickAddTotalValue');
+    if (selectedEl) selectedEl.textContent = `Selected: ${selectedCount} items`;
+    if (totalEl) totalEl.textContent = `Total: ${currencySymbol}${(totalPrice || 0).toFixed(2)}`;
+}
+
+function refreshQuickAddLine(itemId, inputEl) {
+    const currencySymbol = getCurrencySymbol();
+    const item = selectedShoppingItems[itemId];
+    if (!item) return;
+    const safeId = (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(itemId) : itemId.replace(/"/g, '\\"');
+    const line = document.querySelector(`.quick-add-line-total[data-item-id="${safeId}"]`);
+    const card = inputEl?.closest('.quick-add-item');
+    const qtyInput = inputEl?.closest('.quick-add-item')?.querySelector('input[type="number"]');
+    const priceInput = card?.querySelector('input[type="number"]:not([oninput*="updateQuantity"])');
+    const qty = parseFloat(qtyInput?.value ?? item.quantity) || 0;
+    const price = parseFloat(priceInput?.value ?? item.price) || 0;
+    if (line) {
+        line.textContent = `${currencySymbol}${(qty * price).toFixed(2)}`;
+    }
+    refreshQuickAddFooterTotals();
+}
 // Add selected items to shopping list
 function addSelectedToShopping() {
     const itemCount = Object.keys(selectedShoppingItems).length;

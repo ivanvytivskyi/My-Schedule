@@ -1711,12 +1711,152 @@ function renderShopping() {
             </div>
         `;
     }
+    decorateShoppingTablesForTrolley();
 }
 
 function clearGeneratedShopping() {
     localStorage.removeItem('shoppingListHTML');
+    localStorage.removeItem('shoppingTrolleyState');
     if (typeof renderShopping === 'function') renderShopping();
     alert('🗑️ Shopping list cleared.');
+}
+
+function ensureShoppingTrolleyStyles() {
+    if (document.getElementById('trolleyStyles')) return;
+    const style = document.createElement('style');
+    style.id = 'trolleyStyles';
+    style.textContent = `
+        .trolley-checkbox { margin-right: 6px; transform: scale(1.05); }
+        .in-trolley td { text-decoration: line-through; color: #6b7280 !important; opacity: 0.75; }
+        .shopping-list-block { margin-bottom: 24px; }
+        .shopping-list-block .list-delete-btn { background: white; border: 1px solid #d1d5db; border-radius: 6px; padding: 4px 8px; cursor: pointer; font-weight: 700; color: #6b7280; }
+        .shopping-list-block .list-delete-btn:hover { background: #fee2e2; color: #b91c1c; }
+    `;
+    document.head.appendChild(style);
+}
+
+function loadShoppingTrolleyState() {
+    try {
+        const raw = localStorage.getItem('shoppingTrolleyState');
+        const parsed = raw ? JSON.parse(raw) : {};
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+        return {};
+    }
+}
+
+function saveShoppingTrolleyState(state) {
+    localStorage.setItem('shoppingTrolleyState', JSON.stringify(state));
+}
+
+function toggleRowTrolleyState(row, checked) {
+    if (!row) return;
+    row.classList.toggle('in-trolley', checked);
+}
+
+function decorateShoppingTablesForTrolley() {
+    const container = document.getElementById('shoppingDisplay');
+    if (!container) return;
+    ensureShoppingTrolleyStyles();
+    ensureShoppingListBlocks(container);
+    const state = loadShoppingTrolleyState();
+    const tables = container.querySelectorAll('table');
+    tables.forEach(table => {
+        const header = table.previousElementSibling;
+        const shopName = header?.querySelector('h3')?.textContent?.trim() || table.dataset.shop || 'Shopping';
+        const rows = Array.from(table.querySelectorAll('tbody tr'));
+        rows.forEach((row, idx) => {
+            if (row.dataset.trolleyDecorated === 'true') return;
+            const cells = row.querySelectorAll('td');
+            if (!cells.length) return;
+            const isTotalsRow = row.classList.contains('totals-row') || (idx === rows.length - 1 && row.textContent.toLowerCase().includes('subtotal'));
+            if (isTotalsRow) return;
+            const itemCell = cells[0];
+            if (!itemCell) return;
+            const existingCheckbox = itemCell.querySelector('.trolley-checkbox');
+            if (existingCheckbox) {
+                row.dataset.trolleyDecorated = 'true';
+                return;
+            }
+            const itemName = (itemCell.textContent || `item-${idx}`).trim();
+            const key = `${shopName}|${itemName}`;
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'trolley-checkbox';
+            checkbox.checked = Boolean(state[key]);
+            
+            const updateState = (checked) => {
+                state[key] = checked;
+                saveShoppingTrolleyState(state);
+                toggleRowTrolleyState(row, checked);
+            };
+            
+            checkbox.addEventListener('click', (e) => e.stopPropagation());
+            checkbox.addEventListener('change', () => updateState(checkbox.checked));
+            itemCell.style.display = 'flex';
+            itemCell.style.alignItems = 'center';
+            itemCell.style.gap = '8px';
+            itemCell.insertBefore(checkbox, itemCell.firstChild);
+            row.addEventListener('click', (e) => {
+                if (e.target.closest('.trolley-checkbox')) return;
+                const next = !checkbox.checked;
+                checkbox.checked = next;
+                updateState(next);
+            });
+            toggleRowTrolleyState(row, checkbox.checked);
+            row.dataset.trolleyDecorated = 'true';
+        });
+    });
+}
+
+function ensureShoppingListBlocks(container) {
+    const tables = container.querySelectorAll('table[data-shop]');
+    tables.forEach(table => {
+        let block = table.closest('.shopping-list-block');
+        if (!block) {
+            block = table.parentElement;
+            if (!block) return;
+            block.classList.add('shopping-list-block');
+            block.dataset.shop = table.dataset.shop || block.querySelector('h3')?.textContent?.trim() || 'Shopping';
+        } else if (!block.dataset.shop) {
+            block.dataset.shop = table.dataset.shop || block.querySelector('h3')?.textContent?.trim() || 'Shopping';
+        }
+    });
+    attachShoppingListDeleteButtons(container);
+}
+
+function attachShoppingListDeleteButtons(container) {
+    const blocks = container.querySelectorAll('.shopping-list-block');
+    blocks.forEach(block => {
+        if (block.dataset.deleteAttached === 'true') return;
+        const header = block.querySelector('h3')?.parentElement || block.firstElementChild;
+        if (header) {
+            header.style.display = 'flex';
+            header.style.alignItems = 'center';
+            header.style.justifyContent = 'space-between';
+            let btn = header.querySelector('.list-delete-btn');
+            if (!btn) {
+                btn = document.createElement('button');
+                btn.textContent = '✕';
+                btn.className = 'list-delete-btn';
+                header.appendChild(btn);
+            }
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const state = loadShoppingTrolleyState();
+                block.querySelectorAll('tbody tr').forEach(row => {
+                    const shopName = block.dataset.shop || 'Shopping';
+                    const itemName = (row.querySelector('td')?.textContent || '').trim();
+                    const key = `${shopName}|${itemName}`;
+                    delete state[key];
+                });
+                saveShoppingTrolleyState(state);
+                block.remove();
+                localStorage.setItem('shoppingListHTML', container.innerHTML);
+            });
+        }
+        block.dataset.deleteAttached = 'true';
+    });
 }
 
 // Shopping Edit Mode
@@ -1736,8 +1876,10 @@ function enableShoppingEditMode() {
     tables.forEach(table => {
         const rows = table.querySelectorAll('tbody tr:not(:last-child)');
         rows.forEach(row => {
+            if (row.classList.contains('totals-row')) return;
             const cells = row.querySelectorAll('td');
             cells.forEach((cell, index) => {
+                if (cell.querySelector('.trolley-checkbox')) return;
                 if (index < 4) { // Item, Unit, Price, Quantity
                     cell.contentEditable = 'true';
                     cell.style.background = '#fffacd';
@@ -1801,28 +1943,34 @@ function toggleShoppingEditMode() {
 }
 
 function recalculateShopTotals(table) {
-    const rows = table.querySelectorAll('tbody tr:not(:last-child)');
+    const rows = table.querySelectorAll('tbody tr');
     let totalPrice = 0;
     let totalQty = 0;
     
     rows.forEach(row => {
-        const cells = row.querySelectorAll('td');
-        const priceText = cells[2].textContent.replace('£', '').trim();
-        const qtyText = cells[3].textContent.trim();
+        const isTotalsRow = row.classList.contains('totals-row');
+        const priceCell = row.querySelector('.price-cell') || row.querySelectorAll('td')[2];
+        const qtyCell = row.querySelector('.qty-cell') || row.querySelectorAll('td')[3];
+        if (!priceCell || !qtyCell) return;
+        const priceText = priceCell.textContent.replace('£', '').replace('€', '').replace('$', '').trim();
+        const qtyText = qtyCell.textContent.trim();
         
         const price = parseFloat(priceText) || 0;
         const qty = parseFloat(qtyText) || 0;
         
-        totalPrice += price * qty;
-        totalQty += qty;
+        if (!isTotalsRow) {
+            totalPrice += price * qty;
+            totalQty += qty;
+        }
     });
     
     // Update totals row
-    const totalRow = table.querySelector('tbody tr:last-child');
+    const totalRow = table.querySelector('tbody tr.totals-row') || table.querySelector('tbody tr:last-child');
     if (totalRow) {
-        const totalCells = totalRow.querySelectorAll('td');
-        totalCells[1].textContent = `£${totalPrice.toFixed(2)}`;
-        totalCells[2].textContent = `Total Qty: ${totalQty % 1 !== 0 ? totalQty.toFixed(1) : totalQty}`;
+        const totalPriceCell = totalRow.querySelector('.total-price-cell') || totalRow.querySelectorAll('td')[1];
+        const totalQtyCell = totalRow.querySelector('.total-qty-cell') || totalRow.querySelectorAll('td')[2];
+        if (totalPriceCell) totalPriceCell.textContent = `£${totalPrice.toFixed(2)}`;
+        if (totalQtyCell) totalQtyCell.textContent = `Total Qty: ${totalQty % 1 !== 0 ? totalQty.toFixed(1) : totalQty}`;
     }
 }
 
@@ -1838,7 +1986,6 @@ function openHomeInventoryModal() {
     const shopSelect = document.getElementById('homeInventoryShop');
     if (shopSelect) {
         populateShopOptions(shopSelect, null, true);
-        shopSelect.add(new Option('Tap (custom water)', 'Tap'));
     }
     
     const saved = loadHomeInventory();
@@ -1859,8 +2006,9 @@ function saveHomeInventory() {
     const shopSelect = document.getElementById('homeInventoryShop');
     const currentShop = shopSelect?.value || 'Tesco';
     const saved = loadHomeInventory();
-    const kept = saved.filter(item => item.shop !== currentShop);
     const currentSelections = collectHomeChecklistSelections(currentShop);
+    const hasTapUpdate = currentSelections.some(item => item.shop === 'Tap');
+    const kept = saved.filter(item => item.shop !== currentShop && !(hasTapUpdate && item.shop === 'Tap'));
     const items = [...kept, ...currentSelections];
     
     localStorage.setItem('homeInventory', JSON.stringify(items));
@@ -1879,17 +2027,19 @@ function loadHomeInventory() {
         return parsed.map(raw => {
             const packUnit = raw.packUnit || raw.unit || raw.unitLabel || '';
             const meta = deriveUnitMetadata(packUnit);
-            const homeUnit = meta.homeUnit;
+            const homeUnitRaw = raw.homeUnit || raw.homeDisplayUnit || meta.homeUnit;
+            const homeUnit = normalizeHomeUnit(homeUnitRaw);
+            const baseUnit = normalizeHomeUnit(raw.baseUnit) || baseUnitFor(homeUnit);
             const unitsPerPack = raw.unitsPerPack || meta.unitsPerPack || 1;
             const isTap = raw.shop === 'Tap';
             const unlimited = Boolean(raw.unlimited) || isTap || raw.qtyUnits === 'unlimited' || raw.qtyAvailablePacks === 'unlimited';
-            const qtyUnitsRaw = raw.qtyUnits ?? raw.qtyAvailable ?? raw.qtyAvailablePacks ?? 0;
-            const sourceUnit = raw.homeUnit || raw.unitLabel || raw.unit || homeUnit;
+            const qtyUnitsRaw = raw.qtyUnits ?? raw.qtyUnitsBase ?? raw.qtyAvailable ?? raw.qtyAvailablePacks ?? 0;
+            const sourceUnit = normalizeHomeUnit(raw.baseUnit || raw.homeUnit || raw.unitLabel || raw.unit || homeUnit);
             const unitLabel = homeUnit;
-            const convertedQty = (!unlimited && sourceUnit && sourceUnit !== homeUnit)
-                ? convertUnitsToTarget(qtyUnitsRaw, sourceUnit, homeUnit)
+            const convertedQty = (!unlimited && sourceUnit && sourceUnit !== baseUnit)
+                ? convertUnitsToTarget(qtyUnitsRaw, sourceUnit, baseUnit)
                 : qtyUnitsRaw;
-            let sanitizedQty = unlimited ? Infinity : sanitizeQuantityForUnit(convertedQty, homeUnit, true);
+            let sanitizedQty = unlimited ? Infinity : sanitizeQuantityForUnit(convertedQty, baseUnit, true);
             if (!unlimited && (sanitizedQty === null || !isFinite(sanitizedQty))) {
                 const packs = sanitizeQuantityForUnit(raw.qtyAvailablePacks ?? qtyUnitsRaw, 'each', true);
                 if (packs !== null && isFinite(packs)) {
@@ -1897,6 +2047,9 @@ function loadHomeInventory() {
                 }
             }
             const qtyUnits = unlimited ? Infinity : (sanitizedQty ?? 0);
+            const displayQty = !unlimited
+                ? convertUnitsToTarget(qtyUnits, baseUnit, homeUnit) ?? qtyUnits
+                : qtyUnits;
             
             return {
                 shop: raw.shop,
@@ -1905,12 +2058,15 @@ function loadHomeInventory() {
                 unit: packUnit,
                 price: raw.price,
                 qtyAvailablePacks: unlimited ? Infinity : (raw.qtyAvailablePacks ?? raw.qtyAvailable ?? (qtyUnits / unitsPerPack)),
-                qtyUnits,
-                unitLabel,
-                homeUnit,
+                qtyUnits, // stored in base unit
+                displayQty,
+                unitLabel: homeUnit,
+                homeUnit, // display unit
+                baseUnit,
                 packUnit,
                 unitsPerPack,
-                unlimited
+                unlimited,
+                gramsPerSlice: raw.gramsPerSlice || ''
             };
         });
     } catch (e) {
@@ -1919,9 +2075,40 @@ function loadHomeInventory() {
     }
 }
 
+function normalizeUnitKey(unit = '') {
+    return (unit || '').toLowerCase().trim();
+}
+
+function normalizeHomeUnit(unit = '') {
+    const key = normalizeUnitKey(unit);
+    if (['kg', 'kgs', 'kilogram', 'kilograms'].includes(key)) return 'kg';
+    if (['g', 'gram', 'grams'].includes(key)) return 'g';
+    if (['l', 'liter', 'liters', 'litre', 'litres'].includes(key)) return 'L';
+    if (['ml', 'milliliter', 'millilitre', 'milliliters', 'millilitres'].includes(key)) return 'ml';
+    if (key.includes('slice')) return 'slices';
+    if (key === 'each' || key === 'pcs' || key === 'piece' || key === 'pieces') return 'each';
+    return unit || '';
+}
+
+function baseUnitFor(unit = '') {
+    const key = normalizeHomeUnit(unit);
+    if (key === 'kg' || key === 'g') return 'g';
+    if (key === 'L' || key === 'ml') return 'ml';
+    if (key === 'slices') return 'slices';
+    return 'each';
+}
+
 function unitAllowsDecimals(unit = '') {
-    const cleaned = (unit || '').trim().toLowerCase();
+    const cleaned = normalizeUnitKey(unit);
     return ['kg', 'kgs', 'kilogram', 'kilograms', 'l', 'liter', 'liters', 'litre', 'litres'].includes(cleaned);
+}
+
+function getQuantityStep(unit = '') {
+    const cleaned = normalizeUnitKey(unit);
+    if (['kg', 'kgs', 'kilogram', 'kilograms', 'l', 'liter', 'liters', 'litre', 'litres'].includes(cleaned)) {
+        return '0.01';
+    }
+    return '1';
 }
 
 function deriveUnitMetadata(unit = '') {
@@ -1939,17 +2126,17 @@ function deriveUnitMetadata(unit = '') {
     let unitsPerPack = 1;
     
     if (literMatch || mlMatch || pintMatch || /\b(liter|litre|\bl\b|ml|pint)\b/.test(lower)) {
-        homeUnit = 'L';
+        homeUnit = mlMatch ? 'ml' : 'L';
         if (literMatch) {
             unitsPerPack = parseFloat(literMatch[1].replace(',', '.')) || 1;
         } else if (mlMatch) {
             const mlVal = parseFloat(mlMatch[1].replace(',', '.'));
-            unitsPerPack = isFinite(mlVal) ? mlVal / 1000 : 1;
+            unitsPerPack = isFinite(mlVal) ? mlVal : 1;
         } else if (pintMatch) {
             const pints = parseFloat((pintMatch[1] || '1').replace(',', '.'));
             unitsPerPack = isFinite(pints) ? pints * 0.568 : 0.568;
         } else if (/ml\b/.test(lower) && numeric) {
-            unitsPerPack = numeric / 1000;
+            unitsPerPack = numeric;
         } else {
             unitsPerPack = numeric && isFinite(numeric) ? numeric : 1;
         }
@@ -1977,8 +2164,16 @@ function deriveUnitMetadata(unit = '') {
 
 function convertUnitsToTarget(value, fromUnit = '', toUnit = '') {
     if (!isFinite(value)) return value;
-    const from = (fromUnit || '').trim().toLowerCase();
-    const to = (toUnit || '').trim().toLowerCase();
+    const normalize = (u) => {
+        const key = normalizeUnitKey(u);
+        if (['kg', 'kgs', 'kilogram', 'kilograms'].includes(key)) return 'kg';
+        if (['g', 'gram', 'grams'].includes(key)) return 'g';
+        if (['l', 'liter', 'liters', 'litre', 'litres'].includes(key)) return 'l';
+        if (['ml', 'milliliter', 'millilitre', 'milliliters', 'millilitres'].includes(key)) return 'ml';
+        return key;
+    };
+    const from = normalize(fromUnit);
+    const to = normalize(toUnit);
     if (!from || !to) return value;
     
     const weight = { kg: 1000, g: 1 };
@@ -2003,7 +2198,9 @@ function sanitizeQuantityForUnit(value, unit = '', allowZero = false) {
 
     const decimalsOk = unitAllowsDecimals(unit);
     if (decimalsOk) {
-        const rounded = Math.round(numeric * 100) / 100;
+        const step = parseFloat(getQuantityStep(unit)) || 0.01;
+        const precision = step === 0.01 ? 2 : 3;
+        const rounded = Number(numeric.toFixed(precision));
         if (!allowZero && rounded <= 0) return null;
         return rounded;
     }
@@ -2015,27 +2212,45 @@ function sanitizeQuantityForUnit(value, unit = '', allowZero = false) {
 function formatQuantityForDisplay(qty, unit = '') {
     if (!isFinite(qty)) return '0';
     const decimalsOk = unitAllowsDecimals(unit);
-    const safeQty = decimalsOk ? Math.round(qty * 100) / 100 : Math.floor(qty);
-    const str = decimalsOk ? safeQty.toFixed(2) : String(safeQty);
+    const step = parseFloat(getQuantityStep(unit)) || 0.01;
+    const precision = decimalsOk ? (step === 0.01 ? 2 : 3) : 0;
+    const safeQty = decimalsOk ? Number(qty.toFixed(precision)) : Math.floor(qty);
+    const str = decimalsOk ? safeQty.toFixed(precision) : String(safeQty);
     return str.replace(/\.0+$/, '').replace(/\.([1-9]*)0+$/, '.$1');
+}
+
+function formatHomeUnitLabel(unit = '', qty = null) {
+    const key = normalizeUnitKey(unit);
+    if (['kg', 'kgs', 'kilogram', 'kilograms'].includes(key) && qty !== null && isFinite(qty)) {
+        const grams = Math.round(qty * 1000);
+        return `kg (${grams} g)`;
+    }
+    if (['l', 'liter', 'liters', 'litre', 'litres'].includes(key) && qty !== null && isFinite(qty)) {
+        const ml = Math.round(qty * 1000);
+        return `L${ml > 0 ? ` (${ml} ml)` : ''}`;
+    }
+    return unit || '';
 }
 
 function applyQuantityInputRules(input, unit = '') {
     if (!input) return;
-    const decimalsOk = unitAllowsDecimals(unit);
-    input.step = decimalsOk ? '0.01' : '1';
+    input.step = getQuantityStep(unit);
     input.min = '0';
-    input.addEventListener('input', () => {
+    input.inputMode = 'decimal';
+    if (input._applyQuantityBlurListener) {
+        input.removeEventListener('blur', input._applyQuantityBlurListener);
+    }
+    const blurHandler = () => {
         if (input.value === '') return;
         const sanitized = sanitizeQuantityForUnit(input.value, unit, true);
         if (sanitized === null) {
             input.value = '';
             return;
         }
-        input.value = decimalsOk
-            ? formatQuantityForDisplay(sanitized, unit)
-            : String(Math.floor(sanitized));
-    });
+        input.value = formatQuantityForDisplay(sanitized, unit);
+    };
+    input._applyQuantityBlurListener = blurHandler;
+    input.addEventListener('blur', blurHandler);
 }
 
 // Backwards compatibility wrapper
@@ -2057,19 +2272,34 @@ function renderHomeInventoryTable() {
         return;
     }
     
+    const collapsed = localStorage.getItem('homeInventoryCollapsed') === 'true';
     const rows = inventory.map(item => {
         let qtyDisplay = '0';
         const unitLabel = item.homeUnit || item.unitLabel || item.unit;
+        const baseUnit = item.baseUnit || baseUnitFor(unitLabel);
+        const displayQty = typeof item.displayQty === 'number' ? item.displayQty : item.qtyUnits;
         if (item.unlimited || item.qtyUnits === Infinity) {
             qtyDisplay = 'Unlimited';
-        } else if (typeof item.qtyUnits === 'number' && !isNaN(item.qtyUnits)) {
-            qtyDisplay = formatQuantityForDisplay(item.qtyUnits, unitLabel);
+        } else if (typeof displayQty === 'number' && !isNaN(displayQty)) {
+            const mainVal = formatQuantityForDisplay(displayQty, unitLabel);
+            let conversion = '';
+            if (unitLabel === 'kg' && baseUnit === 'g') {
+                const grams = Math.round((item.qtyUnits || 0));
+                conversion = ` (${grams} g)`;
+            } else if (unitLabel === 'L' && baseUnit === 'ml') {
+                const ml = Math.round((item.qtyUnits || 0));
+                conversion = ` (${ml} ml)`;
+            }
+            qtyDisplay = `${mainVal}${conversion}`;
         } else if (item.qtyAvailablePacks && isFinite(item.qtyAvailablePacks)) {
             qtyDisplay = formatQuantityForDisplay(item.qtyAvailablePacks, unitLabel);
         }
+        const sourceLabel = item.unlimited || item.shop === 'Tap'
+            ? 'Utility (Tap water)'
+            : (item.shop || 'Home');
         return `
             <tr>
-                <td style="border: 1px solid #e5e7eb; padding: 10px;">${item.shop}</td>
+                <td style="border: 1px solid #e5e7eb; padding: 10px;">${sourceLabel}</td>
                 <td style="border: 1px solid #e5e7eb; padding: 10px;">${item.itemName}</td>
                 <td style="border: 1px solid #e5e7eb; padding: 10px;">${unitLabel}</td>
                 <td style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">${qtyDisplay}</td>
@@ -2079,22 +2309,39 @@ function renderHomeInventoryTable() {
     
     container.innerHTML = `
         <div style="margin-top: 12px; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden;">
-            <div style="padding: 12px 16px; background: #fff7ed; color: #9a3412; font-weight: 700;">🏠 Products at Home</div>
-            <table style="width: 100%; border-collapse: collapse; background: white;">
-                <thead>
-                    <tr style="background: #f9fafb; color: #374151;">
-                        <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left;">Shop</th>
-                        <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left;">Item</th>
-                        <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left;">Unit</th>
-                        <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">Quantity at home</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${rows}
-                </tbody>
-            </table>
+            <div style="padding: 12px 16px; background: #fff7ed; color: #9a3412; font-weight: 700; display: flex; align-items: center; gap: 10px;">
+                <span>🏠 Products at Home</span>
+                <button id="toggleHomeInventorySection" style="margin-left: auto; background: white; border: 1px solid #d1d5db; border-radius: 8px; padding: 6px 10px; cursor: pointer; font-weight: 700; color: #374151;">
+                    ${collapsed ? 'Expand' : 'Collapse'}
+                </button>
+            </div>
+            <div id="homeInventoryTableBody" style="display: ${collapsed ? 'none' : 'block'};">
+                <table style="width: 100%; border-collapse: collapse; background: white;">
+                    <thead>
+                        <tr style="background: #f9fafb; color: #374151;">
+                            <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left;">Source/Shop</th>
+                            <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left;">Item</th>
+                            <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: left;">Home unit</th>
+                            <th style="border: 1px solid #e5e7eb; padding: 10px; text-align: center;">Qty</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows}
+                    </tbody>
+                </table>
+            </div>
         </div>
     `;
+    const toggleBtn = document.getElementById('toggleHomeInventorySection');
+    const tableBody = document.getElementById('homeInventoryTableBody');
+    if (toggleBtn && tableBody) {
+        toggleBtn.addEventListener('click', () => {
+            const isHidden = tableBody.style.display === 'none';
+            tableBody.style.display = isHidden ? 'block' : 'none';
+            toggleBtn.textContent = isHidden ? 'Collapse' : 'Expand';
+            localStorage.setItem('homeInventoryCollapsed', (!isHidden).toString());
+        });
+    }
 }
 
 function renderHomeInventoryChecklist(shop, savedInventory) {
@@ -2102,11 +2349,13 @@ function renderHomeInventoryChecklist(shop, savedInventory) {
     if (!container) return;
     container.innerHTML = '';
     
-    const checklistData = shop === 'Tap'
-        ? [{ name: 'Tap water', unit: 'Tap', packUnit: 'Tap', homeUnit: 'L', unitsPerPack: 1, price: 0, packSize: 1, category: 'Water' }]
-        : buildChecklistDataForShop(shop);
+    const checklistData = buildChecklistDataForShop(shop);
+    if (!checklistData.find(item => normalizeName(item.name) === 'tap water')) {
+        checklistData.push({ name: 'Tap water', unit: 'Tap', packUnit: 'Tap', homeUnit: 'L', unitsPerPack: 1, price: 0, packSize: 1, category: 'Home sources', tapSource: true });
+    }
     const currentSaved = Array.isArray(savedInventory) ? savedInventory : loadHomeInventory();
     const savedForShop = currentSaved.filter(item => item.shop === shop);
+    const tapSaved = currentSaved.filter(item => item.shop === 'Tap');
     const grouped = checklistData.reduce((acc, item) => {
         const category = item.category || 'Other';
         if (!acc[category]) acc[category] = [];
@@ -2145,7 +2394,7 @@ function renderHomeInventoryChecklist(shop, savedInventory) {
             const qtyRow = card.querySelector('.home-card-qty');
             if (qtyRow) qtyRow.style.display = 'none';
             const qtyInput = card.querySelector('.home-qty-input');
-            if (qtyInput) qtyInput.value = '';
+            if (qtyInput) qtyInput.disabled = true;
         });
         updateSelectedCount();
     };
@@ -2164,16 +2413,52 @@ function renderHomeInventoryChecklist(shop, savedInventory) {
         grid.style.cssText = 'display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; padding: 12px;';
         
         items.forEach(item => {
-            const saved = savedForShop.find(s => normalizeName(s.itemName) === normalizeName(item.name));
+            const savedPool = (item.tapSource || item.name.toLowerCase().includes('tap water')) ? tapSaved : savedForShop;
+            const saved = savedPool.find(s => normalizeName(s.itemName) === normalizeName(item.name));
             const isChecked = Boolean(saved);
-            const isTap = shop === 'Tap' || item.name.toLowerCase().includes('tap water');
+            const isTap = item.tapSource || shop === 'Tap' || item.name.toLowerCase().includes('tap water');
             const meta = deriveUnitMetadata(item.packUnit || item.unit);
-            const homeUnit = meta.homeUnit;
+            const defaultHomeUnit = normalizeHomeUnit(item.homeUnit || meta.homeUnit);
             const packUnit = meta.packUnit || item.packUnit || item.unit;
             const unitsPerPack = item.unitsPerPack || meta.unitsPerPack || item.packSize || 1;
+            const isBread = /bread/i.test(item.name) || /loaf/.test(packUnit);
+            let trackingOptions;
+            if (isBread) {
+                trackingOptions = ['g', 'slices'];
+            } else if (['kg', 'g'].includes(defaultHomeUnit)) {
+                trackingOptions = ['kg', 'g'];
+            } else if (['L', 'ml'].includes(defaultHomeUnit)) {
+                trackingOptions = ['L', 'ml'];
+            } else {
+                trackingOptions = [defaultHomeUnit || 'each'];
+            }
+            const savedHomeUnit = saved?.homeUnit && trackingOptions.includes(saved.homeUnit) ? saved.homeUnit : null;
+            let selectedHomeUnit = savedHomeUnit || (trackingOptions.includes(defaultHomeUnit) ? defaultHomeUnit : trackingOptions[0]);
             const qtyVal = saved?.qtyUnits === Infinity || saved?.unlimited
                 ? ''
-                : (typeof saved?.qtyUnits === 'number' ? formatQuantityForDisplay(saved.qtyUnits, homeUnit) : '');
+                : (typeof saved?.qtyUnits === 'number'
+                    ? formatQuantityForDisplay(
+                        convertUnitsToTarget(saved.qtyUnits, saved.baseUnit || baseUnitFor(saved?.homeUnit || selectedHomeUnit), selectedHomeUnit) ?? saved.qtyUnits,
+                        selectedHomeUnit)
+                    : '');
+            const savedGramsPerSlice = saved?.gramsPerSlice;
+            let qtyDisplayValue = qtyVal;
+            if (qtyVal && saved?.homeUnit && saved.homeUnit !== selectedHomeUnit && typeof saved.qtyUnits === 'number') {
+                let convertedVal = null;
+                if (savedGramsPerSlice && isFinite(savedGramsPerSlice)) {
+                    if (saved.homeUnit === 'g' && selectedHomeUnit === 'slices') {
+                        convertedVal = saved.qtyUnits / savedGramsPerSlice;
+                    } else if (saved.homeUnit === 'slices' && selectedHomeUnit === 'g') {
+                        convertedVal = saved.qtyUnits * savedGramsPerSlice;
+                    }
+                }
+                if (convertedVal === null) {
+                    convertedVal = convertUnitsToTarget(saved.qtyUnits, saved.baseUnit || saved.homeUnit, selectedHomeUnit);
+                }
+                if (convertedVal !== null && isFinite(convertedVal)) {
+                    qtyDisplayValue = formatQuantityForDisplay(convertedVal, selectedHomeUnit);
+                }
+            }
             const card = document.createElement('div');
             card.className = 'home-card';
             card.style.cssText = `
@@ -2190,13 +2475,16 @@ function renderHomeInventoryChecklist(shop, savedInventory) {
             card.dataset.itemName = item.name;
             card.dataset.unit = packUnit;
             card.dataset.packunit = packUnit;
-            card.dataset.homeunit = homeUnit;
+            card.dataset.homeunit = selectedHomeUnit;
             card.dataset.unitsperpack = unitsPerPack;
             card.dataset.price = item.price;
             card.dataset.packsize = unitsPerPack;
             card.dataset.category = category;
             card.dataset.tap = isTap ? 'true' : 'false';
             card.dataset.unlimited = (isTap || saved?.unlimited) ? 'true' : 'false';
+            card.dataset.trackingoptions = trackingOptions.join(',');
+            card.dataset.gramsperslice = saved?.gramsPerSlice || '';
+            card.dataset.baseunit = baseUnitFor(selectedHomeUnit);
             
             const topRow = document.createElement('div');
             topRow.style.cssText = 'display: flex; gap: 10px; align-items: flex-start;';
@@ -2204,7 +2492,7 @@ function renderHomeInventoryChecklist(shop, savedInventory) {
                 <input type="checkbox" class="home-card-check" ${isChecked ? 'checked' : ''} style="margin-top: 4px; transform: scale(1.1);" />
                 <div style="flex: 1;">
                     <div style="font-weight: 800; color: #111827;">${item.name}</div>
-                    <div style="color: #6b7280; font-size: 12px;">Sold as: ${packUnit} · Qty at home uses ${homeUnit}</div>
+                    <div style="color: #6b7280; font-size: 12px;">Sold as: ${packUnit} · Qty at home = what's left (${selectedHomeUnit === 'slices' ? 'slices' : selectedHomeUnit})</div>
                 </div>
                 <div style="padding: 6px 10px; background: #f3f4f6; border-radius: 8px; font-weight: 700; color: #374151; font-size: 12px;">${packUnit}</div>
             `;
@@ -2216,13 +2504,140 @@ function renderHomeInventoryChecklist(shop, savedInventory) {
             if (isTap || saved?.unlimited) {
                 qtyRow.innerHTML = `<span style="background: #ecfdf3; color: #047857; padding: 6px 10px; border-radius: 999px; font-weight: 700;">Unlimited (tap)</span>`;
             } else {
-                qtyRow.innerHTML = `
-                    <span style="color: #374151; font-weight: 700;">Qty at home (${homeUnit}):</span>
-                    <div style="display: flex; align-items: center; gap: 6px;">
-                        <input type="number" class="home-qty-input" min="0" ${unitAllowsDecimals(homeUnit) ? 'step="0.01"' : 'step="1"'} placeholder="${unitsPerPack || 1}" value="${qtyVal}" style="padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; width: 90px;">
-                        <span style="color: #6b7280; font-weight: 700;">${homeUnit}</span>
-                    </div>
-                `;
+                const qtyLabel = document.createElement('span');
+                const homeUnitLabel = selectedHomeUnit === 'slices'
+                    ? 'slices'
+                    : selectedHomeUnit;
+                qtyLabel.style.cssText = 'color: #374151; font-weight: 700;';
+                qtyLabel.textContent = `Qty left (${homeUnitLabel}):`;
+                
+                const inputWrap = document.createElement('div');
+                inputWrap.style.cssText = 'display: flex; align-items: center; gap: 6px;';
+                const qtyInput = document.createElement('input');
+                qtyInput.type = 'number';
+                qtyInput.className = 'home-qty-input';
+                qtyInput.min = '0';
+                qtyInput.step = getQuantityStep(selectedHomeUnit);
+                qtyInput.placeholder = unitsPerPack || 1;
+                qtyInput.value = qtyDisplayValue;
+                qtyInput.style.cssText = 'padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 8px; width: 90px;';
+                qtyInput.disabled = !isChecked;
+                const shouldCap = (selectedHomeUnit === 'slices' || selectedHomeUnit === 'each') && unitsPerPack;
+                if (shouldCap) {
+                    qtyInput.max = unitsPerPack;
+                } else {
+                    qtyInput.removeAttribute('max');
+                }
+                applyQuantityInputRules(qtyInput, selectedHomeUnit);
+                qtyInput.addEventListener('click', (e) => e.stopPropagation());
+                qtyInput.addEventListener('input', () => {
+                    const val = parseFloat(qtyInput.value);
+                    if (shouldCap && unitsPerPack && val > unitsPerPack) {
+                        qtyInput.removeAttribute('max');
+                    }
+                });
+                
+                const unitBadge = document.createElement('span');
+                unitBadge.style.cssText = 'color: #6b7280; font-weight: 700;';
+                unitBadge.textContent = selectedHomeUnit === 'slices' ? 'slices' : selectedHomeUnit;
+                
+                inputWrap.appendChild(qtyInput);
+                inputWrap.appendChild(unitBadge);
+                qtyRow.appendChild(qtyLabel);
+                qtyRow.appendChild(inputWrap);
+                
+                const helper = document.createElement('div');
+                helper.style.cssText = 'color: #6b7280; font-size: 12px; font-weight: 600; display: flex; gap: 6px; align-items: center;';
+                const updateHelperText = () => {
+                    const packHint = unitsPerPack > 1 ? `Pack size: ${unitsPerPack} (enter total if multiple packs)` : '';
+                    const unitHint = selectedHomeUnit === 'slices' ? 'Enter slices left' : `Track ${selectedHomeUnit} left`;
+                    helper.textContent = [unitHint, packHint].filter(Boolean).join(' • ');
+                };
+                updateHelperText();
+                qtyRow.appendChild(helper);
+                
+                let gramsInputWrapper;
+                if (trackingOptions.length > 1) {
+                    const trackWrap = document.createElement('div');
+                    trackWrap.style.cssText = 'display: flex; align-items: center; gap: 6px;';
+                    const trackLabel = document.createElement('span');
+                    trackLabel.style.cssText = 'color: #6b7280; font-weight: 600;';
+                    trackLabel.textContent = 'Track at home as:';
+                    const trackSelect = document.createElement('select');
+                    trackSelect.className = 'home-track-select';
+                    trackSelect.style.cssText = 'padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 8px; font-weight: 700;';
+                    trackingOptions.forEach(opt => {
+                        const option = document.createElement('option');
+                        option.value = opt;
+                        option.textContent = opt === 'each' ? 'slices' : opt;
+                        if (opt === selectedHomeUnit) option.selected = true;
+                        trackSelect.appendChild(option);
+                    });
+                    trackSelect.addEventListener('click', (e) => e.stopPropagation());
+                    trackSelect.addEventListener('change', () => {
+                        const previousUnit = card.dataset.homeunit || selectedHomeUnit;
+                        selectedHomeUnit = trackSelect.value;
+                        card.dataset.homeunit = selectedHomeUnit;
+                        qtyInput.step = getQuantityStep(selectedHomeUnit);
+                        applyQuantityInputRules(qtyInput, selectedHomeUnit);
+                        const shouldCapAfter = (selectedHomeUnit === 'slices' || selectedHomeUnit === 'each') && unitsPerPack;
+                        if (shouldCapAfter) {
+                            qtyInput.max = unitsPerPack;
+                        } else {
+                            qtyInput.removeAttribute('max');
+                        }
+                        qtyLabel.textContent = `Qty left (${selectedHomeUnit === 'slices' ? 'slices' : selectedHomeUnit}):`;
+                        unitBadge.textContent = selectedHomeUnit === 'slices' ? 'slices' : selectedHomeUnit;
+                        updateHelperText();
+                        
+                        const gramsPerSlice = parseFloat(card.dataset.gramsperslice);
+                        if (previousUnit !== selectedHomeUnit && qtyInput.value) {
+                            let converted = null;
+                            if (gramsPerSlice && isFinite(gramsPerSlice)) {
+                                if (previousUnit === 'g' && selectedHomeUnit === 'slices') {
+                                    converted = qtyInput.value ? (parseFloat(qtyInput.value) / gramsPerSlice) : null;
+                                } else if (previousUnit === 'slices' && selectedHomeUnit === 'g') {
+                                    converted = qtyInput.value ? (parseFloat(qtyInput.value) * gramsPerSlice) : null;
+                                }
+                            }
+                            if (converted === null) {
+                                const safeConverted = convertUnitsToTarget(parseFloat(qtyInput.value), previousUnit, selectedHomeUnit);
+                                converted = safeConverted;
+                            }
+                            if (converted !== null && isFinite(converted)) {
+                                qtyInput.value = formatQuantityForDisplay(converted, selectedHomeUnit);
+                            }
+                        }
+                        if (gramsInputWrapper) {
+                            gramsInputWrapper.style.display = selectedHomeUnit === 'slices' ? 'flex' : 'none';
+                        }
+                    });
+                    trackWrap.appendChild(trackLabel);
+                    trackWrap.appendChild(trackSelect);
+                    qtyRow.appendChild(trackWrap);
+                }
+                
+                if (trackingOptions.length > 1) {
+                    gramsInputWrapper = document.createElement('div');
+                    gramsInputWrapper.style.cssText = `display: ${selectedHomeUnit === 'slices' ? 'flex' : 'none'}; align-items: center; gap: 6px;`;
+                    const gramsLabel = document.createElement('span');
+                    gramsLabel.style.cssText = 'color: #6b7280; font-weight: 600;';
+                    gramsLabel.textContent = 'Grams per slice (optional):';
+                    const gramsInput = document.createElement('input');
+                    gramsInput.type = 'number';
+                    gramsInput.step = '0.1';
+                    gramsInput.min = '0';
+                    gramsInput.placeholder = 'e.g., 30';
+                    gramsInput.value = card.dataset.gramsperslice || '';
+                    gramsInput.style.cssText = 'padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 8px; width: 90px;';
+                    gramsInput.addEventListener('click', (e) => e.stopPropagation());
+                    gramsInput.addEventListener('input', () => {
+                        card.dataset.gramsperslice = gramsInput.value;
+                    });
+                    gramsInputWrapper.appendChild(gramsLabel);
+                    gramsInputWrapper.appendChild(gramsInput);
+                    qtyRow.appendChild(gramsInputWrapper);
+                }
             }
             
             card.appendChild(topRow);
@@ -2236,24 +2651,24 @@ function renderHomeInventoryChecklist(shop, savedInventory) {
                 card.style.background = isSelected ? '#ecfdf3' : '#ffffff';
                 card.style.boxShadow = isSelected ? '0 8px 24px rgba(16, 185, 129, 0.15)' : 'none';
                 qtyRow.style.display = isSelected ? 'flex' : 'none';
-                if (!isSelected && !isTap) {
-                    const qtyInput = card.querySelector('.home-qty-input');
-                    if (qtyInput) qtyInput.value = '';
-                }
+                const qtyInputEl = card.querySelector('.home-qty-input');
+                if (qtyInputEl) qtyInputEl.disabled = !isSelected;
                 updateSelectedCount();
             };
             
             checkbox?.addEventListener('change', () => syncSelection(checkbox.checked));
+            checkbox?.addEventListener('click', (e) => e.stopPropagation());
             card.addEventListener('click', (e) => {
-                if (e.target.classList.contains('home-qty-input')) return;
-                const next = !checkbox.checked;
-                checkbox.checked = next;
-                syncSelection(next);
+                if (['INPUT', 'SELECT', 'OPTION', 'TEXTAREA', 'BUTTON'].includes(e.target.tagName) || e.target.classList.contains('home-qty-input')) return;
+                if (!checkbox.checked) {
+                    checkbox.checked = true;
+                    syncSelection(true);
+                }
             });
 
             const qtyInput = card.querySelector('.home-qty-input');
             if (qtyInput) {
-                applyQuantityInputRules(qtyInput, homeUnit);
+                applyQuantityInputRules(qtyInput, selectedHomeUnit);
                 qtyInput.addEventListener('click', (e) => e.stopPropagation());
             }
         });
@@ -2301,30 +2716,43 @@ function collectHomeChecklistSelections(shop) {
         const itemName = card.dataset.itemName;
         const packUnit = card.dataset.packunit || card.dataset.unit;
         const homeUnit = card.dataset.homeunit || deriveUnitMetadata(packUnit).homeUnit;
+        const baseUnit = baseUnitFor(homeUnit);
         const price = parseFloat(card.dataset.price) || 0;
         const unitsPerPack = parseFloat(card.dataset.unitsperpack) || parseFloat(card.dataset.packsize) || 1;
         const category = card.dataset.category || '';
+        const gramsPerSlice = parseFloat(card.dataset.gramsperslice);
+        const trackingOptions = (card.dataset.trackingoptions || '').split(',').map(s => s.trim());
+        const targetShop = card.dataset.tap === 'true' ? 'Tap' : shop;
         
-        const isTap = card.dataset.tap === 'true' || (shop === 'Tap' && itemName.toLowerCase().includes('tap water'));
+        const isTap = card.dataset.tap === 'true' || (targetShop === 'Tap' && itemName.toLowerCase().includes('tap water'));
         const unlimited = isTap || card.dataset.unlimited === 'true';
         const rawValue = qtyInput?.value;
         const qtyUnits = unlimited ? null : sanitizeQuantityForUnit(rawValue, homeUnit);
         if (!unlimited && (qtyUnits === null || qtyUnits <= 0)) return;
         
+        const convertedPackSize = convertUnitsToTarget(unitsPerPack, homeUnit, baseUnit);
+        const storedUnitsPerPack = isFinite(convertedPackSize) ? convertedPackSize : (unitsPerPack || 1);
+        const qtyBase = unlimited
+            ? null
+            : (convertUnitsToTarget(qtyUnits, homeUnit, baseUnit) ?? qtyUnits);
+        
         if (unlimited || qtyUnits > 0) {
             selections.push({
-                shop,
+                shop: targetShop,
                 category,
                 itemName,
                 unit: packUnit,
                 price,
-                qtyAvailablePacks: unlimited ? 'unlimited' : qtyUnits / unitsPerPack,
-                qtyUnits: unlimited ? 'unlimited' : qtyUnits,
+                qtyAvailablePacks: unlimited ? 'unlimited' : qtyBase / storedUnitsPerPack,
+                qtyUnits: unlimited ? 'unlimited' : qtyBase,
+                displayQty: unlimited ? 'unlimited' : qtyUnits,
                 unitLabel: homeUnit,
                 homeUnit,
+                baseUnit,
                 packUnit,
-                unitsPerPack,
-                unlimited
+                unitsPerPack: storedUnitsPerPack,
+                unlimited,
+                gramsPerSlice: gramsPerSlice && isFinite(gramsPerSlice) ? gramsPerSlice : ''
             });
         }
     });

@@ -990,7 +990,7 @@ function generateShoppingListFromRecipes() {
         let remainingUnits = item.totalUnits;
         
         if (match) {
-            const matchUnit = match.homeUnit || match.unitLabel || match.unit;
+            const matchUnit = match.baseUnit || match.homeUnit || match.unitLabel || match.unit;
             const convertedAvailable = match.unlimited
                 ? Infinity
                 : typeof match.qtyUnits === 'number' && typeof convertUnitsToTarget === 'function'
@@ -1036,8 +1036,10 @@ function generateShoppingListFromRecipes() {
         html += buildUnresolvedTable(unresolved);
     }
     
-    // Persist into shopping tab (replace existing generated list)
-    localStorage.setItem('shoppingListHTML', html);
+    // Persist into shopping tab (append, do not overwrite manual lists)
+    const existing = localStorage.getItem('shoppingListHTML') || '';
+    const combined = `${existing}${html}`;
+    localStorage.setItem('shoppingListHTML', combined);
     
     if (typeof renderShopping === 'function') {
         renderShopping();
@@ -1135,18 +1137,19 @@ function buildShoppingTableForShop(shop, items) {
             <tr>
                 <td style="border: 1px solid #ddd; padding: 10px;">${entry.itemName}</td>
                 <td style="border: 1px solid #ddd; padding: 10px;">${entry.packUnit || entry.unit || ''}</td>
-                <td style="border: 1px solid #ddd; padding: 10px; text-align: right;">${priceDisplay}</td>
-                <td style="border: 1px solid #ddd; padding: 10px; text-align: center;">${qtyDisplay}</td>
+                <td class="price-cell" style="border: 1px solid #ddd; padding: 10px; text-align: right;">${priceDisplay}</td>
+                <td class="qty-cell" style="border: 1px solid #ddd; padding: 10px; text-align: center;">${qtyDisplay}</td>
             </tr>
         `;
     }).join('');
     
     return `
-        <div style="margin-bottom: 24px; page-break-inside: avoid; border: 2px solid #e5e7eb; border-radius: 10px; overflow: hidden;">
-            <div style="${style.header}">
+        <div class="shopping-list-block" data-shop="${shop}" style="margin-bottom: 24px; page-break-inside: avoid; border: 2px solid #e5e7eb; border-radius: 10px; overflow: hidden;">
+            <div style="${style.header}; display:flex; align-items:center; justify-content:space-between;">
                 <h3 style="${style.title}">${shop}</h3>
+                <button class="list-delete-btn" style="margin-left:8px; background: white; border: 1px solid #d1d5db; border-radius: 6px; padding: 4px 8px; cursor: pointer; font-weight: 700; color: #6b7280;">✕</button>
             </div>
-            <table style="width: 100%; border-collapse: collapse;">
+            <table style="width: 100%; border-collapse: collapse;" data-shop="${shop}">
                 <thead>
                     <tr style="background: #f9fafb;">
                         <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">Item</th>
@@ -1157,10 +1160,10 @@ function buildShoppingTableForShop(shop, items) {
                 </thead>
                 <tbody>
                     ${rows}
-                    <tr style="background: #f3f4f6; font-weight: 700;">
+                    <tr class="totals-row" style="background: #f3f4f6; font-weight: 700;">
                         <td colspan="2" style="border: 1px solid #ddd; padding: 10px; text-align: right;">Subtotal</td>
-                        <td style="border: 1px solid #ddd; padding: 10px; text-align: right;">${currency}${total.toFixed(2)}</td>
-                        <td style="border: 1px solid #ddd; padding: 10px; text-align: center;">${items.length} items</td>
+                        <td class="total-price-cell" style="border: 1px solid #ddd; padding: 10px; text-align: right;">${currency}${total.toFixed(2)}</td>
+                        <td class="total-qty-cell" style="border: 1px solid #ddd; padding: 10px; text-align: center;">${items.length} items</td>
                     </tr>
                 </tbody>
             </table>
