@@ -97,6 +97,7 @@ document.addEventListener("DOMContentLoaded", function () {
     setupTitleSuggestions();
     startLiveClock();
     setupScrollButton();
+    populateBlockRecipeSelect();
 });
 
 function initializeApp() {
@@ -1094,6 +1095,24 @@ function renderSchedule() {
     }
 }
 
+function populateBlockRecipeSelect() {
+    const select = document.getElementById('blockRecipeSelect');
+    if (!select) return;
+    
+    const recipes = typeof getAllRecipes === 'function' ? Object.values(getAllRecipes()) : [];
+    const sorted = recipes.sort((a, b) => a.id.localeCompare(b.id));
+    const currentValue = select.value;
+    
+    select.innerHTML = '<option value="">No recipe linked</option>';
+    sorted.forEach(recipe => {
+        const option = document.createElement('option');
+        option.value = recipe.id;
+        option.textContent = `${recipe.id} — ${recipe.name}`;
+        if (recipe.id === currentValue) option.selected = true;
+        select.appendChild(option);
+    });
+}
+
 function updateDayInfo(dayKey, field, value) {
     scheduleData.days[dayKey][field] = value;
     saveToLocalStorage();
@@ -1108,6 +1127,18 @@ function renderTimeBlock(dayKey, block, index) {
             <div class="title">
                 ${block.title}
                 ${block.video ? `<a href="${block.video}" target="_blank" class="youtube-btn">▶ YouTube</a>` : ''}
+                ${block.recipeID ? `
+                    <button
+                        type="button"
+                        onclick="event.stopPropagation(); if (typeof openRecipeModal === 'function') openRecipeModal('${block.recipeID}');"
+                        class="recipe-chip"
+                        style="display:inline-flex;align-items:center;gap:6px;margin-left:8px;padding:4px 10px;border-radius:999px;background:#f0f4ff;color:#364152;font-size:12px;font-weight:600;vertical-align:middle;border:none;cursor:pointer;box-shadow:0 0 0 1px #d9e2ec inset;">
+                        <span style="display:inline-flex;align-items:center;gap:4px;">
+                            🍽️ ${block.recipeName || 'Recipe'} (${block.recipeID})
+                        </span>
+                        ${block.isLeftover ? `<span style="background:#ffe8d9;color:#ad4d00;padding:2px 8px;border-radius:999px;font-weight:700;">Leftover</span>` : ''}
+                    </button>
+                ` : ''}
             </div>
     `;
 
@@ -1147,6 +1178,7 @@ function editBlock(dayKey, index) {
     
     const block = scheduleData.days[dayKey].blocks[index];
     document.getElementById('modalTitle').textContent = 'Edit Time Block';
+    populateBlockRecipeSelect();
     
     // Parse and set time inputs
     if (block.time && block.time.includes('-')) {
@@ -1164,6 +1196,8 @@ function editBlock(dayKey, index) {
     document.getElementById('blockTasks').value = (block.tasks || []).join('\n');
     document.getElementById('blockNote').value = block.note || '';
     document.getElementById('blockVideo').value = block.video || '';
+    document.getElementById('blockRecipeSelect').value = block.recipeID || '';
+    document.getElementById('blockLeftoverToggle').checked = !!block.isLeftover;
     document.getElementById('applyToAllDays').checked = false;
     
     showEmojiSuggestions(block.title || '');
@@ -1175,6 +1209,7 @@ function addNewBlock(dayKey, afterIndex) {
     currentEditingBlock = afterIndex + 1;
     
     document.getElementById('modalTitle').textContent = 'Add New Time Block';
+    populateBlockRecipeSelect();
     
     // Auto-fill time from previous block
     if (afterIndex >= 0 && scheduleData.days[dayKey].blocks[afterIndex]) {
@@ -1195,6 +1230,8 @@ function addNewBlock(dayKey, afterIndex) {
     document.getElementById('blockTasks').value = '';
     document.getElementById('blockNote').value = '';
     document.getElementById('blockVideo').value = '';
+    document.getElementById('blockRecipeSelect').value = '';
+    document.getElementById('blockLeftoverToggle').checked = false;
     document.getElementById('applyToAllDays').checked = false;
     document.getElementById('emojiSuggestions').innerHTML = '';
     
@@ -1213,6 +1250,10 @@ function closeModal() {
     document.getElementById('editModal').classList.remove('active');
     document.getElementById('errorMessage').classList.remove('show');
     document.getElementById('titleSuggestions').style.display = 'none';
+    const recipeSelect = document.getElementById('blockRecipeSelect');
+    if (recipeSelect) recipeSelect.value = '';
+    const leftoverToggle = document.getElementById('blockLeftoverToggle');
+    if (leftoverToggle) leftoverToggle.checked = false;
     currentEditingBlock = null;
     currentEditingDay = null;
 }
@@ -1266,6 +1307,9 @@ document.getElementById('editForm').addEventListener('submit', (e) => {
     const note = document.getElementById('blockNote').value;
     const video = document.getElementById('blockVideo').value;
     const applyToAll = document.getElementById('applyToAllDays').checked;
+    const selectedRecipeId = document.getElementById('blockRecipeSelect').value;
+    const isLeftover = document.getElementById('blockLeftoverToggle').checked;
+    const selectedRecipe = selectedRecipeId && typeof getRecipe === 'function' ? getRecipe(selectedRecipeId) : null;
 
     // Validate time format
     if (!/^\d{2}:\d{2}-\d{2}:\d{2}$/.test(time)) {
@@ -1289,12 +1333,20 @@ document.getElementById('editForm').addEventListener('submit', (e) => {
         return;
     }
 
+    const existingBlock = (currentEditingBlock !== null && currentEditingBlock >= 0 && scheduleData.days[currentEditingDay]?.blocks?.[currentEditingBlock])
+        ? scheduleData.days[currentEditingDay].blocks[currentEditingBlock]
+        : {};
+    
     const newBlock = {
+        ...existingBlock,
         time: time,
         title: title,
         tasks: tasks,
         note: note,
-        video: video
+        video: video,
+        recipeID: selectedRecipeId || null,
+        recipeName: selectedRecipe ? selectedRecipe.name : (selectedRecipeId ? existingBlock.recipeName || 'Recipe' : null),
+        isLeftover: !!isLeftover
     };
 
     // Apply to current day
@@ -3398,6 +3450,8 @@ function importAIResponse() {
 function parseAndCreateSchedule(response) {
     console.log('=== PARSING STARTED ===');
     
+    const detectedRecipeIDs = new Set();
+    
     // Clean up the response - handle ALL dash types
     const originalLength = response.length;
     response = response.replace(/–/g, '-'); // En-dash
@@ -3530,12 +3584,31 @@ function parseAndCreateSchedule(response) {
                 }
                 
                 if (title || tasks.length > 0) {
+                    const blockText = `${title} ${tasks.join(' ')}`.trim();
+                    const recipeMatches = blockText.match(/R\d+/gi) || [];
+                    let recipeID = null;
+                    let recipeName = null;
+                    recipeMatches.forEach(id => {
+                        const upperId = id.toUpperCase();
+                        const recipe = typeof getRecipe === 'function' ? getRecipe(upperId) : null;
+                        if (recipe) {
+                            detectedRecipeIDs.add(upperId);
+                            if (!recipeID) {
+                                recipeID = upperId;
+                                recipeName = recipe.name;
+                            }
+                        }
+                    });
+                    
                     blocks.push({
                         time: `${startTime}-${endTime}`,
                         title: title || tasks[0] || 'Activity',
                         tasks: tasks.length > 0 ? tasks : ['Activity'],
                         note: '',
-                        video: ''
+                        video: '',
+                        recipeID,
+                        recipeName,
+                        isLeftover: /leftover/i.test(blockText)
                     });
                 }
             }
@@ -3635,6 +3708,26 @@ function parseAndCreateSchedule(response) {
     console.log('Rendering tabs and schedule...');
     renderDayTabs();
     renderSchedule();
+    
+    // Merge any detected recipe IDs into "This Week" and auto-select Quick Add items
+    if (typeof extractRecipeIDs === 'function') {
+        extractRecipeIDs(response).forEach(id => detectedRecipeIDs.add(id));
+    }
+    const uniqueRecipeIDs = [...detectedRecipeIDs];
+    if (uniqueRecipeIDs.length > 0) {
+        console.log(`Linking ${uniqueRecipeIDs.length} recipe IDs to This Week and Quick Add`, uniqueRecipeIDs);
+        if (Array.isArray(selectedRecipesThisWeek)) {
+            selectedRecipesThisWeek = [...new Set([...selectedRecipesThisWeek, ...uniqueRecipeIDs])];
+            if (typeof saveSelectedRecipes === 'function') saveSelectedRecipes();
+            if (typeof renderThisWeekRecipes === 'function') renderThisWeekRecipes();
+        }
+        
+        const quickAddItems = typeof mapRecipesToQuickAdd === 'function' ? mapRecipesToQuickAdd(uniqueRecipeIDs) : [];
+        if (quickAddItems.length > 0 && typeof autoSelectQuickAddItems === 'function') {
+            autoSelectQuickAddItems(quickAddItems);
+        }
+    }
+    
     saveToLocalStorage();
     
     // Show first day that was created
