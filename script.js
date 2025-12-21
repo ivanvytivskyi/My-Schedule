@@ -1978,6 +1978,23 @@ function recalculateShopTotals(table) {
 // HOME INVENTORY ("PRODUCTS AT HOME")
 // ========================================
 
+function populateShopOptions(select, selectedValue = null, includeTap = false) {
+    if (!select) return;
+    const shops = quickAddProducts ? Object.keys(quickAddProducts) : [];
+    const options = [...shops];
+    if (includeTap && !options.includes('Tap')) {
+        options.push('Tap');
+    }
+    if (options.length === 0) {
+        options.push('Tesco');
+    }
+    select.innerHTML = options.map(shop => `<option value="${shop}">${shop}</option>`).join('');
+    const defaultValue = (selectedValue && options.includes(selectedValue))
+        ? selectedValue
+        : (includeTap && options.includes('Tap') ? 'Tap' : options[0]);
+    select.value = defaultValue;
+}
+
 function openHomeInventoryModal() {
     const modal = document.getElementById('homeInventoryModal');
     if (!modal) return;
@@ -2344,6 +2361,32 @@ function renderHomeInventoryTable() {
     }
 }
 
+function buildHomeInventoryPromptString() {
+    const inventory = loadHomeInventory();
+    if (!inventory || inventory.length === 0) return 'None';
+    
+    const entries = inventory.map(item => {
+        const unitLabel = item.homeUnit || item.unitLabel || item.unit || '';
+        const shopLabel = item.unlimited || item.shop === 'Tap'
+            ? ''
+            : (item.shop ? ` @ ${item.shop}` : '');
+        let qtyLabel = '';
+        if (item.unlimited || item.qtyUnits === Infinity) {
+            qtyLabel = 'unlimited';
+        } else {
+            const qty = typeof item.displayQty === 'number' ? item.displayQty : item.qtyUnits;
+            if (qty !== undefined && qty !== null && isFinite(qty)) {
+                qtyLabel = `${formatQuantityForDisplay(qty, unitLabel)} ${unitLabel}`.trim();
+            } else {
+                qtyLabel = unitLabel;
+            }
+        }
+        return `${item.itemName}${qtyLabel ? ` (${qtyLabel})` : ''}${shopLabel}`;
+    });
+    
+    return entries.join('; ');
+}
+
 function renderHomeInventoryChecklist(shop, savedInventory) {
     const container = document.getElementById('homeInventoryChecklist');
     if (!container) return;
@@ -2676,6 +2719,22 @@ function buildChecklistDataForShop(shop) {
             });
         });
     });
+    
+    // Always include tap water as an unlimited home source
+    const tapAlreadyPresent = list.some(entry => entry.tapSource || (entry.name && entry.name.toLowerCase().includes('tap water')));
+    if (!tapAlreadyPresent) {
+        list.push({
+            name: 'Tap water',
+            unit: 'L',
+            packUnit: 'L',
+            homeUnit: 'L',
+            unitsPerPack: 1,
+            price: 0,
+            packSize: 1,
+            category: '💧 Home Sources',
+            tapSource: true
+        });
+    }
     return list;
 }
 
@@ -2922,16 +2981,6 @@ function emergencyReset() {
 // PROMPT GENERATOR & RESPONSE IMPORTER
 // ========================================
 
-let pantryItems = [];
-
-// Load pantry from localStorage on page load
-document.addEventListener('DOMContentLoaded', () => {
-    const saved = localStorage.getItem('pantryItems');
-    if (saved) {
-        pantryItems = JSON.parse(saved);
-    }
-});
-
 function openPromptGenerator() {
     document.getElementById('promptGeneratorModal').classList.add('active');
     document.getElementById('generatedPromptSection').style.display = 'none';
@@ -2944,8 +2993,7 @@ function openPromptGenerator() {
     // Populate work days
     populateWorkDays(today);
     
-    // Render pantry items
-    renderPantryItems();
+    populatePromptShopSelect();
 }
 
 function closePromptGenerator() {
@@ -2984,6 +3032,19 @@ function populateWorkDays(date) {
     container.innerHTML = html;
 }
 
+function populatePromptShopSelect() {
+    const select = document.getElementById('promptShop');
+    if (!select) return;
+    const shops = quickAddProducts ? Object.keys(quickAddProducts) : [];
+    if (!shops.length) {
+        select.innerHTML = '<option value="Tesco">Tesco</option>';
+        select.value = 'Tesco';
+        return;
+    }
+    select.innerHTML = shops.map((shop) => `<option value="${shop}">${shop}</option>`).join('');
+    select.value = shops.includes('Tesco') ? 'Tesco' : shops[0];
+}
+
 // Listen for date changes
 document.addEventListener('DOMContentLoaded', () => {
     const dateInput = document.getElementById('promptWeekDate');
@@ -2994,45 +3055,6 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 });
-
-function addPantryItem() {
-    const input = document.getElementById('pantryItemInput');
-    const item = input.value.trim();
-    
-    if (item && !pantryItems.includes(item)) {
-        pantryItems.push(item);
-        localStorage.setItem('pantryItems', JSON.stringify(pantryItems));
-        renderPantryItems();
-        input.value = '';
-    }
-}
-
-function removePantryItem(index) {
-    pantryItems.splice(index, 1);
-    localStorage.setItem('pantryItems', JSON.stringify(pantryItems));
-    renderPantryItems();
-}
-
-function renderPantryItems() {
-    const container = document.getElementById('pantryList');
-    if (!container) return;
-    
-    if (pantryItems.length === 0) {
-        container.innerHTML = '<p style="margin: 0; color: #95a5a6; font-size: 13px;">No items yet. Add items above!</p>';
-        return;
-    }
-    
-    let html = '';
-    pantryItems.forEach((item, index) => {
-        html += `
-            <div style="background: #ecf0f1; padding: 8px 12px; border-radius: 6px; display: flex; align-items: center; gap: 8px; font-size: 14px;">
-                <span>${item}</span>
-                <button type="button" onclick="removePantryItem(${index})" style="background: #e74c3c; color: white; border: none; border-radius: 4px; width: 20px; height: 20px; cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center;">×</button>
-            </div>
-        `;
-    });
-    container.innerHTML = html;
-}
 
 function openResponseImporter() {
     document.getElementById('responseImporterModal').classList.add('active');
@@ -3045,6 +3067,18 @@ function closeResponseImporter() {
 function generatePrompt() {
     // Get all form data
     const weekDate = document.getElementById('promptWeekDate').value || new Date().toISOString().split('T')[0];
+    const selectedShop = document.getElementById('promptShop')?.value || 'Tesco';
+    const batchDuration = document.querySelector('input[name="batchDuration"]:checked')?.value || '1';
+    const dietaryFilters = {
+        vegetarian: document.getElementById('dietVegetarian')?.checked || false,
+        vegan: document.getElementById('dietVegan')?.checked || false,
+        nutFree: document.getElementById('dietNutFree')?.checked || false,
+        dairyFree: document.getElementById('dietDairyFree')?.checked || false,
+        glutenFree: document.getElementById('dietGlutenFree')?.checked || false
+    };
+    const dietarySummary = typeof describeDietaryFilters === 'function'
+        ? describeDietaryFilters(dietaryFilters)
+        : 'None';
     
     // Get work schedule from time inputs - CORRECTLY this time
     let workSchedule = '';
@@ -3078,7 +3112,7 @@ function generatePrompt() {
     const studyTopics = document.getElementById('promptStudyTopics').value;
     const foodPrefs = document.getElementById('promptFoodPrefs').value;
     const freeMeals = document.getElementById('promptFreeMeals').checked;
-    const pantry = pantryItems.join(', ');
+    const homeInventorySummary = buildHomeInventoryPromptString();
     const budgetSelect = document.getElementById('promptBudget');
     const budget = budgetSelect.options[budgetSelect.selectedIndex].text; // Get full text, not value
     const hobbies = document.getElementById('promptHobbies').value;
@@ -3087,6 +3121,9 @@ function generatePrompt() {
     const oneOffTasks = document.getElementById('promptOneOffTasks').value;
     const sleepSchedule = document.getElementById('promptSleep').value;
     const includeRelax = document.getElementById('promptRelax').checked;
+    const recipePromptSection = typeof buildRecipePromptSection === 'function'
+        ? buildRecipePromptSection({ shop: selectedShop, batchDuration, filters: dietaryFilters })
+        : '';
     
     // Format the week start date nicely
     const weekDateObj = new Date(weekDate);
@@ -3112,8 +3149,11 @@ ${studyTopics ? `- Focus topics:\n${studyTopics}` : ''}
 
 🍳 MEALS & FOOD:
 - Preferences: ${foodPrefs || 'No preferences'}
-- Current pantry: ${pantry || 'Empty - need to buy everything'}
+- Products at home (auto-loaded from "Products at Home"): ${homeInventorySummary || 'None saved'}
 - Budget: ${budget}
+- Preferred shop: ${selectedShop}
+- Batch cook duration: ${batchDuration} day(s) worth of meals per batch recipe
+- Dietary filters: ${dietarySummary}
 ${freeMeals ? '- IMPORTANT: I get FREE meals at work! Reduce shopping accordingly and note this in schedule.' : '- No free meals at work - need to plan all meals myself.'}
 
 🎯 HOBBIES:
@@ -3158,11 +3198,13 @@ CORRECT FORMAT EXAMPLE:
 
 ... (continue for all 7 consecutive days)
 
-📋 SHOPPING LIST (LIGHT — free meals at work!)
+${recipePromptSection ? `${recipePromptSection}\n\n` : ''}📋 SHOPPING LIST (LIGHT — free meals at work!)
+
+IMPORTANT: Tie shopping + meals to the recipes above using their IDs (R1, R11, R50, etc.). Use products at home first: ${homeInventorySummary || 'None saved'}.
 
 IMPORTANT: Format this beautifully with emojis, clear sections, and visual appeal!
 
-Using pantry first: ${pantry || 'none'}
+Using products at home first: ${homeInventorySummary || 'none'}
 ${freeMeals ? 'You get free work meals, so you need less food!' : 'Need to plan all meals.'}
 Budget: ${budget}
 
@@ -3170,7 +3212,7 @@ Format like this:
 
 🛒 SHOPPING LIST (LIGHT — free meals at work!)
 
-Using pantry first (eggs, bread, milk, pasta).
+Using products at home first.
 Budget: ${budget}
 
 Essentials:
@@ -3252,7 +3294,7 @@ CRITICAL FORMATTING RULES (MUST FOLLOW):
 4. Include dates in headers: "=== MONDAY — 15 Dec 2025 ==="
 5. Start from ${weekDateFormatted} and create 7 consecutive days
 6. ${freeMeals ? 'Note FREE work meals in schedule and reduce shopping!' : 'Plan all meals.'}
-7. Use items from pantry first: ${pantry || 'none'}
+7. Use products at home first: ${homeInventorySummary || 'none'}
 8. Keep meals simple and quick
 9. Add relaxation time after work shifts
 10. Make sleep schedule realistic: ${sleepSchedule}
