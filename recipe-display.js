@@ -90,9 +90,22 @@ function initializeRecipeLibrary() {
         
         <!-- This Week Tab -->
         <div id="thisWeekTab" class="recipe-tab-content" style="display: none;">
-            <div id="thisWeekRecipes" style="background: white; padding: 30px; border-radius: 12px;">
+            <div style="background: white; padding: 24px; border-radius: 12px; margin-bottom: 16px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+                <div style="display: flex; flex-direction: column; gap: 6px; min-width: 240px;">
+                    <label for="recipeShopSelect" style="font-weight: 700; color: #374151;">🛒 Preferred shop</label>
+                    <select id="recipeShopSelect" style="padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-weight: 600;">
+                        <!-- Filled at runtime -->
+                    </select>
+                </div>
+                <button id="generateRecipeShoppingBtn" class="primary-btn" style="padding: 12px 18px;">
+                    🧾 Generate Shopping List
+                </button>
+                <p style="margin: 0; color: #6b7280;">Select recipes below, pick a shop, then build the shopping list automatically.</p>
+            </div>
+            <div id="thisWeekRecipes" style="background: white; padding: 30px; border-radius: 12px; margin-bottom: 16px;">
                 <p style="text-align: center; color: #999; font-size: 16px;">No recipes selected this week. Import a schedule with recipes to see them here!</p>
             </div>
+            <div id="recipeShoppingResults"></div>
         </div>
     `;
     
@@ -102,6 +115,12 @@ function initializeRecipeLibrary() {
     setupRecipeTabListeners();
     setupFilterListeners();
     createCustomRecipeModal();
+    populateRecipeShopSelect();
+    
+    const generateBtn = document.getElementById('generateRecipeShoppingBtn');
+    if (generateBtn) {
+        generateBtn.addEventListener('click', generateShoppingListFromRecipes);
+    }
     
     // Initial render
     renderRecipeGrid();
@@ -217,6 +236,30 @@ function applyFilters(recipes) {
         
         return true;
     });
+}
+
+// ===================================
+// SHOP SELECT FOR SHOPPING GENERATION
+// ===================================
+
+function populateRecipeShopSelect() {
+    const select = document.getElementById('recipeShopSelect');
+    if (!select) return;
+    
+    const shops = quickAddProducts ? Object.keys(quickAddProducts) : [];
+    if (shops.length === 0) {
+        select.innerHTML = `<option value="Tesco">Tesco</option>`;
+        return;
+    }
+    
+    select.innerHTML = shops.map(shop => `<option value="${shop}">${shop}</option>`).join('');
+    
+    // Default to Tesco if available, otherwise first shop
+    if (shops.includes('Tesco')) {
+        select.value = 'Tesco';
+    } else {
+        select.value = shops[0];
+    }
 }
 
 // ===================================
@@ -935,6 +978,270 @@ function loadSelectedRecipes() {
             selectedRecipesThisWeek = [];
         }
     }
+}
+
+// ===================================
+// SHOPPING LIST GENERATION (RECIPES)
+// ===================================
+
+function generateShoppingListFromRecipes() {
+    if (!selectedRecipesThisWeek || selectedRecipesThisWeek.length === 0) {
+        alert('Please add at least one recipe to "This Week" first.');
+        return;
+    }
+    
+    const preferredShop = document.getElementById('recipeShopSelect')?.value || 'Tesco';
+    const resultsContainer = document.getElementById('recipeShoppingResults');
+    if (resultsContainer) {
+        resultsContainer.innerHTML = `<div style="padding: 16px; background: #f3f4f6; border-radius: 10px; color: #374151;">⏳ Generating shopping list...</div>`;
+    }
+    
+    const allRecipes = selectedRecipesThisWeek
+        .map(id => getRecipe(id))
+        .filter(Boolean);
+    
+    const unresolved = [];
+    const aggregated = {};
+    
+    allRecipes.forEach(recipe => {
+        if (!recipe.quickAddItems || recipe.quickAddItems.length === 0) return;
+        
+        recipe.quickAddItems.forEach(item => {
+            const resolved = resolveRecipeItemToShop(item, preferredShop);
+            if (!resolved) {
+                unresolved.push(item);
+                return;
+            }
+            
+            const key = `${resolved.shop}|${resolved.category}|${resolved.itemName}`;
+            if (!aggregated[key]) {
+                aggregated[key] = { ...resolved };
+            } else {
+                aggregated[key].qtyNeeded += resolved.qtyNeeded;
+            }
+        });
+    });
+    
+    const groupedByShop = {};
+    Object.values(aggregated).forEach(item => {
+        if (!groupedByShop[item.shop]) groupedByShop[item.shop] = [];
+        groupedByShop[item.shop].push(item);
+    });
+    
+    let html = '';
+    const timestamp = new Date().toLocaleString();
+    
+    Object.entries(groupedByShop).forEach(([shop, items]) => {
+        html += buildShoppingTableForShop(shop, items);
+    });
+    
+    if (unresolved.length > 0) {
+        html += buildUnresolvedTable(unresolved);
+    }
+    
+    if (resultsContainer) {
+        resultsContainer.innerHTML = `
+            <div style="margin-bottom: 12px; color: #111827; font-weight: 700;">🧾 Shopping list generated (${timestamp})</div>
+            ${html}
+        `;
+    }
+    
+    // Persist into shopping tab (append)
+    const existingHTML = localStorage.getItem('shoppingListHTML') || '';
+    const divider = existingHTML ? '<div style="margin: 30px 0; border-top: 3px dashed #e5e7eb;"></div>' : '';
+    const newHTML = `${existingHTML}${divider}${html}`;
+    localStorage.setItem('shoppingListHTML', newHTML);
+    
+    if (typeof renderShopping === 'function') {
+        renderShopping();
+    }
+    
+    // Switch to shopping tab so the user can see the results
+    const shoppingTab = document.querySelector('[data-tab="shopping"]');
+    if (shoppingTab) shoppingTab.click();
+    
+    alert('✅ Shopping list generated and added to the Shopping tab!');
+}
+
+function resolveRecipeItemToShop(item, preferredShop) {
+    if (!quickAddProducts || Object.keys(quickAddProducts).length === 0) return null;
+    
+    const defaultShop = 'Tesco';
+    const preferredCandidate = findBestProductForShop(item, preferredShop);
+    if (preferredCandidate) {
+        return { ...preferredCandidate, qtyNeeded: item.qtyNeeded };
+    }
+    
+    if (preferredShop !== defaultShop) {
+        const defaultCandidate = findBestProductForShop(item, defaultShop);
+        if (defaultCandidate) {
+            return { ...defaultCandidate, qtyNeeded: item.qtyNeeded };
+        }
+    }
+    
+    // Check all other shops
+    const otherShops = Object.keys(quickAddProducts)
+        .filter(shop => shop !== preferredShop && shop !== defaultShop);
+    
+    const shopCandidates = otherShops.map(shop => ({
+        shop,
+        candidate: findBestProductForShop(item, shop)
+    })).filter(entry => entry.candidate);
+    
+    if (shopCandidates.length === 0) return null;
+    
+    // Pick lowest price; tie-breaker: Tesco > alphabetically
+    const cheapestPrice = Math.min(...shopCandidates.map(entry => entry.candidate.price ?? Infinity));
+    let cheapest = shopCandidates.filter(entry => (entry.candidate.price ?? Infinity) === cheapestPrice);
+    
+    if (cheapest.length > 1) {
+        const tescoInTie = cheapest.find(entry => entry.shop === defaultShop);
+        if (tescoInTie) cheapest = [tescoInTie];
+    }
+    
+    cheapest.sort((a, b) => a.shop.localeCompare(b.shop));
+    const winner = cheapest[0];
+    return { ...winner.candidate, qtyNeeded: item.qtyNeeded };
+}
+
+function findBestProductForShop(item, shopName) {
+    const catalog = quickAddProducts?.[shopName];
+    if (!catalog) return null;
+    
+    const normalizedTarget = normalizeName(item.itemName);
+    const words = normalizedTarget.split(' ').filter(Boolean);
+    let best = null;
+    
+    Object.entries(catalog).forEach(([category, products]) => {
+        products.forEach(product => {
+            const normalizedProduct = normalizeName(product.name);
+            const score = keywordMatchScore(words, normalizedProduct);
+            if (score === 0) return;
+            
+            const price = typeof product.price === 'number' ? product.price : Infinity;
+            
+            if (!best ||
+                score > best.score ||
+                (score === best.score && price < best.price) ||
+                (score === best.score && price === best.price && product.name.localeCompare(best.itemName) < 0)) {
+                best = {
+                    shop: shopName,
+                    category,
+                    itemName: product.name,
+                    unit: product.unit || item.unit || '',
+                    price,
+                    score
+                };
+            }
+        });
+    });
+    
+    return best;
+}
+
+function normalizeName(name) {
+    return (name || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function keywordMatchScore(keywords, productNameNormalized) {
+    if (!productNameNormalized) return 0;
+    let score = 0;
+    keywords.forEach(word => {
+        if (word && productNameNormalized.includes(word)) score++;
+    });
+    return score;
+}
+
+function buildShoppingTableForShop(shop, items) {
+    const style = typeof getShopBrandStyle === 'function' ? getShopBrandStyle(shop) : { header: '', title: '' };
+    const currency = typeof getCurrencySymbol === 'function' ? getCurrencySymbol() : '£';
+    
+    // Group by category for readability
+    const byCategory = {};
+    items.forEach(item => {
+        if (!byCategory[item.category]) byCategory[item.category] = [];
+        byCategory[item.category].push(item);
+    });
+    
+    let tables = '';
+    
+    Object.entries(byCategory).forEach(([category, categoryItems]) => {
+        let total = 0;
+        const rows = categoryItems.map(entry => {
+            const itemTotal = (entry.price ?? 0) * entry.qtyNeeded;
+            total += isFinite(itemTotal) ? itemTotal : 0;
+            const priceDisplay = isFinite(entry.price) ? `${currency}${entry.price.toFixed(2)}` : 'N/A';
+            const qtyDisplay = entry.qtyNeeded % 1 === 0 ? entry.qtyNeeded : entry.qtyNeeded.toFixed(2);
+            return `
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 10px;">${entry.itemName}</td>
+                    <td style="border: 1px solid #ddd; padding: 10px;">${entry.unit || ''}</td>
+                    <td style="border: 1px solid #ddd; padding: 10px; text-align: right;">${priceDisplay}</td>
+                    <td style="border: 1px solid #ddd; padding: 10px; text-align: center;">${qtyDisplay}</td>
+                </tr>
+            `;
+        }).join('');
+        
+        tables += `
+            <div style="margin-bottom: 24px; page-break-inside: avoid; border: 2px solid #e5e7eb; border-radius: 10px; overflow: hidden;">
+                <div style="${style.header}">
+                    <h3 style="${style.title}">${shop} — ${category}</h3>
+                </div>
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #f9fafb;">
+                            <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">Item</th>
+                            <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">Unit</th>
+                            <th style="border: 1px solid #ddd; padding: 10px; text-align: right;">Price</th>
+                            <th style="border: 1px solid #ddd; padding: 10px; text-align: center;">Quantity</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${rows}
+                        <tr style="background: #f3f4f6; font-weight: 700;">
+                            <td colspan="2" style="border: 1px solid #ddd; padding: 10px; text-align: right;">Subtotal</td>
+                            <td style="border: 1px solid #ddd; padding: 10px; text-align: right;">${currency}${total.toFixed(2)}</td>
+                            <td style="border: 1px solid #ddd; padding: 10px; text-align: center;">${categoryItems.length} items</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        `;
+    });
+    
+    return tables;
+}
+
+function buildUnresolvedTable(items) {
+    const rows = items.map(entry => `
+        <tr>
+            <td style="border: 1px solid #ddd; padding: 10px;">${entry.itemName}</td>
+            <td style="border: 1px solid #ddd; padding: 10px;">${entry.unit || ''}</td>
+            <td style="border: 1px solid #ddd; padding: 10px; text-align: right;">—</td>
+            <td style="border: 1px solid #ddd; padding: 10px; text-align: center;">${entry.qtyNeeded % 1 === 0 ? entry.qtyNeeded : entry.qtyNeeded.toFixed(2)}</td>
+        </tr>
+    `).join('');
+    
+    return `
+        <div style="margin-bottom: 24px; page-break-inside: avoid; border: 2px dashed #f59e0b; border-radius: 10px; overflow: hidden; background: #fffbeb;">
+            <div style="background: #fbbf24; color: #78350f; padding: 14px 16px; font-weight: 800; font-size: 16px;">
+                Selected shop doesn't have these items – buy elsewhere
+            </div>
+            <table style="width: 100%; border-collapse: collapse;">
+                <thead>
+                    <tr style="background: #fef3c7;">
+                        <th style="border: 1px solid #fcd34d; padding: 10px; text-align: left;">Item</th>
+                        <th style="border: 1px solid #fcd34d; padding: 10px; text-align: left;">Unit</th>
+                        <th style="border: 1px solid #fcd34d; padding: 10px; text-align: right;">Price</th>
+                        <th style="border: 1px solid #fcd34d; padding: 10px; text-align: center;">Quantity</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows}
+                </tbody>
+            </table>
+        </div>
+    `;
 }
 
 // ===================================
