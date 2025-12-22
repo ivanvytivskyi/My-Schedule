@@ -3240,6 +3240,8 @@ FORMAT RULES:
 4) After all 7 days, add one blank line, then a SINGLE LINE with all recipe IDs you used, comma-separated, and NO heading (e.g., R4, R5, R6).
 5) Do NOT include shopping lists, meal summaries, video links, or extra headings (specifically avoid: “🗓️ WEEKLY SCHEDULE”, “🛒 SHOPPING LIST…”, “🍽️ MEAL PLAN SUMMARY…”, “📌 RECIPES USED”, or any “If you want…” variants).
 6) Keep meals simple and quick. Use products at home first: ${homeInventorySummary || 'none'}.
+7) Always include realistic cooking/prep blocks before meals (especially lunch). Mention if dinner is reheated from lunch (for single-day batches) or from a batch that lasts multiple days, and state how many days it covers.
+8) Include daily routines: morning routine must mention brushing teeth, washing face, and a glass of water; evening routine must include brushing teeth and a short shower (10 minutes on non-work days/no shift; 15–20 minutes after work).
 
 EXAMPLE (shortened):
 === MONDAY — 22 Dec 2025 ===

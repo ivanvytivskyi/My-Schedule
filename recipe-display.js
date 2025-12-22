@@ -799,8 +799,6 @@ function generateShoppingListFromRecipes(options = {}) {
         .map(id => getRecipe(id))
         .filter(Boolean);
     
-    const aggregated = {};
-    
     const splitIngredient = (text) => {
         const trimmed = (text || '').trim();
         const match = trimmed.match(/^(\d+(?:\.\d+)?)\s*([a-zA-Z]+)?\s+(.*)$/);
@@ -810,63 +808,112 @@ function generateShoppingListFromRecipes(options = {}) {
         const name = match[3] || '';
         return { qty: isFinite(qty) ? qty : null, unit, name: name.trim() || trimmed };
     };
+
+    const normalizeIngredientKey = (name) => {
+        const stop = new Set(['fresh', 'ripe', 'small', 'medium', 'large', 'minced', 'chopped', 'sliced', 'diced', 'ground', 'crushed', 'optional', 'taste', 'pinch', 'handful', 'packed', 'finely', 'roughly', 'peeled', 'seeded', 'halved', 'quartered', 'drained', 'cooked', 'uncooked', 'raw', 'baby', 'grated', 'shredded']);
+        const cleaned = (name || '')
+            .toLowerCase()
+            .replace(/\([^)]*\)/g, ' ')
+            .replace(/[^a-z0-9\s]/g, ' ')
+            .split(/\s+/)
+            .filter(Boolean)
+            .filter(word => !stop.has(word))
+            .join(' ')
+            .trim();
+        if (!cleaned) return '';
+        if (cleaned.endsWith('ies')) return cleaned.slice(0, -3) + 'y';
+        if (cleaned.endsWith('es')) return cleaned.slice(0, -2);
+        if (cleaned.endsWith('s')) return cleaned.slice(0, -1);
+        return cleaned;
+    };
+
+    const formatIngredientName = (rawName, normalized) => {
+        const source = rawName || normalized || '';
+        if (!source) return 'Item';
+        return source.charAt(0).toUpperCase() + source.slice(1);
+    };
     
-    allRecipes.forEach(recipe => {
-        (recipe.display?.ingredients || []).forEach(text => {
+    const buildRowsForIngredients = (ingredients) => {
+        const aggregated = {};
+        ingredients.forEach(text => {
             if (!text) return;
             const { qty, unit, name } = splitIngredient(text);
-            const normalizedName = normalizeName(name);
-            const key = `${normalizedName}|${unit.toLowerCase()}`;
+            const normalizedKey = normalizeIngredientKey(name || text);
+            const fallbackKey = normalizeName(name || text) || (name || text || 'item').toLowerCase();
+            const key = normalizedKey || fallbackKey;
             if (!aggregated[key]) {
-                aggregated[key] = { name: name || text.trim(), unit, qty: 0, hasQty: qty !== null };
+                aggregated[key] = {
+                    name: formatIngredientName(name, key),
+                    qty: 0,
+                    hasQty: qty !== null,
+                    units: new Set()
+                };
             }
             if (qty !== null) {
                 aggregated[key].qty += qty;
                 aggregated[key].hasQty = true;
             }
+            if (unit) {
+                aggregated[key].units.add(unit.toLowerCase());
+            }
         });
-    });
-    
-    const rows = Object.values(aggregated).map(entry => {
-        const qtyDisplay = entry.hasQty && entry.qty > 0
-            ? `${entry.qty % 1 === 0 ? entry.qty : entry.qty.toFixed(2)}${entry.unit ? ' ' + entry.unit : ''}`
-            : '';
+
+        return Object.values(aggregated)
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map(entry => {
+                const singleUnit = entry.units.size === 1 ? Array.from(entry.units)[0] : '';
+                const qtyDisplay = entry.hasQty && entry.qty > 0
+                    ? `${entry.qty % 1 === 0 ? entry.qty : entry.qty.toFixed(2)}${singleUnit ? ' ' + singleUnit : ''}`
+                    : '';
+                return `
+                    <tr>
+                        <td style="border: 1px solid #ddd; padding: 10px; word-break: break-word;">${entry.name}</td>
+                        <td style="border: 1px solid #ddd; padding: 10px; word-break: break-word; text-align: left;">${qtyDisplay}</td>
+                    </tr>
+                `;
+            }).join('');
+    };
+
+    const blocksHtml = allRecipes.map(recipe => {
+        const rows = buildRowsForIngredients(recipe.display?.ingredients || []);
+        if (!rows) return '';
+        const recipeName = recipe.name || 'Recipe';
+        const blockId = `recipe-${recipe.id || Math.random().toString(36).slice(2)}`;
         return `
-            <tr>
-                <td style="border: 1px solid #ddd; padding: 10px; word-break: break-word;">${entry.name}</td>
-                <td style="border: 1px solid #ddd; padding: 10px; word-break: break-word; text-align: left;">${qtyDisplay}</td>
-            </tr>
+            <div class="shopping-list-block" data-shop="${recipeName}" data-source="recipes" style="margin-bottom: 16px; page-break-inside: avoid; border: 2px solid #e5e7eb; border-radius: 10px; overflow: hidden;">
+                <details style="background: #f9fafb;">
+                    <summary style="background: #f3f4f6; color: #111827; padding: 12px 14px; font-weight: 800; font-size: 15px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; list-style:none;">
+                        <span style="display:flex; align-items:center; gap:8px;">
+                            <span aria-hidden="true">📄</span>
+                            <h3 style="margin: 0; font-size: 15px;">${recipeName}</h3>
+                            <span style="font-size: 12px; color: #374151; background: #e5e7eb; padding: 2px 8px; border-radius: 999px;">Fold/Unfold</span>
+                        </span>
+                        <button class="list-delete-btn" aria-label="Delete this recipe list" title="Delete this recipe list" style="background: white; border: 1px solid #d1d5db; border-radius: 6px; padding: 4px 8px; cursor: pointer; font-weight: 700; color: #6b7280;">✕</button>
+                    </summary>
+                    <div class="table-scroll" style="overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 0 12px 12px;">
+                        <table style="width: 100%; border-collapse: collapse; min-width: 360px;" data-shop="${recipeName}" aria-describedby="${blockId}-title">
+                            <thead>
+                                <tr style="background: #f9fafb;">
+                                    <th id="${blockId}-title" style="border: 1px solid #ddd; padding: 10px; text-align: left;">Ingredient</th>
+                                    <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rows}
+                            </tbody>
+                        </table>
+                    </div>
+                </details>
+            </div>
         `;
-    }).join('');
-    
-    if (!rows) {
+    }).filter(Boolean).join('');
+
+    if (!blocksHtml) {
         if (!silent) alert('No ingredients found in the selected recipes.');
         return;
     }
-    
-    const html = `
-        <div class="shopping-list-block" data-shop="Ingredients" data-source="recipes" style="margin-bottom: 24px; page-break-inside: avoid; border: 2px solid #e5e7eb; border-radius: 10px; overflow: hidden;">
-            <div style="background: #f3f4f6; color: #111827; padding: 14px 16px; font-weight: 800; font-size: 16px; display:flex; align-items:center; justify-content:space-between;">
-                <h3 style="margin: 0;">Ingredients from Recipes</h3>
-                <button class="list-delete-btn" style="background: white; border: 1px solid #d1d5db; border-radius: 6px; padding: 4px 8px; cursor: pointer; font-weight: 700; color: #6b7280;">✕</button>
-            </div>
-            <div class="table-scroll" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
-                <table style="width: 100%; border-collapse: collapse; min-width: 360px;" data-shop="Ingredients">
-                    <thead>
-                        <tr style="background: #f9fafb;">
-                            <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">Ingredient</th>
-                            <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">Total</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${rows}
-                    </tbody>
-                </table>
-            </div>
-        </div>
-    `;
-    
-    localStorage.setItem('recipeShoppingListHTML', html);
+
+    localStorage.setItem('recipeShoppingListHTML', blocksHtml);
     
     if (typeof renderShopping === 'function') {
         renderShopping();
