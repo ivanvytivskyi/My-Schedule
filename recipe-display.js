@@ -50,7 +50,10 @@ function initializeRecipeLibrary() {
                     <select id="categoryFilter" style="padding: 10px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; font-weight: 600; min-width: 150px;">
                         <option value="all">All Categories</option>
                         <option value="breakfast">🍳 Breakfast</option>
+                        <option value="main">🍽️ Main Meal</option>
                         <option value="batch">🍲 Batch Cook</option>
+                        <option value="batch">🍲 Batch Cook</option>
+                        <option value="drink">☕ Drink</option>
                     </select>
                     
                     <button onclick="clearFilters()" style="padding: 10px 15px; background: #f44336; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">
@@ -264,7 +267,9 @@ function createCustomRecipeModal() {
                     <label for="customRecipeCategory">Category *</label>
                     <select id="customRecipeCategory" required>
                         <option value="breakfast">🍳 Breakfast</option>
+                        <option value="main">🍽️ Main Meal</option>
                         <option value="batch">🍲 Batch Cook</option>
+                        <option value="drink">☕ Drink</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -531,7 +536,14 @@ function createRecipeCard(recipe) {
     if (!recipe.dietary.dairy) tags.push('🥛 Dairy-free');
     if (!recipe.dietary.gluten) tags.push('🌾 Gluten-free');
     
-    const categoryBadge = recipe.category === 'breakfast' ? '🍳 Breakfast' : '🍲 Batch Cook';
+    const categoryBadges = {
+    breakfast: '🍳 Breakfast',
+    main: '🍽️ Main Meal',
+    batch: '🍲 Batch Cook',
+    drink: '☕ Drink'
+};
+
+const categoryBadge = categoryBadges[recipe.category] || '🍽️ Main Meal';
     const isCustom = isCustomRecipeId(recipe.id);
     
     return `
