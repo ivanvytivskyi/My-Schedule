@@ -957,8 +957,8 @@ function addSelectedToShopping() {
         }
         
         shoppingHTML += `
-                        <tr style="background: #f9f9f9; font-weight: bold;">
-                            <td colspan="2" style="border: 1px solid #ddd; padding: 10px; text-align: right;">Totals:</td>
+                        <tr class="totals-row" style="background: #f9f9f9; font-weight: bold;">
+                            <td style="border: 1px solid #ddd; padding: 10px; text-align: right;" colspan="2">Totals:</td>
                             <td style="border: 1px solid #ddd; padding: 10px; text-align: right;">${currencySymbol}${(shopTotal || 0).toFixed(2)}</td>
                             <td style="border: 1px solid #ddd; padding: 10px; text-align: center;">Total Qty: ${totalQtyDisplay}</td>
                         </tr>
