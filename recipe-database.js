@@ -31,8 +31,10 @@ const defaultRecipes = {
         quickAddItems: [
             { shop: "Tesco", category: "🥛 Dairy & Eggs", itemName: "British Barn Eggs", qtyNeeded: 1, unit: "eggs" },
             { shop: "Tesco", category: "🥛 Dairy & Eggs", itemName: "BUTTERPAK", qtyNeeded: 20, unit: "g" },
+            { shop: "Tesco", category: "🥛 Dairy & Eggs", itemName: "Cottage Cheese", qtyNeeded: 200, unit: "g" },
             { shop: "Tesco", category: "🚀 Pantry & Staples", itemName: "Flour (Plain)", qtyNeeded: 0.04, unit: "kg" },
-            { shop: "Tesco", category: "🚀 Pantry & Staples", itemName: "Sugar (White)", qtyNeeded: 0.015, unit: "kg" }
+            { shop: "Tesco", category: "🚀 Pantry & Staples", itemName: "Sugar (White)", qtyNeeded: 0.015, unit: "kg" },
+            { shop: "Tesco", category: "🚀 Pantry & Staples", itemName: "BRITISH COOKING SALT", qtyNeeded: 0.005, unit: "kg" }
         ],
         
         display: {

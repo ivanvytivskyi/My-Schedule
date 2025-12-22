@@ -963,9 +963,14 @@ function generateShoppingListFromRecipes() {
     const seenIngredientNames = new Set();
     
     allRecipes.forEach(recipe => {
-        const quickItems = (recipe.quickAddItems || []).slice();
+        const quickAddAvailable = Array.isArray(recipe.quickAddItems) && recipe.quickAddItems.length > 0;
+        const quickItems = quickAddAvailable ? recipe.quickAddItems.slice() : [];
+        const quickAddNameSet = new Set(
+            (quickItems || []).map(q => normalizeName(q.itemName))
+        );
         
-        // Always supplement with keyword-derived ingredients from the recipe text
+        // Only derive keyword matches when no quick add mappings exist.
+        // When mappings exist, still surface unmatched ingredients to the unresolved list without altering totals.
         if (recipe.display?.ingredients?.length) {
             recipe.display.ingredients.forEach(text => {
                 const normalized = normalizeName(text);
@@ -974,16 +979,24 @@ function generateShoppingListFromRecipes() {
                 const match = typeof findIngredientKeywordMatch === 'function'
                     ? findIngredientKeywordMatch(text, preferredShop)
                     : null;
-                if (match) {
+                
+                const coveredByQuickAdd = quickAddNameSet.has(normalizeName(text));
+                const parsedUnitKey = normalizeUnitKey(parsedQty.unit || '');
+                const hasUsableParsedUnit = ['kg','g','l','ml','each','pcs','piece','pieces','slice','slices','pack','packs','loaf'].includes(parsedUnitKey);
+                const qtyValue = hasUsableParsedUnit ? (parsedQty.qty || match?.qtyNeeded || 1) : (match?.qtyNeeded || parsedQty.qty || 1);
+                const unitValue = hasUsableParsedUnit ? (parsedQty.unit || match?.unit || '') : (match?.unit || parsedQty.unit || '');
+                
+                // Allow keyword-based addition when there is no quick add mapping OR this ingredient is not covered by any quick add item
+                if ((!quickAddAvailable || !coveredByQuickAdd) && match) {
                     quickItems.push({
                         shop: match.shop,
                         category: match.category,
                         itemName: match.itemName,
-                        qtyNeeded: parsedQty.qty || match.qtyNeeded || 1,
-                        unit: parsedQty.unit || match.unit || ''
+                        qtyNeeded: qtyValue,
+                        unit: unitValue
                     });
                     seenIngredientNames.add(normalized);
-                } else {
+                } else if (!match) {
                     fallbackUnmatched.push({
                         itemName: text,
                         unit: parsedQty.unit || '',
@@ -997,7 +1010,28 @@ function generateShoppingListFromRecipes() {
         if (!quickItems.length) return;
         
         quickItems.forEach(item => {
-            const resolved = resolveRecipeItemPreferredShopOnly(item, preferredShop);
+            let resolved = resolveRecipeItemPreferredShopOnly(item, preferredShop);
+            
+            // If the preferred shop lacks this mapping, try keyword-based matching as a secondary lookup
+            if (!resolved && typeof findIngredientKeywordMatch === 'function') {
+                const keywordMatch = findIngredientKeywordMatch(item.itemName, preferredShop);
+                if (keywordMatch) {
+                    const unitMeta = typeof deriveUnitMetadata === 'function'
+                        ? deriveUnitMetadata(keywordMatch.unit || item.unit || '')
+                        : { homeUnit: keywordMatch.unit || item.unit || '', unitsPerPack: extractNumericFromUnit(keywordMatch.unit) || 1, packUnit: keywordMatch.unit || item.unit || '' };
+                    resolved = {
+                        shop: keywordMatch.shop,
+                        category: keywordMatch.category,
+                        itemName: keywordMatch.itemName,
+                        unit: keywordMatch.unit || item.unit || '',
+                        packUnit: unitMeta.packUnit || keywordMatch.unit || item.unit || '',
+                        homeUnit: unitMeta.homeUnit || keywordMatch.unit || item.unit || '',
+                        unitsPerPack: unitMeta.unitsPerPack || 1,
+                        price: keywordMatch.price
+                    };
+                }
+            }
+            
             if (!resolved) {
                 fallbackElsewhere.push({
                     itemName: item.itemName,
@@ -1155,10 +1189,10 @@ function normalizeName(name) {
 
 function parseIngredientQuantity(text) {
     const normalized = (text || '').trim();
-    const numberMatch = normalized.match(/(\d+(?:\.\d+)?)/);
-    let qty = numberMatch ? parseFloat(numberMatch[1]) : 1;
-    const unitMatch = normalized.match(/\d+(?:\.\d+)?\s*([a-zA-Z]+)$/);
-    const unit = unitMatch ? unitMatch[1].toLowerCase() : '';
+    // Capture the first numeric token and its immediate unit (if any), ignoring trailing words (e.g., "200ml milk")
+    const tokenMatch = normalized.match(/(\d+(?:\.\d+)?)(?:\s*([a-zA-Z]+))?/);
+    let qty = tokenMatch ? parseFloat(tokenMatch[1]) : 1;
+    const unit = tokenMatch && tokenMatch[2] ? tokenMatch[2].toLowerCase() : '';
     if (!isFinite(qty) || qty <= 0) qty = 1;
     return { qty, unit };
 }
@@ -1185,7 +1219,11 @@ function keywordMatchScore(keywords, productNameNormalized) {
     if (!productNameNormalized) return 0;
     let score = 0;
     keywords.forEach(word => {
-        if (word && productNameNormalized.includes(word)) score++;
+        if (!word) return;
+        const singular = word.endsWith('s') ? word.slice(0, -1) : word;
+        if (productNameNormalized.includes(word) || (singular && productNameNormalized.includes(singular))) {
+            score++;
+        }
     });
     return score;
 }

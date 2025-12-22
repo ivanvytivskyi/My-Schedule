@@ -72,7 +72,7 @@ const ingredientKeywordMap = [
     makeEntry(['halloumi'], 'Halloumi', '🥛 Dairy & Eggs', '225g'),
     makeEntry(['ricotta'], 'Ricotta', '🥛 Dairy & Eggs', '250g'),
     makeEntry(['cream cheese', 'philadelphia'], 'Cream Cheese', '🥛 Dairy & Eggs', '200g'),
-    makeEntry(['cottage cheese'], 'Cottage Cheese', '🥛 Dairy & Eggs', '300g'),
+    makeEntry(['cottage', 'cheese', 'tvorog'], 'Cottage Cheese', '🥛 Dairy & Eggs', '300g'),
     makeEntry(['buttermilk'], 'Buttermilk', '🥛 Dairy & Eggs', '500ml'),
     makeEntry(['egg'], 'British Barn Eggs', '🥛 Dairy & Eggs', 'pack of 10'),
     makeEntry(['evaporated milk'], 'Evaporated Milk', '🥛 Dairy & Eggs', '410g tin'),
