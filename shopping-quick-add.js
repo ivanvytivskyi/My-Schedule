@@ -72,7 +72,8 @@ let quickAddProducts = {
             { name: "Milk (Whole)", unit: "2.272L", price: 1.65, defaultQty: 1 },
             { name: "Milk (Skimmed)", unit: "2.272L", price: 1.65, defaultQty: 1 },
             { name: "British Barn Eggs", unit: "pack of 10", price: 1.43, defaultQty: 1 },
-            { name: "BUTTERPAK (SPRESDABLE Slightly Salted)", unit: "500g", price:2.18, defaultQty: 1 }
+            { name: "BUTTERPAK (SPRESDABLE Slightly Salted)", unit: "500g", price:2.18, defaultQty: 1 },
+            { name: "Cottage Cheese", unit: "300g", price: 1.20, defaultQty: 1 }
         ],
         "🍞 Bread & Bakery": [
             { name: "White Toastie Bread Thick Sliced", unit: "loaf of 800g", price: 0.75, defaultQty: 1 },
