@@ -810,34 +810,70 @@ function generateShoppingListFromRecipes(options = {}) {
         const name = match[3] || '';
         return { qty: isFinite(qty) ? qty : null, unit, name: name.trim() || trimmed };
     };
+
+    const normalizeIngredientKey = (name) => {
+        const stop = new Set(['fresh', 'ripe', 'small', 'medium', 'large', 'minced', 'chopped', 'sliced', 'diced', 'ground', 'crushed', 'optional', 'taste', 'pinch', 'handful', 'packed', 'finely', 'roughly', 'peeled', 'seeded', 'halved', 'quartered', 'drained', 'cooked', 'uncooked', 'raw', 'baby', 'grated', 'shredded']);
+        const cleaned = (name || '')
+            .toLowerCase()
+            .replace(/\([^)]*\)/g, ' ')
+            .replace(/[^a-z0-9\s]/g, ' ')
+            .split(/\s+/)
+            .filter(Boolean)
+            .filter(word => !stop.has(word))
+            .join(' ')
+            .trim();
+        if (!cleaned) return '';
+        if (cleaned.endsWith('ies')) return cleaned.slice(0, -3) + 'y';
+        if (cleaned.endsWith('es')) return cleaned.slice(0, -2);
+        if (cleaned.endsWith('s')) return cleaned.slice(0, -1);
+        return cleaned;
+    };
+
+    const formatIngredientName = (rawName, normalized) => {
+        const source = rawName || normalized || '';
+        if (!source) return 'Item';
+        return source.charAt(0).toUpperCase() + source.slice(1);
+    };
     
     allRecipes.forEach(recipe => {
         (recipe.display?.ingredients || []).forEach(text => {
             if (!text) return;
             const { qty, unit, name } = splitIngredient(text);
-            const normalizedName = normalizeName(name);
-            const key = `${normalizedName}|${unit.toLowerCase()}`;
+            const normalizedKey = normalizeIngredientKey(name || text);
+            const fallbackKey = normalizeName(name || text) || (name || text || 'item').toLowerCase();
+            const key = normalizedKey || fallbackKey;
             if (!aggregated[key]) {
-                aggregated[key] = { name: name || text.trim(), unit, qty: 0, hasQty: qty !== null };
+                aggregated[key] = {
+                    name: formatIngredientName(name, key),
+                    qty: 0,
+                    hasQty: qty !== null,
+                    units: new Set()
+                };
             }
             if (qty !== null) {
                 aggregated[key].qty += qty;
                 aggregated[key].hasQty = true;
             }
+            if (unit) {
+                aggregated[key].units.add(unit.toLowerCase());
+            }
         });
     });
     
-    const rows = Object.values(aggregated).map(entry => {
-        const qtyDisplay = entry.hasQty && entry.qty > 0
-            ? `${entry.qty % 1 === 0 ? entry.qty : entry.qty.toFixed(2)}${entry.unit ? ' ' + entry.unit : ''}`
-            : '';
-        return `
-            <tr>
-                <td style="border: 1px solid #ddd; padding: 10px; word-break: break-word;">${entry.name}</td>
-                <td style="border: 1px solid #ddd; padding: 10px; word-break: break-word; text-align: left;">${qtyDisplay}</td>
-            </tr>
-        `;
-    }).join('');
+    const rows = Object.values(aggregated)
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map(entry => {
+            const singleUnit = entry.units.size === 1 ? Array.from(entry.units)[0] : '';
+            const qtyDisplay = entry.hasQty && entry.qty > 0
+                ? `${entry.qty % 1 === 0 ? entry.qty : entry.qty.toFixed(2)}${singleUnit ? ' ' + singleUnit : ''}`
+                : '';
+            return `
+                <tr>
+                    <td style="border: 1px solid #ddd; padding: 10px; word-break: break-word;">${entry.name}</td>
+                    <td style="border: 1px solid #ddd; padding: 10px; word-break: break-word; text-align: left;">${qtyDisplay}</td>
+                </tr>
+            `;
+        }).join('');
     
     if (!rows) {
         if (!silent) alert('No ingredients found in the selected recipes.');
