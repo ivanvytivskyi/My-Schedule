@@ -963,9 +963,14 @@ function generateShoppingListFromRecipes() {
     const seenIngredientNames = new Set();
     
     allRecipes.forEach(recipe => {
-        const quickItems = (recipe.quickAddItems || []).slice();
+        const quickAddAvailable = Array.isArray(recipe.quickAddItems) && recipe.quickAddItems.length > 0;
+        const quickItems = quickAddAvailable ? recipe.quickAddItems.slice() : [];
+        const quickAddNameSet = new Set(
+            (quickItems || []).map(q => normalizeName(q.itemName))
+        );
         
-        // Always supplement with keyword-derived ingredients from the recipe text
+        // Only derive keyword matches when no quick add mappings exist.
+        // When mappings exist, still surface unmatched ingredients to the unresolved list without altering totals.
         if (recipe.display?.ingredients?.length) {
             recipe.display.ingredients.forEach(text => {
                 const normalized = normalizeName(text);
@@ -974,7 +979,11 @@ function generateShoppingListFromRecipes() {
                 const match = typeof findIngredientKeywordMatch === 'function'
                     ? findIngredientKeywordMatch(text, preferredShop)
                     : null;
-                if (match) {
+                
+                const coveredByQuickAdd = quickAddNameSet.has(normalizeName(text));
+                
+                // Allow keyword-based addition when there is no quick add mapping OR this ingredient is not covered by any quick add item
+                if ((!quickAddAvailable || !coveredByQuickAdd) && match) {
                     quickItems.push({
                         shop: match.shop,
                         category: match.category,
@@ -983,7 +992,7 @@ function generateShoppingListFromRecipes() {
                         unit: parsedQty.unit || match.unit || ''
                     });
                     seenIngredientNames.add(normalized);
-                } else {
+                } else if (!match) {
                     fallbackUnmatched.push({
                         itemName: text,
                         unit: parsedQty.unit || '',
@@ -997,7 +1006,25 @@ function generateShoppingListFromRecipes() {
         if (!quickItems.length) return;
         
         quickItems.forEach(item => {
-            const resolved = resolveRecipeItemPreferredShopOnly(item, preferredShop);
+            let resolved = resolveRecipeItemPreferredShopOnly(item, preferredShop);
+            
+            // If the preferred shop lacks this mapping, try keyword-based matching as a secondary lookup
+            if (!resolved && typeof findIngredientKeywordMatch === 'function') {
+                const keywordMatch = findIngredientKeywordMatch(item.itemName, preferredShop);
+                if (keywordMatch) {
+                    resolved = {
+                        shop: keywordMatch.shop,
+                        category: keywordMatch.category,
+                        itemName: keywordMatch.itemName,
+                        unit: keywordMatch.unit || item.unit || '',
+                        packUnit: keywordMatch.unit || item.unit || '',
+                        homeUnit: keywordMatch.unit || item.unit || '',
+                        unitsPerPack: keywordMatch.qtyNeeded || 1,
+                        price: undefined
+                    };
+                }
+            }
+            
             if (!resolved) {
                 fallbackElsewhere.push({
                     itemName: item.itemName,
