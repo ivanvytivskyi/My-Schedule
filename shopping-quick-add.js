@@ -988,7 +988,8 @@ function addSelectedToShopping() {
 function deleteShopList(shopId) {
     if (confirm('Delete this shopping list?')) {
         const container = document.getElementById('shoppingDisplay');
-        if (!container) return;
+        const quickSection = document.getElementById('quickAddLists') || container;
+        if (!quickSection) return;
         
         const shopDiv = document.getElementById(shopId);
         if (shopDiv) {
@@ -1015,7 +1016,7 @@ function deleteShopList(shopId) {
                 }
             }
             
-            let updatedHTML = container.innerHTML.trim();
+            let updatedHTML = quickSection.innerHTML.trim();
             updatedHTML = updatedHTML.replace(/(<div style="margin: 40px 0; border-top: 3px solid #ddd;"><\/div>\s*){2,}/g, '<div style="margin: 40px 0; border-top: 3px solid #ddd;"></div>');
             updatedHTML = updatedHTML.replace(/^<div style="margin: 40px 0; border-top: 3px solid #ddd;"><\/div>\s*/g, '');
             updatedHTML = updatedHTML.replace(/\s*<div style="margin: 40px 0; border-top: 3px solid #ddd;"><\/div>$/g, '');
