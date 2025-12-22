@@ -68,7 +68,7 @@ function formatRecipeDatabase(recipes, batchDuration) {
     lines.push(custom.length ? custom.map(formatRecipeLine).join('\n') : 'None yet');
     lines.push('');
     
-    lines.push('Legend: 🥬=Vegetarian 🌱=Vegan 🥜=Contains nuts 🥛=Contains dairy 🌾=Contains gluten');
+    lines.push('Allergy & diet key: 🥬=Vegetarian 🌱=Vegan 🥜=Contains nuts 🥛=Contains dairy 🌾=Contains gluten');
     
     return lines.join('\n');
 }
