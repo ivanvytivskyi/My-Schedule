@@ -1746,9 +1746,11 @@ function renderShopping() {
     const container = document.getElementById('shoppingDisplay');
     
     // Load saved shopping HTML from localStorage
-    const savedHTML = localStorage.getItem('shoppingListHTML');
+    const quickHTML = localStorage.getItem('shoppingListHTML') || '';
+    const recipeHTML = localStorage.getItem('recipeShoppingListHTML') || '';
+    const hasContent = Boolean(quickHTML || recipeHTML);
     
-    if (!savedHTML) {
+    if (!hasContent) {
         container.innerHTML = `
             <div style="text-align: center; color: #999; padding: 40px 20px;">
                 <p style="font-size: 18px; margin: 0;">📝 No shopping list yet</p>
@@ -1756,10 +1758,11 @@ function renderShopping() {
             </div>
         `;
     } else {
-        // Display the HTML table
+        // Display the HTML tables in isolated sections so they don't affect each other
         container.innerHTML = `
             <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-                ${savedHTML}
+                <div id="quickAddLists" data-source="quick">${quickHTML}</div>
+                <div id="recipeLists" data-source="recipes">${recipeHTML}</div>
             </div>
         `;
     }
@@ -1768,6 +1771,7 @@ function renderShopping() {
 
 function clearGeneratedShopping() {
     localStorage.removeItem('shoppingListHTML');
+    localStorage.removeItem('recipeShoppingListHTML');
     localStorage.removeItem('shoppingTrolleyState');
     if (typeof renderShopping === 'function') renderShopping();
     alert('🗑️ Shopping list cleared.');
@@ -1783,6 +1787,8 @@ function ensureShoppingTrolleyStyles() {
         .shopping-list-block { margin-bottom: 24px; }
         .shopping-list-block .list-delete-btn { background: white; border: 1px solid #d1d5db; border-radius: 6px; padding: 4px 8px; cursor: pointer; font-weight: 700; color: #6b7280; }
         .shopping-list-block .list-delete-btn:hover { background: #fee2e2; color: #b91c1c; }
+        .shopping-list-block table { width: 100%; max-width: 100%; }
+        .shopping-list-block .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     `;
     document.head.appendChild(style);
 }
@@ -1873,6 +1879,9 @@ function ensureShoppingListBlocks(container) {
         } else if (!block.dataset.shop) {
             block.dataset.shop = table.dataset.shop || block.querySelector('h3')?.textContent?.trim() || 'Shopping';
         }
+        if (!block.dataset.source) {
+            block.dataset.source = block.closest('#recipeLists') ? 'recipes' : 'quick';
+        }
     });
     attachShoppingListDeleteButtons(container);
 }
@@ -1904,7 +1913,20 @@ function attachShoppingListDeleteButtons(container) {
                 });
                 saveShoppingTrolleyState(state);
                 block.remove();
-                localStorage.setItem('shoppingListHTML', container.innerHTML);
+                
+                const quickSection = document.getElementById('quickAddLists');
+                const recipeSection = document.getElementById('recipeLists');
+                const isRecipeBlock = block.closest('#recipeLists');
+                
+                if (isRecipeBlock) {
+                    const html = recipeSection ? recipeSection.innerHTML.trim() : '';
+                    if (html) localStorage.setItem('recipeShoppingListHTML', html);
+                    else localStorage.removeItem('recipeShoppingListHTML');
+                } else {
+                    const html = quickSection ? quickSection.innerHTML.trim() : '';
+                    if (html) localStorage.setItem('shoppingListHTML', html);
+                    else localStorage.removeItem('shoppingListHTML');
+                }
             });
         }
         block.dataset.deleteAttached = 'true';
@@ -3258,7 +3280,7 @@ CORRECT FORMAT EXAMPLE:
 
 ${recipePromptSection ? `${recipePromptSection}\n\n` : ''}📋 SHOPPING LIST (LIGHT — free meals at work!)
 
-IMPORTANT: Tie shopping + meals to the recipes above using their IDs (R1, R11, R50, etc.). Use products at home first: ${homeInventorySummary || 'None saved'}.
+IMPORTANT: Tie shopping + meals to the recipes above using their IDs (R1, R11, R50, etc.). Add the recipe ID beside every meal block so my app can read it (e.g., "🍛 Curry (R11)"). Include a short section at the end titled "RECIPES USED" listing all recipe IDs you used (comma-separated). Use products at home first: ${homeInventorySummary || 'None saved'}.
 
 IMPORTANT: Format this beautifully with emojis, clear sections, and visual appeal!
 
