@@ -963,9 +963,11 @@ function generateShoppingListFromRecipes() {
     const seenIngredientNames = new Set();
     
     allRecipes.forEach(recipe => {
-        const quickItems = (recipe.quickAddItems || []).slice();
+        const quickAddAvailable = Array.isArray(recipe.quickAddItems) && recipe.quickAddItems.length > 0;
+        const quickItems = quickAddAvailable ? recipe.quickAddItems.slice() : [];
         
-        // Always supplement with keyword-derived ingredients from the recipe text
+        // Only derive keyword matches when no quick add mappings exist.
+        // When mappings exist, still surface unmatched ingredients to the unresolved list without altering totals.
         if (recipe.display?.ingredients?.length) {
             recipe.display.ingredients.forEach(text => {
                 const normalized = normalizeName(text);
@@ -974,7 +976,8 @@ function generateShoppingListFromRecipes() {
                 const match = typeof findIngredientKeywordMatch === 'function'
                     ? findIngredientKeywordMatch(text, preferredShop)
                     : null;
-                if (match) {
+                
+                if (!quickAddAvailable && match) {
                     quickItems.push({
                         shop: match.shop,
                         category: match.category,
@@ -983,7 +986,7 @@ function generateShoppingListFromRecipes() {
                         unit: parsedQty.unit || match.unit || ''
                     });
                     seenIngredientNames.add(normalized);
-                } else {
+                } else if (!match) {
                     fallbackUnmatched.push({
                         itemName: text,
                         unit: parsedQty.unit || '',
