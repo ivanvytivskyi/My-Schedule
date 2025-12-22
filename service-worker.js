@@ -1,5 +1,5 @@
 // Service Worker for Weekly Schedule Manager
-const CACHE_VERSION = '7.3'; // INCREMENT THIS FOR EACH UPDATE!
+const CACHE_VERSION = '7.2'; // INCREMENT THIS FOR EACH UPDATE!
 const CACHE_NAME = `schedule-manager-v${CACHE_VERSION}`;
 const urlsToCache = [
   '/',
@@ -8,7 +8,16 @@ const urlsToCache = [
   '/script.js',
   '/import-functions.js',
   '/shopping-quick-add.js',
-  '/manifest.json'
+  '/manifest.json',
+  '/pwa.js',
+  '/recipe-database.js',
+  '/recipe-display.js',
+  '/recipe-prompt-generator.js',
+  '/recipe-import-parser.js',
+  '/ingredient-keywords.js',
+  '/sw-update-listener.js',
+  '/icon-192.png',
+  '/icon-512.png'
 ];
 
 // Install service worker
@@ -70,7 +79,10 @@ self.addEventListener('fetch', event => {
         return response;
       })
       .catch(() => {
-        // Network failed, try cache
+        // Network failed, handle navigation and assets
+        if (event.request.mode === 'navigate') {
+          return caches.match('/index.html');
+        }
         return caches.match(event.request);
       })
   );
