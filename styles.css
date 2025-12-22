@@ -140,6 +140,16 @@ body.edit-mode .date-display {
     display: none !important;
 }
 
+.install-btn {
+    background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+    color: white;
+    display: none;
+}
+
+.install-btn.ready {
+    display: inline-block;
+}
+
 /* Important Events Section */
 .important-events {
     margin-top: 20px;
