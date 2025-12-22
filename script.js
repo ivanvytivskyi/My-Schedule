@@ -1775,6 +1775,7 @@ function clearGeneratedShopping() {
     localStorage.removeItem('shoppingListHTML');
     localStorage.removeItem('recipeShoppingListHTML');
     localStorage.removeItem('shoppingTrolleyState');
+    localStorage.removeItem('hiddenRecipeShoppingIds');
     if (typeof renderShopping === 'function') renderShopping();
     alert('🗑️ Shopping list cleared.');
 }
@@ -1819,6 +1820,7 @@ function decorateShoppingTablesForTrolley() {
     if (!container) return;
     ensureShoppingTrolleyStyles();
     ensureShoppingListBlocks(container);
+    attachFoldLabels(container);
     const state = loadShoppingTrolleyState();
     const tables = container.querySelectorAll('table');
     tables.forEach(table => {
@@ -1892,7 +1894,7 @@ function attachShoppingListDeleteButtons(container) {
     const blocks = container.querySelectorAll('.shopping-list-block');
     blocks.forEach(block => {
         if (block.dataset.deleteAttached === 'true') return;
-        const header = block.querySelector('h3')?.parentElement || block.firstElementChild;
+        const header = block.querySelector('summary') || block.querySelector('h3')?.parentElement || block.firstElementChild;
         if (header) {
             header.style.display = 'flex';
             header.style.alignItems = 'center';
@@ -1914,6 +1916,12 @@ function attachShoppingListDeleteButtons(container) {
                     delete state[key];
                 });
                 saveShoppingTrolleyState(state);
+                const recipeId = block.dataset.recipeId;
+                if (recipeId && block.closest('#recipeLists')) {
+                    const hidden = loadHiddenRecipeShoppingIds();
+                    hidden.add(recipeId);
+                    saveHiddenRecipeShoppingIds(hidden);
+                }
                 block.remove();
                 
                 const quickSection = document.getElementById('quickAddLists');
@@ -1933,6 +1941,36 @@ function attachShoppingListDeleteButtons(container) {
         }
         block.dataset.deleteAttached = 'true';
     });
+}
+
+function updateFoldLabel(detailsEl) {
+    const label = detailsEl.querySelector('.fold-label');
+    if (!label) return;
+    const openText = label.dataset.open || 'Fold';
+    const closedText = label.dataset.closed || 'Unfold';
+    label.textContent = detailsEl.hasAttribute('open') ? openText : closedText;
+}
+
+function attachFoldLabels(container) {
+    const details = container.querySelectorAll('.shopping-list-block details');
+    details.forEach(det => {
+        updateFoldLabel(det);
+        det.addEventListener('toggle', () => updateFoldLabel(det));
+    });
+}
+
+function loadHiddenRecipeShoppingIds() {
+    try {
+        const saved = localStorage.getItem('hiddenRecipeShoppingIds');
+        const parsed = saved ? JSON.parse(saved) : [];
+        return new Set(Array.isArray(parsed) ? parsed : []);
+    } catch {
+        return new Set();
+    }
+}
+
+function saveHiddenRecipeShoppingIds(set) {
+    localStorage.setItem('hiddenRecipeShoppingIds', JSON.stringify(Array.from(set || [])));
 }
 
 // Shopping Edit Mode
@@ -3240,6 +3278,8 @@ FORMAT RULES:
 4) After all 7 days, add one blank line, then a SINGLE LINE with all recipe IDs you used, comma-separated, and NO heading (e.g., R4, R5, R6).
 5) Do NOT include shopping lists, meal summaries, video links, or extra headings (specifically avoid: “🗓️ WEEKLY SCHEDULE”, “🛒 SHOPPING LIST…”, “🍽️ MEAL PLAN SUMMARY…”, “📌 RECIPES USED”, or any “If you want…” variants).
 6) Keep meals simple and quick. Use products at home first: ${homeInventorySummary || 'none'}.
+7) Always include realistic cooking/prep blocks before meals (especially lunch). Mention if dinner is reheated from lunch (for single-day batches) or from a batch that lasts multiple days, and state how many days it covers.
+8) Include daily routines: morning routine must mention brushing teeth, washing face, and a glass of water; evening routine must include brushing teeth and a short shower (10 minutes on non-work days/no shift; 15–20 minutes after work).
 
 EXAMPLE (shortened):
 === MONDAY — 22 Dec 2025 ===
