@@ -175,6 +175,8 @@ function createDefaultWeek() {
         };
     }
     saveToLocalStorage();
+    
+    const uniqueRecipeIDs = [...detectedRecipeIDs];
 }
 
 function setDefaultActiveDay() {
@@ -1746,9 +1748,11 @@ function renderShopping() {
     const container = document.getElementById('shoppingDisplay');
     
     // Load saved shopping HTML from localStorage
-    const savedHTML = localStorage.getItem('shoppingListHTML');
+    const quickHTML = localStorage.getItem('shoppingListHTML') || '';
+    const recipeHTML = localStorage.getItem('recipeShoppingListHTML') || '';
+    const hasContent = Boolean(quickHTML || recipeHTML);
     
-    if (!savedHTML) {
+    if (!hasContent) {
         container.innerHTML = `
             <div style="text-align: center; color: #999; padding: 40px 20px;">
                 <p style="font-size: 18px; margin: 0;">📝 No shopping list yet</p>
@@ -1756,10 +1760,11 @@ function renderShopping() {
             </div>
         `;
     } else {
-        // Display the HTML table
+        // Display the HTML tables in isolated sections so they don't affect each other
         container.innerHTML = `
             <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-                ${savedHTML}
+                <div id="quickAddLists" data-source="quick">${quickHTML}</div>
+                <div id="recipeLists" data-source="recipes">${recipeHTML}</div>
             </div>
         `;
     }
@@ -1768,7 +1773,9 @@ function renderShopping() {
 
 function clearGeneratedShopping() {
     localStorage.removeItem('shoppingListHTML');
+    localStorage.removeItem('recipeShoppingListHTML');
     localStorage.removeItem('shoppingTrolleyState');
+    localStorage.removeItem('hiddenRecipeShoppingIds');
     if (typeof renderShopping === 'function') renderShopping();
     alert('🗑️ Shopping list cleared.');
 }
@@ -1783,6 +1790,8 @@ function ensureShoppingTrolleyStyles() {
         .shopping-list-block { margin-bottom: 24px; }
         .shopping-list-block .list-delete-btn { background: white; border: 1px solid #d1d5db; border-radius: 6px; padding: 4px 8px; cursor: pointer; font-weight: 700; color: #6b7280; }
         .shopping-list-block .list-delete-btn:hover { background: #fee2e2; color: #b91c1c; }
+        .shopping-list-block table { width: 100%; max-width: 100%; }
+        .shopping-list-block .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
     `;
     document.head.appendChild(style);
 }
@@ -1811,6 +1820,7 @@ function decorateShoppingTablesForTrolley() {
     if (!container) return;
     ensureShoppingTrolleyStyles();
     ensureShoppingListBlocks(container);
+    attachFoldLabels(container);
     const state = loadShoppingTrolleyState();
     const tables = container.querySelectorAll('table');
     tables.forEach(table => {
@@ -1873,6 +1883,9 @@ function ensureShoppingListBlocks(container) {
         } else if (!block.dataset.shop) {
             block.dataset.shop = table.dataset.shop || block.querySelector('h3')?.textContent?.trim() || 'Shopping';
         }
+        if (!block.dataset.source) {
+            block.dataset.source = block.closest('#recipeLists') ? 'recipes' : 'quick';
+        }
     });
     attachShoppingListDeleteButtons(container);
 }
@@ -1881,7 +1894,7 @@ function attachShoppingListDeleteButtons(container) {
     const blocks = container.querySelectorAll('.shopping-list-block');
     blocks.forEach(block => {
         if (block.dataset.deleteAttached === 'true') return;
-        const header = block.querySelector('h3')?.parentElement || block.firstElementChild;
+        const header = block.querySelector('summary') || block.querySelector('h3')?.parentElement || block.firstElementChild;
         if (header) {
             header.style.display = 'flex';
             header.style.alignItems = 'center';
@@ -1896,6 +1909,9 @@ function attachShoppingListDeleteButtons(container) {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const state = loadShoppingTrolleyState();
+                const isRecipeBlock = block.closest('#recipeLists');
+                const recipeSection = document.getElementById('recipeLists');
+                const quickSection = document.getElementById('quickAddLists');
                 block.querySelectorAll('tbody tr').forEach(row => {
                     const shopName = block.dataset.shop || 'Shopping';
                     const itemName = (row.querySelector('td')?.textContent || '').trim();
@@ -1903,12 +1919,62 @@ function attachShoppingListDeleteButtons(container) {
                     delete state[key];
                 });
                 saveShoppingTrolleyState(state);
+                const recipeId = block.dataset.recipeId;
+                if (recipeId && block.closest('#recipeLists')) {
+                    const hidden = loadHiddenRecipeShoppingIds();
+                    hidden.add(normalizeRecipeShoppingId(recipeId));
+                    saveHiddenRecipeShoppingIds(hidden);
+                }
                 block.remove();
-                localStorage.setItem('shoppingListHTML', container.innerHTML);
+                
+                if (isRecipeBlock) {
+                    const html = recipeSection ? recipeSection.innerHTML.trim() : '';
+                    if (html) localStorage.setItem('recipeShoppingListHTML', html);
+                    else localStorage.removeItem('recipeShoppingListHTML');
+                } else {
+                    const html = quickSection ? quickSection.innerHTML.trim() : '';
+                    if (html) localStorage.setItem('shoppingListHTML', html);
+                    else localStorage.removeItem('shoppingListHTML');
+                }
             });
         }
         block.dataset.deleteAttached = 'true';
     });
+}
+
+function updateFoldLabel(detailsEl) {
+    const label = detailsEl.querySelector('.fold-label');
+    if (!label) return;
+    const openText = label.dataset.open || 'Fold';
+    const closedText = label.dataset.closed || 'Unfold';
+    label.textContent = detailsEl.hasAttribute('open') ? openText : closedText;
+}
+
+function attachFoldLabels(container) {
+    const details = container.querySelectorAll('.shopping-list-block details');
+    details.forEach(det => {
+        updateFoldLabel(det);
+        det.addEventListener('toggle', () => updateFoldLabel(det));
+    });
+}
+
+function normalizeRecipeShoppingId(val) {
+    return (val || '').toString().trim().toLowerCase();
+}
+
+function loadHiddenRecipeShoppingIds() {
+    try {
+        const saved = localStorage.getItem('hiddenRecipeShoppingIds');
+        const parsed = saved ? JSON.parse(saved) : [];
+        const normalized = Array.isArray(parsed) ? parsed.map(normalizeRecipeShoppingId) : [];
+        return new Set(normalized);
+    } catch {
+        return new Set();
+    }
+}
+
+function saveHiddenRecipeShoppingIds(set) {
+    localStorage.setItem('hiddenRecipeShoppingIds', JSON.stringify(Array.from(set || []).map(normalizeRecipeShoppingId)));
 }
 
 // Shopping Edit Mode
@@ -2034,16 +2100,13 @@ function populateShopOptions(select, selectedValue = null, includeTap = false) {
     if (!select) return;
     const shops = quickAddProducts ? Object.keys(quickAddProducts) : [];
     const options = [...shops];
-    if (includeTap && !options.includes('Tap')) {
-        options.push('Tap');
-    }
     if (options.length === 0) {
         options.push('Tesco');
     }
     select.innerHTML = options.map(shop => `<option value="${shop}">${shop}</option>`).join('');
     const defaultValue = (selectedValue && options.includes(selectedValue))
         ? selectedValue
-        : (includeTap && options.includes('Tap') ? 'Tap' : options[0]);
+        : options[0];
     select.value = defaultValue;
 }
 
@@ -2054,7 +2117,7 @@ function openHomeInventoryModal() {
     
     const shopSelect = document.getElementById('homeInventoryShop');
     if (shopSelect) {
-        populateShopOptions(shopSelect, null, true);
+        populateShopOptions(shopSelect, null, false);
     }
     
     const saved = loadHomeInventory();
@@ -3050,8 +3113,6 @@ function openPromptGenerator() {
     
     // Populate work days
     populateWorkDays(today);
-    
-    populatePromptShopSelect();
 }
 
 function closePromptGenerator() {
@@ -3090,19 +3151,6 @@ function populateWorkDays(date) {
     container.innerHTML = html;
 }
 
-function populatePromptShopSelect() {
-    const select = document.getElementById('promptShop');
-    if (!select) return;
-    const shops = quickAddProducts ? Object.keys(quickAddProducts) : [];
-    if (!shops.length) {
-        select.innerHTML = '<option value="Tesco">Tesco</option>';
-        select.value = 'Tesco';
-        return;
-    }
-    select.innerHTML = shops.map((shop) => `<option value="${shop}">${shop}</option>`).join('');
-    select.value = shops.includes('Tesco') ? 'Tesco' : shops[0];
-}
-
 // Listen for date changes
 document.addEventListener('DOMContentLoaded', () => {
     const dateInput = document.getElementById('promptWeekDate');
@@ -3125,7 +3173,6 @@ function closeResponseImporter() {
 function generatePrompt() {
     // Get all form data
     const weekDate = document.getElementById('promptWeekDate').value || new Date().toISOString().split('T')[0];
-    const selectedShop = document.getElementById('promptShop')?.value || 'Tesco';
     const batchDuration = document.querySelector('input[name="batchDuration"]:checked')?.value || '1';
     const dietaryFilters = {
         vegetarian: document.getElementById('dietVegetarian')?.checked || false,
@@ -3171,8 +3218,6 @@ function generatePrompt() {
     const foodPrefs = document.getElementById('promptFoodPrefs').value;
     const freeMeals = document.getElementById('promptFreeMeals').checked;
     const homeInventorySummary = buildHomeInventoryPromptString();
-    const budgetSelect = document.getElementById('promptBudget');
-    const budget = budgetSelect.options[budgetSelect.selectedIndex].text; // Get full text, not value
     const hobbies = document.getElementById('promptHobbies').value;
     const hobbyHours = document.getElementById('promptHobbyHours').value;
     const hobbyAIDecide = document.getElementById('promptHobbyAIDecide').checked;
@@ -3180,9 +3225,8 @@ function generatePrompt() {
     const sleepSchedule = document.getElementById('promptSleep').value;
     const includeRelax = document.getElementById('promptRelax').checked;
     const recipePromptSection = typeof buildRecipePromptSection === 'function'
-        ? buildRecipePromptSection({ shop: selectedShop, batchDuration, filters: dietaryFilters })
+        ? buildRecipePromptSection({ shop: null, batchDuration, filters: dietaryFilters })
         : '';
-    
     // Format the week start date nicely
     const weekDateObj = new Date(weekDate);
     const weekDateFormatted = weekDateObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -3208,8 +3252,6 @@ ${studyTopics ? `- Focus topics:\n${studyTopics}` : ''}
 🍳 MEALS & FOOD:
 - Preferences: ${foodPrefs || 'No preferences'}
 - Products at home (auto-loaded from "Products at Home"): ${homeInventorySummary || 'None saved'}
-- Budget: ${budget}
-- Preferred shop: ${selectedShop}
 - Batch cook duration: ${batchDuration} day(s) worth of meals per batch recipe
 - Dietary filters: ${dietarySummary}
 ${freeMeals ? '- IMPORTANT: I get FREE meals at work! Reduce shopping accordingly and note this in schedule.' : '- No free meals at work - need to plan all meals myself.'}
@@ -3227,147 +3269,30 @@ ${oneOffTasks ? `These MUST be scheduled somewhere this week:\n${oneOffTasks}` :
 - Preferred sleep: ${sleepSchedule}
 ${includeRelax ? '- Include relaxation/free time blocks' : ''}
 
+${recipePromptSection}
+
 📋 WHAT I NEED FROM YOU:
 
-Please create a COMPLETE weekly schedule using this EXACT format:
+Create a COMPLETE 7-day schedule only. Output must be copy-paste ready for the app with ZERO extra sections or notes.
 
-CRITICAL FORMAT RULES:
-1. Each time block must be on a SEPARATE line
-2. Use this format: TIME | EMOJI TITLE | Tasks/description
-3. Never combine multiple time blocks into one line
-4. Use em-dashes (—) or regular dashes (-) in day headers
-5. Include the actual date in each day header
+FORMAT RULES:
+1) Each day header: === DAY — DD Mon YYYY ===
+2) Each block on its own line: HH:MM–HH:MM | EMOJI Title | Tasks
+3) Add the recipe ID next to meal titles, e.g., "🍳 Breakfast | Porridge oats with honey (R5)". Recipe IDs use the R-numbering shown in the database above.
+4) After all 7 days, add one blank line, then a SINGLE LINE with all recipe IDs you used, comma-separated, and NO heading (e.g., R4, R5, R6).
+5) Do NOT include shopping lists, meal summaries, video links, or extra headings (specifically avoid: “🗓️ WEEKLY SCHEDULE”, “🛒 SHOPPING LIST…”, “🍽️ MEAL PLAN SUMMARY…”, “📌 RECIPES USED”, or any “If you want…” variants).
+6) Keep meals simple and quick. Use products at home first: ${homeInventorySummary || 'none'}.
+7) Always include realistic cooking/prep blocks before meals (especially lunch). Mention if dinner is reheated from lunch (for single-day batches) or from a batch that lasts multiple days, and state how many days it covers.
+8) Include daily routines: morning routine must mention brushing teeth, washing face, and a glass of water; evening routine must include brushing teeth and a short shower (10 minutes on non-work days/no shift; 15–20 minutes after work).
 
-CORRECT FORMAT EXAMPLE:
+EXAMPLE (shortened):
+=== MONDAY — 22 Dec 2025 ===
+07:00–07:30 | ☀️ Morning Routine | Wake up, shower, light stretch
+07:30–08:00 | 🍳 Breakfast | Porridge oats with honey (R5)
+...continue blocks...
 
-=== FRIDAY — 12 Dec 2025 ===
-
-07:00–07:30 | ☕ Morning Routine | Wake up, shower, get ready
-07:30–08:00 | 🍳 Breakfast | Eggs and toast
-08:00–10:00 | 📚 Study Math | Practice fractions and percentages
-10:00–10:30 | ☕ Break | Tea and rest
-... (continue for whole day)
-
-=== SATURDAY — 13 Dec 2025 ===
-
-07:00–07:30 | ☀️ Morning Routine | Wake up, stretch
-07:30–08:00 | 🍳 Breakfast | Simple breakfast
-... (same format)
-
-... (continue for all 7 consecutive days)
-
-${recipePromptSection ? `${recipePromptSection}\n\n` : ''}📋 SHOPPING LIST (LIGHT — free meals at work!)
-
-IMPORTANT: Tie shopping + meals to the recipes above using their IDs (R1, R11, R50, etc.). Use products at home first: ${homeInventorySummary || 'None saved'}.
-
-IMPORTANT: Format this beautifully with emojis, clear sections, and visual appeal!
-
-Using products at home first: ${homeInventorySummary || 'none'}
-${freeMeals ? 'You get free work meals, so you need less food!' : 'Need to plan all meals.'}
-Budget: ${budget}
-
-Format like this:
-
-🛒 SHOPPING LIST (LIGHT — free meals at work!)
-
-Using products at home first.
-Budget: ${budget}
-
-Essentials:
-• Tomatoes (canned or fresh)
-• Butter
-• Fruit (bananas/apples)
-• Ukrainian-style dumplings (vareniki, 1 bag)
-• Yogurt
-• Tea bags
-• Basic seasonings (salt/pepper if low)
-
-Estimated Cost: £18–£25
-
-🍽️ MEAL PLAN SUMMARY + SIMPLE RECIPES
-
-IMPORTANT: Format recipes beautifully with clear sections, emojis, and step-by-step instructions!
-
-Format each recipe like this:
-
-🥚 Simple Eggs & Toast
-
-Whisk eggs — pan with butter — toast bread — serve.
-Video: https://www.youtube.com/watch?v=R1vNHvH6bW8
-
-🍝 Quick Ukrainian-Style Pasta
-
-Boil pasta — add butter — pepper — optional fried egg on top.
-Video: https://www.youtube.com/watch?v=g8uJ3z_NB18
-
-For detailed recipes, format like this:
-
-📋 DETAILED RECIPE: Ukrainian-Style Butter Pasta with Fried Egg
-
-Simple filling, cheap — perfect for study days.
-
-Ingredients (for 1 large meal):
-• Ukrainian pasta (any kind)
-• 2 eggs
-• Butter (2 tbsp)
-• Salt + pepper
-
-Instructions:
-1. Boil Pasta
-   • Bring pot of salted water to boil
-   • Add pasta and cook per package
-   • Drain (save a bit water for sauce)
-   
-2. Prep While Pasta Cooks
-   • Crack eggs into bowl
-   • Season with salt/pepper (optional: chili)
-   
-3. Butter Pasta
-   • Add 1-2 tbsp butter
-   • Toss so butter coats all pasta
-   
-4. Fry Egg
-   • Heat pan on med-high (a bit oil/butter)
-   • Crack egg into pan (or pre-scrambled egg)
-   • Cook 2-4 minutes till whites set but yolk runny
-   
-5. Serve
-   • Plate the buttered pasta
-   • Top with fried egg
-   • Add salt, pepper, and optional chili/herbs
-
-Result:
-A warm, buttery, delicately-simple pasta with egg that can be made for lunch.
-
-Video: [Full YouTube URL]
-
-CRITICAL FORMATTING RULES (MUST FOLLOW):
-1. ⚠️ NEVER write: "07:00-07:30 | Morning Routine 07:30-08:00 | Breakfast" 
-   ✅ ALWAYS write each block on separate lines:
-   07:00-07:30 | Morning Routine | Wake up, shower
-   07:30-08:00 | Breakfast | Eggs and toast
-
-2. Each time block MUST be on its own line
-3. Use the pipe (|) separator: TIME | TITLE | TASKS
-4. Include dates in headers: "=== MONDAY — 15 Dec 2025 ==="
-5. Start from ${weekDateFormatted} and create 7 consecutive days
-6. ${freeMeals ? 'Note FREE work meals in schedule and reduce shopping!' : 'Plan all meals.'}
-7. Use products at home first: ${homeInventorySummary || 'none'}
-8. Keep meals simple and quick
-9. Add relaxation time after work shifts
-10. Make sleep schedule realistic: ${sleepSchedule}
-${examDates ? '11. Increase study time before exam dates!' : ''}
-${oneOffTasks ? '12. FIT IN THE ONE-OFF TASKS! Spread them across the week!' : ''}
-
-EXAMPLE OF WRONG FORMAT (DON'T DO THIS):
-07:00-07:30 | Morning Routine 07:30-08:00 | Breakfast 08:00-11:00 | Work
-
-EXAMPLE OF CORRECT FORMAT (DO THIS):
-07:00-07:30 | Morning Routine | Wake up, shower
-07:30-08:00 | Breakfast | Eggs and toast  
-08:00-11:00 | Work | Office tasks
-
-Be specific, detailed, and helpful! Include YouTube recipe links for meals!`;
+After 7th day:
+R4, R5, R6`;
 
     // Show generated prompt
     document.getElementById('generatedPromptText').value = prompt;
@@ -3413,7 +3338,7 @@ function importAIResponse() {
     
     try {
         // Parse AI response and create schedule
-        parseAndCreateSchedule(response);
+        const result = parseAndCreateSchedule(response);
         
         // Count how many days were actually created
         const daysCreated = Object.keys(scheduleData.days).length;
@@ -3423,7 +3348,11 @@ function importAIResponse() {
         document.getElementById('aiResponseInput').value = '';
         
         // Success message with actual count
-        alert(`🎉 SUCCESS!\n\n${daysCreated} day${daysCreated > 1 ? 's' : ''} imported to your schedule!\n\n✅ Check your calendar now!`);
+        if (result?.recipeOnly) {
+            alert(`✅ Recipes linked (${result.recipeCount || 0}) and shopping list generated from recipe IDs.`);
+        } else {
+            alert(`🎉 SUCCESS!\n\n${daysCreated} day${daysCreated > 1 ? 's' : ''} imported to your schedule!\n\n✅ Check your calendar now!`);
+        }
         
     } catch (error) {
         console.error('Parse error details:', error);
@@ -3451,6 +3380,8 @@ function parseAndCreateSchedule(response) {
     console.log('=== PARSING STARTED ===');
     
     const detectedRecipeIDs = new Set();
+    const preExtractedRecipeIDs = typeof extractRecipeIDs === 'function' ? extractRecipeIDs(response) : [];
+    preExtractedRecipeIDs.forEach(id => detectedRecipeIDs.add(id));
     
     // Clean up the response - handle ALL dash types
     const originalLength = response.length;
@@ -3643,8 +3574,23 @@ function parseAndCreateSchedule(response) {
     console.log(`Total days parsed: ${Object.keys(dayData).length}`);
     console.log(`Total blocks parsed: ${totalBlocks}`);
     
-    if (totalBlocks === 0) {
+    if (totalBlocks === 0 && detectedRecipeIDs.size === 0) {
         throw new Error('No schedule blocks found in the response. Make sure the AI included time blocks like "07:00-07:30 | Title | Tasks"');
+    }
+    
+    // If only recipe IDs were provided, just update recipes and shopping
+    if (totalBlocks === 0 && detectedRecipeIDs.size > 0) {
+        const uniqueRecipeIDs = [...detectedRecipeIDs];
+        if (Array.isArray(selectedRecipesThisWeek)) {
+            selectedRecipesThisWeek = [...new Set([...selectedRecipesThisWeek, ...uniqueRecipeIDs])];
+            if (typeof saveSelectedRecipes === 'function') saveSelectedRecipes();
+            if (typeof renderThisWeekRecipes === 'function') renderThisWeekRecipes();
+        }
+        if (typeof generateShoppingListFromRecipes === 'function') {
+            generateShoppingListFromRecipes({ silent: true, resetHidden: true });
+        }
+        saveToLocalStorage();
+        return { recipeOnly: true, recipeCount: uniqueRecipeIDs.length };
     }
     
     // Create days in schedule starting from the correct day
@@ -3709,22 +3655,20 @@ function parseAndCreateSchedule(response) {
     renderDayTabs();
     renderSchedule();
     
-    // Merge any detected recipe IDs into "This Week" and auto-select Quick Add items
+    // Merge any detected recipe IDs into "This Week" and generate shopping (no Quick Add changes)
     if (typeof extractRecipeIDs === 'function') {
         extractRecipeIDs(response).forEach(id => detectedRecipeIDs.add(id));
     }
     const uniqueRecipeIDs = [...detectedRecipeIDs];
     if (uniqueRecipeIDs.length > 0) {
-        console.log(`Linking ${uniqueRecipeIDs.length} recipe IDs to This Week and Quick Add`, uniqueRecipeIDs);
+        console.log(`Linking ${uniqueRecipeIDs.length} recipe IDs to This Week`, uniqueRecipeIDs);
         if (Array.isArray(selectedRecipesThisWeek)) {
             selectedRecipesThisWeek = [...new Set([...selectedRecipesThisWeek, ...uniqueRecipeIDs])];
             if (typeof saveSelectedRecipes === 'function') saveSelectedRecipes();
             if (typeof renderThisWeekRecipes === 'function') renderThisWeekRecipes();
         }
-        
-        const quickAddItems = typeof mapRecipesToQuickAdd === 'function' ? mapRecipesToQuickAdd(uniqueRecipeIDs) : [];
-        if (quickAddItems.length > 0 && typeof autoSelectQuickAddItems === 'function') {
-            autoSelectQuickAddItems(quickAddItems);
+        if (typeof generateShoppingListFromRecipes === 'function') {
+            generateShoppingListFromRecipes({ silent: true, resetHidden: true });
         }
     }
     
@@ -3758,6 +3702,11 @@ function parseAndCreateSchedule(response) {
     console.log(`Days imported: ${Object.keys(dayData).length}`);
     console.log(`Total blocks: ${totalBlocks}`);
     console.log('=== DONE ===');
+    
+    return {
+        daysCreated: Object.keys(dayData).length,
+        recipeCount: uniqueRecipeIDs.length
+    };
 }
 
 

@@ -311,12 +311,11 @@ function createCustomRecipeModal() {
                     <textarea id="customInstructions" required placeholder="Marinate chicken in oil and spices&#10;Sear for 6 minutes each side&#10;Rest, slice, and serve"></textarea>
                 </div>
             </div>
-            
-            <div class="form-group">
-                <label>Quick Add Mappings *</label>
-                <p style="margin: 6px 0 12px 0; color: #6b7280; font-size: 13px;">Link ingredients to Quick Add items (shop → item → qty & unit). All mappings must be completed before saving.</p>
-                <div id="quickAddMappings" style="display: flex; flex-direction: column; gap: 12px;"></div>
-                <button type="button" class="secondary-btn" onclick="addQuickAddMappingRow()">➕ Add Mapping</button>
+
+            <div class="form-group" style="background: #f8fafc; padding: 12px 14px; border-radius: 10px; border: 1px solid #e5e7eb;">
+                <p style="margin: 0; color: #4b5563; font-size: 13px; line-height: 1.5;">
+                    🛒 We’ll build the shopping list directly from the ingredients you enter above—no extra mapping needed.
+                </p>
             </div>
             
             <div class="form-grid">
@@ -340,116 +339,6 @@ function createCustomRecipeModal() {
     `;
     
     document.body.appendChild(modal);
-}
-
-function addQuickAddMappingRow(data = {}) {
-    const container = document.getElementById('quickAddMappings');
-    if (!container) return;
-    
-    const row = document.createElement('div');
-    row.className = 'quick-add-row';
-    row.innerHTML = `
-        <div class="quick-add-grid">
-            <div>
-                <label style="font-size: 12px; color: #6b7280;">Shop</label>
-                <select class="quick-add-shop" required>
-                    <option value="">Select shop</option>
-                </select>
-            </div>
-            <div>
-                <label style="font-size: 12px; color: #6b7280;">Item</label>
-                <select class="quick-add-item" required>
-                    <option value="">Select item</option>
-                </select>
-            </div>
-            <div>
-                <label style="font-size: 12px; color: #6b7280;">Qty</label>
-                <input type="number" class="quick-add-qty" min="0" step="0.01" placeholder="1" required />
-            </div>
-            <div>
-                <label style="font-size: 12px; color: #6b7280;">Unit</label>
-                <input type="text" class="quick-add-unit" placeholder="g, kg, pcs" required />
-            </div>
-            <button type="button" class="danger-btn" aria-label="Remove mapping">✕</button>
-        </div>
-    `;
-    
-    const shopSelect = row.querySelector('.quick-add-shop');
-    const itemSelect = row.querySelector('.quick-add-item');
-    const removeBtn = row.querySelector('.danger-btn');
-    
-    populateShopOptions(shopSelect, data.shop);
-    populateItemOptions(itemSelect, shopSelect.value, data.itemName, data.category);
-    
-    shopSelect.addEventListener('change', () => {
-        populateItemOptions(itemSelect, shopSelect.value);
-    });
-    
-    removeBtn.addEventListener('click', () => {
-        row.remove();
-    });
-    
-    if (data.qtyNeeded !== undefined) {
-        row.querySelector('.quick-add-qty').value = data.qtyNeeded;
-    }
-    if (data.unit) {
-        row.querySelector('.quick-add-unit').value = data.unit;
-    }
-    
-    container.appendChild(row);
-}
-
-function populateShopOptions(selectEl, selectedShop) {
-    if (!selectEl) return;
-    selectEl.innerHTML = '<option value="">Select shop</option>';
-    const shops = quickAddProducts ? Object.keys(quickAddProducts) : [];
-    
-    shops.forEach(shop => {
-        const option = document.createElement('option');
-        option.value = shop;
-        option.textContent = shop;
-        if (selectedShop === shop) option.selected = true;
-        selectEl.appendChild(option);
-    });
-    
-    if (selectedShop && !shops.includes(selectedShop)) {
-        const fallback = document.createElement('option');
-        fallback.value = selectedShop;
-        fallback.textContent = `${selectedShop} (custom)`;
-        fallback.selected = true;
-        selectEl.appendChild(fallback);
-    }
-}
-
-function populateItemOptions(selectEl, shop, selectedItem, selectedCategory) {
-    if (!selectEl) return;
-    selectEl.innerHTML = '<option value="">Select item</option>';
-    if (!shop || !quickAddProducts || !quickAddProducts[shop]) return;
-    
-    Object.entries(quickAddProducts[shop]).forEach(([category, items]) => {
-        items.forEach(item => {
-            const option = document.createElement('option');
-            option.value = item.name;
-            option.textContent = `${category} — ${item.name} (${item.unit})`;
-            option.dataset.category = category;
-            option.dataset.unit = item.unit || '';
-            option.dataset.price = item.price ?? '';
-            option.dataset.packsize = item.defaultQty || extractNumericFromUnit(item.unit) || 1;
-            if (selectedItem === item.name && (!selectedCategory || selectedCategory === category)) {
-                option.selected = true;
-            }
-            selectEl.appendChild(option);
-        });
-    });
-    
-    if (selectedItem && !selectEl.value) {
-        const fallback = document.createElement('option');
-        fallback.value = selectedItem;
-        fallback.dataset.category = selectedCategory || 'Custom';
-        fallback.textContent = `${selectedCategory || 'Custom'} — ${selectedItem}`;
-        fallback.selected = true;
-        selectEl.appendChild(fallback);
-    }
 }
 
 function openCustomRecipeModal(recipeId = null) {
@@ -484,11 +373,6 @@ function openCustomRecipeModal(recipeId = null) {
     document.getElementById('customVideo').value = recipe?.display?.video || '';
     document.getElementById('customNutrition').value = recipe?.display?.nutrition || '';
     
-    const mappingsContainer = document.getElementById('quickAddMappings');
-    mappingsContainer.innerHTML = '';
-    const mappings = recipe?.quickAddItems && recipe.quickAddItems.length > 0 ? recipe.quickAddItems : [{}];
-    mappings.forEach(mapping => addQuickAddMappingRow(mapping));
-    
     modal.classList.add('active');
 }
 
@@ -498,44 +382,6 @@ function closeCustomRecipeModal() {
         modal.classList.remove('active');
     }
     editingRecipeId = null;
-}
-
-function collectQuickAddMappings() {
-    const container = document.getElementById('quickAddMappings');
-    const rows = Array.from(container.querySelectorAll('.quick-add-row'));
-    const mappings = [];
-    let hasError = false;
-    
-    rows.forEach(row => {
-        const shop = row.querySelector('.quick-add-shop')?.value;
-        const itemSelect = row.querySelector('.quick-add-item');
-        const itemName = itemSelect?.value;
-        const category = itemSelect?.selectedOptions?.[0]?.dataset.category;
-        const qty = parseFloat(row.querySelector('.quick-add-qty')?.value);
-        const unit = row.querySelector('.quick-add-unit')?.value?.trim();
-        
-        if (!shop || !itemName || !unit || isNaN(qty) || qty <= 0 || !category) {
-            hasError = true;
-            row.classList.add('has-error');
-            return;
-        }
-        row.classList.remove('has-error');
-        
-        mappings.push({
-            shop,
-            category,
-            itemName,
-            qtyNeeded: qty,
-            unit
-        });
-    });
-    
-    if (hasError || mappings.length === 0) {
-        alert('Please complete all Quick Add mappings (shop, item, quantity, and unit).');
-        return null;
-    }
-    
-    return mappings;
 }
 
 function saveCustomRecipe() {
@@ -568,9 +414,6 @@ function saveCustomRecipe() {
         return;
     }
     
-    const quickAddItems = collectQuickAddMappings();
-    if (!quickAddItems) return;
-    
     const recipeData = {
         name,
         category,
@@ -585,7 +428,7 @@ function saveCustomRecipe() {
             dairy: document.getElementById('customDietDairy').checked,
             gluten: document.getElementById('customDietGluten').checked
         },
-        quickAddItems,
+        quickAddItems: [],
         display: {
             emoji,
             description,
@@ -945,256 +788,167 @@ function loadSelectedRecipes() {
 // SHOPPING LIST GENERATION (RECIPES)
 // ===================================
 
-function generateShoppingListFromRecipes() {
+function generateShoppingListFromRecipes(options = {}) {
+    const { silent = false, resetHidden = false } = options;
     if (!selectedRecipesThisWeek || selectedRecipesThisWeek.length === 0) {
-        alert('Please add at least one recipe to "This Week" first.');
+        if (!silent) alert('Please add at least one recipe to "This Week" first.');
         return;
     }
     
-    const preferredShop = document.getElementById('shoppingPreferredShop')?.value || 'Tesco';
     const allRecipes = selectedRecipesThisWeek
         .map(id => getRecipe(id))
         .filter(Boolean);
     
-    const aggregated = {};
-    const fallbackElsewhere = [];
-    const fallbackUnmatched = [];
-    const homeInventory = loadHomeInventoryItems();
-    const seenIngredientNames = new Set();
-    
-    allRecipes.forEach(recipe => {
-        const quickAddAvailable = Array.isArray(recipe.quickAddItems) && recipe.quickAddItems.length > 0;
-        const quickItems = quickAddAvailable ? recipe.quickAddItems.slice() : [];
-        const quickAddNameSet = new Set(
-            (quickItems || []).map(q => normalizeName(q.itemName))
-        );
-        
-        // Only derive keyword matches when no quick add mappings exist.
-        // When mappings exist, still surface unmatched ingredients to the unresolved list without altering totals.
-        if (recipe.display?.ingredients?.length) {
-            recipe.display.ingredients.forEach(text => {
-                const normalized = normalizeName(text);
-                if (seenIngredientNames.has(normalized)) return;
-                const parsedQty = parseIngredientQuantity(text);
-                const match = typeof findIngredientKeywordMatch === 'function'
-                    ? findIngredientKeywordMatch(text, preferredShop)
-                    : null;
-                
-                const coveredByQuickAdd = quickAddNameSet.has(normalizeName(text));
-                const parsedUnitKey = normalizeUnitKey(parsedQty.unit || '');
-                const hasUsableParsedUnit = ['kg','g','l','ml','each','pcs','piece','pieces','slice','slices','pack','packs','loaf'].includes(parsedUnitKey);
-                const qtyValue = hasUsableParsedUnit ? (parsedQty.qty || match?.qtyNeeded || 1) : (match?.qtyNeeded || parsedQty.qty || 1);
-                const unitValue = hasUsableParsedUnit ? (parsedQty.unit || match?.unit || '') : (match?.unit || parsedQty.unit || '');
-                
-                // Allow keyword-based addition when there is no quick add mapping OR this ingredient is not covered by any quick add item
-                if ((!quickAddAvailable || !coveredByQuickAdd) && match) {
-                    quickItems.push({
-                        shop: match.shop,
-                        category: match.category,
-                        itemName: match.itemName,
-                        qtyNeeded: qtyValue,
-                        unit: unitValue
-                    });
-                    seenIngredientNames.add(normalized);
-                } else if (!match) {
-                    fallbackUnmatched.push({
-                        itemName: text,
-                        unit: parsedQty.unit || '',
-                        qtyNeeded: parsedQty.qty || 1
-                    });
-                    seenIngredientNames.add(normalized);
-                }
-            });
+    const normalizeRecipeShoppingId = (val) => (val || '').toString().trim().toLowerCase();
+
+    const loadHiddenRecipeShoppingIds = () => {
+        try {
+            const saved = localStorage.getItem('hiddenRecipeShoppingIds');
+            const parsed = saved ? JSON.parse(saved) : [];
+            const normalized = Array.isArray(parsed) ? parsed.map(normalizeRecipeShoppingId) : [];
+            return new Set(normalized);
+        } catch {
+            return new Set();
         }
-        
-        if (!quickItems.length) return;
-        
-        quickItems.forEach(item => {
-            let resolved = resolveRecipeItemPreferredShopOnly(item, preferredShop);
-            
-            // If the preferred shop lacks this mapping, try keyword-based matching as a secondary lookup
-            if (!resolved && typeof findIngredientKeywordMatch === 'function') {
-                const keywordMatch = findIngredientKeywordMatch(item.itemName, preferredShop);
-                if (keywordMatch) {
-                    const unitMeta = typeof deriveUnitMetadata === 'function'
-                        ? deriveUnitMetadata(keywordMatch.unit || item.unit || '')
-                        : { homeUnit: keywordMatch.unit || item.unit || '', unitsPerPack: extractNumericFromUnit(keywordMatch.unit) || 1, packUnit: keywordMatch.unit || item.unit || '' };
-                    resolved = {
-                        shop: keywordMatch.shop,
-                        category: keywordMatch.category,
-                        itemName: keywordMatch.itemName,
-                        unit: keywordMatch.unit || item.unit || '',
-                        packUnit: unitMeta.packUnit || keywordMatch.unit || item.unit || '',
-                        homeUnit: unitMeta.homeUnit || keywordMatch.unit || item.unit || '',
-                        unitsPerPack: unitMeta.unitsPerPack || 1,
-                        price: keywordMatch.price
-                    };
-                }
-            }
-            
-            if (!resolved) {
-                fallbackElsewhere.push({
-                    itemName: item.itemName,
-                    unit: item.unit || '',
-                    qtyNeeded: item.qtyNeeded || 1
-                });
-                return;
-            }
-            
-            const key = `${resolved.shop}|${resolved.itemName}`;
-            const packSize = resolved.unitsPerPack || resolved.packSize || 1;
-            const baseUnit = resolved.homeUnit || item.unit || '';
-            const convertedNeeded = typeof convertUnitsToTarget === 'function'
-                ? convertUnitsToTarget(item.qtyNeeded || 0, item.unit || baseUnit, baseUnit)
-                : (item.qtyNeeded || 0);
-            const neededInBase = convertedNeeded === null ? (item.qtyNeeded || 0) : convertedNeeded;
+    };
+
+    const hiddenRecipes = loadHiddenRecipeShoppingIds();
+    // When user regenerates manually (non-silent) or requests a reset, allow all recipes again
+    if (!silent || resetHidden) {
+        hiddenRecipes.clear();
+        localStorage.removeItem('hiddenRecipeShoppingIds');
+    }
+    
+    const splitIngredient = (text) => {
+        const trimmed = (text || '').trim();
+        const match = trimmed.match(/^(\d+(?:\.\d+)?)\s*([a-zA-Z]+)?\s+(.*)$/);
+        if (!match) return { qty: null, unit: '', name: trimmed };
+        const qty = parseFloat(match[1]);
+        const unit = match[2] || '';
+        const name = match[3] || '';
+        return { qty: isFinite(qty) ? qty : null, unit, name: name.trim() || trimmed };
+    };
+
+    const normalizeIngredientKey = (name) => {
+        const stop = new Set(['fresh', 'ripe', 'small', 'medium', 'large', 'minced', 'chopped', 'sliced', 'diced', 'ground', 'crushed', 'optional', 'taste', 'pinch', 'handful', 'packed', 'finely', 'roughly', 'peeled', 'seeded', 'halved', 'quartered', 'drained', 'cooked', 'uncooked', 'raw', 'baby', 'grated', 'shredded']);
+        const cleaned = (name || '')
+            .toLowerCase()
+            .replace(/\([^)]*\)/g, ' ')
+            .replace(/[^a-z0-9\s]/g, ' ')
+            .split(/\s+/)
+            .filter(Boolean)
+            .filter(word => !stop.has(word))
+            .join(' ')
+            .trim();
+        if (!cleaned) return '';
+        if (cleaned.endsWith('ies')) return cleaned.slice(0, -3) + 'y';
+        if (cleaned.endsWith('es')) return cleaned.slice(0, -2);
+        if (cleaned.endsWith('s')) return cleaned.slice(0, -1);
+        return cleaned;
+    };
+
+    const formatIngredientName = (rawName, normalized) => {
+        const source = rawName || normalized || '';
+        if (!source) return 'Item';
+        return source.charAt(0).toUpperCase() + source.slice(1);
+    };
+    
+    const buildRowsForIngredients = (ingredients) => {
+        const aggregated = {};
+        ingredients.forEach(text => {
+            if (!text) return;
+            const { qty, unit, name } = splitIngredient(text);
+            const normalizedKey = normalizeIngredientKey(name || text);
+            const fallbackKey = normalizeName(name || text) || (name || text || 'item').toLowerCase();
+            const key = normalizedKey || fallbackKey;
             if (!aggregated[key]) {
-                aggregated[key] = { ...resolved, totalUnits: 0, packSize, unitsPerPack: packSize, homeUnit: baseUnit };
+                aggregated[key] = {
+                    name: formatIngredientName(name, key),
+                    qty: 0,
+                    hasQty: qty !== null,
+                    units: new Set()
+                };
             }
-            aggregated[key].totalUnits += neededInBase;
+            if (qty !== null) {
+                aggregated[key].qty += qty;
+                aggregated[key].hasQty = true;
+            }
+            if (unit) {
+                aggregated[key].units.add(unit.toLowerCase());
+            }
         });
-    });
-    
-    // Subtract home inventory (by matching item name, prefer same shop) using unit counts
-    Object.values(aggregated).forEach(item => {
-        const unitsPerPack = item.unitsPerPack || item.packSize || 1;
-        const baseUnit = item.homeUnit || item.unit;
-        const match = findHomeInventoryMatch(homeInventory, item.itemName, item.shop);
-        let remainingUnits = item.totalUnits;
-        
-        if (match) {
-            const matchUnit = match.baseUnit || match.homeUnit || match.unitLabel || match.unit;
-            const convertedAvailable = match.unlimited
-                ? Infinity
-                : typeof match.qtyUnits === 'number' && typeof convertUnitsToTarget === 'function'
-                    ? convertUnitsToTarget(match.qtyUnits, matchUnit, baseUnit)
-                    : match.qtyUnits;
-            let availableUnits = match.unlimited
-                ? Infinity
-                : (typeof convertedAvailable === 'number' && isFinite(convertedAvailable))
-                    ? convertedAvailable
-                    : match.qtyAvailablePacks && isFinite(match.qtyAvailablePacks)
-                        ? match.qtyAvailablePacks * unitsPerPack
-                        : 0;
-            if (availableUnits === Infinity) {
-                remainingUnits = 0;
-            } else {
-                remainingUnits = Math.max(0, remainingUnits - availableUnits);
-            }
-        }
-        
-        item.totalUnits = remainingUnits;
-        
-        item.qtyNeeded = remainingUnits <= 0
-            ? 0
-            : Math.ceil(remainingUnits / unitsPerPack);
-    });
-    
-    // Remove zero-need items
-    const filtered = Object.values(aggregated).filter(item => item.qtyNeeded > 0);
-    
-    // Group by shop (primary + optional single fallback)
-    const groupedByShop = {};
-    filtered.forEach(item => {
-        if (!groupedByShop[item.shop]) groupedByShop[item.shop] = [];
-        groupedByShop[item.shop].push(item);
-    });
-    
-    let html = '';
-    Object.entries(groupedByShop).forEach(([shop, items]) => {
-        html += buildShoppingTableForShop(shop, items);
-    });
-    
-    if (fallbackElsewhere.length > 0) {
-        html += buildUnresolvedTable(fallbackElsewhere, 'Please buy these ingredients somewhere else');
+
+        return Object.values(aggregated)
+            .sort((a, b) => a.name.localeCompare(b.name))
+            .map(entry => {
+                const singleUnit = entry.units.size === 1 ? Array.from(entry.units)[0] : '';
+                const qtyDisplay = entry.hasQty && entry.qty > 0
+                    ? `${entry.qty % 1 === 0 ? entry.qty : entry.qty.toFixed(2)}${singleUnit ? ' ' + singleUnit : ''}`
+                    : '';
+                return `
+                    <tr>
+                        <td style="border: 1px solid #ddd; padding: 10px; word-break: break-word;">${entry.name}</td>
+                        <td style="border: 1px solid #ddd; padding: 10px; word-break: break-word; text-align: left;">${qtyDisplay}</td>
+                    </tr>
+                `;
+            }).join('');
+    };
+
+    const blocksHtml = allRecipes.map(recipe => {
+        const recipeName = recipe.name || 'Recipe';
+        const recipeId = normalizeRecipeShoppingId(recipe.id || recipeName);
+        if (hiddenRecipes.has(recipeId)) return '';
+        const rows = buildRowsForIngredients(recipe.display?.ingredients || []);
+        if (!rows) return '';
+        const blockId = `recipe-${recipe.id || Math.random().toString(36).slice(2)}`;
+        return `
+            <div class="shopping-list-block" data-shop="${recipeName}" data-source="recipes" data-recipe-id="${recipeId}" style="margin-bottom: 16px; page-break-inside: avoid; border: 2px solid #c7d2fe; border-radius: 12px; overflow: hidden; background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%); box-shadow: 0 6px 14px rgba(55, 65, 81, 0.08);">
+                <details style="background: transparent;">
+                    <summary style="background: #e0e7ff; color: #111827; padding: 12px 14px; font-weight: 800; font-size: 15px; display:flex; align-items:center; justify-content:space-between; cursor:pointer; list-style:none; border-bottom: 1px solid #c7d2fe;">
+                        <span style="display:flex; align-items:center; gap:10px;">
+                            <span aria-hidden="true" style="color:#6366f1;">📄</span>
+                            <h3 style="margin: 0; font-size: 15px; color:#1f2937;">${recipeName}</h3>
+                            <span class="fold-label" data-open="Fold" data-closed="Unfold" style="font-size: 12px; color: #1f2937; background: #c7d2fe; padding: 3px 10px; border-radius: 999px; letter-spacing: 0.2px;">Unfold</span>
+                        </span>
+                        <button class="list-delete-btn" aria-label="Delete this recipe list" title="Delete this recipe list" style="background: white; border: 1px solid #cbd5e1; border-radius: 8px; padding: 6px 10px; cursor: pointer; font-weight: 700; color: #475569; box-shadow: 0 2px 4px rgba(15, 23, 42, 0.08);">✕</button>
+                    </summary>
+                    <div class="table-scroll" style="overflow-x: auto; -webkit-overflow-scrolling: touch; padding: 0 12px 12px; background: #f8fafc;">
+                        <table style="width: 100%; border-collapse: collapse; min-width: 360px; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden;" data-shop="${recipeName}" aria-describedby="${blockId}-title">
+                            <thead>
+                                <tr style="background: #e0f2fe; color: #0f172a;">
+                                    <th id="${blockId}-title" style="border: 1px solid #dbeafe; padding: 10px; text-align: left;">Ingredient</th>
+                                    <th style="border: 1px solid #dbeafe; padding: 10px; text-align: left;">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${rows}
+                            </tbody>
+                        </table>
+                    </div>
+                </details>
+            </div>
+        `;
+    }).filter(Boolean).join('');
+
+    if (!blocksHtml) {
+        if (!silent) alert('No ingredients found in the selected recipes.');
+        return;
     }
-    if (fallbackUnmatched.length > 0) {
-        html += buildUnresolvedTable(fallbackUnmatched, 'Please buy these ingredients somewhere else');
-    }
-    
-    // Persist into shopping tab (append, do not overwrite manual lists)
-    const existing = localStorage.getItem('shoppingListHTML') || '';
-    const combined = `${existing}${html}`;
-    localStorage.setItem('shoppingListHTML', combined);
+
+    localStorage.setItem('recipeShoppingListHTML', blocksHtml);
     
     if (typeof renderShopping === 'function') {
         renderShopping();
     }
     
     const shoppingTab = document.querySelector('[data-tab="shopping"]');
-    if (shoppingTab) shoppingTab.click();
+    if (shoppingTab && !silent) shoppingTab.click();
     
-    alert('✅ Shopping list generated and added to the Shopping tab!');
-}
-
-function resolveRecipeItemPreferredShopOnly(item, preferredShop) {
-    if (!quickAddProducts || Object.keys(quickAddProducts).length === 0) return null;
-    const preferred = findBestProductForShop(item, preferredShop);
-    if (preferred) return preferred;
-    if (preferredShop !== 'Tesco') {
-        const tesco = findBestProductForShop(item, 'Tesco');
-        if (tesco) return tesco;
-    }
-    return null;
-}
-
-function findBestProductForShop(item, shopName) {
-    const catalog = quickAddProducts?.[shopName];
-    if (!catalog) return null;
-    
-    const normalizedTarget = normalizeName(item.itemName);
-    const words = normalizedTarget.split(' ').filter(Boolean);
-    let best = null;
-    
-    Object.entries(catalog).forEach(([category, products]) => {
-        products.forEach(product => {
-            const normalizedProduct = normalizeName(product.name);
-            const score = keywordMatchScore(words, normalizedProduct);
-            if (score === 0) return;
-            
-            const price = typeof product.price === 'number' ? product.price : Infinity;
-            const unitMeta = typeof deriveUnitMetadata === 'function' ? deriveUnitMetadata(product.unit) : { homeUnit: product.unit || item.unit || '', unitsPerPack: extractNumericFromUnit(product.unit) || product.defaultQty || 1, packUnit: product.unit };
-            let packSize = product.defaultQty || 1;
-            const unitCount = extractNumericFromUnit(product.unit);
-            if (packSize === 1 && unitCount) {
-                packSize = unitCount;
-            }
-            
-            if (!best ||
-                score > best.score ||
-                (score === best.score && price < best.price) ||
-                (score === best.score && price === best.price && product.name.localeCompare(best.itemName) < 0)) {
-                best = {
-                    shop: shopName,
-                    category,
-                    itemName: product.name,
-                    unit: product.unit || item.unit || '',
-                    packUnit: product.unit || item.unit || '',
-                    homeUnit: unitMeta.homeUnit,
-                    unitsPerPack: unitMeta.unitsPerPack,
-                    price,
-                    score,
-                    packSize
-                };
-            }
-        });
-    });
-    
-    return best;
+    if (!silent) alert('✅ Shopping list generated and added to the Shopping tab!');
 }
 
 function normalizeName(name) {
     return (name || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
-}
-
-function parseIngredientQuantity(text) {
-    const normalized = (text || '').trim();
-    // Capture the first numeric token and its immediate unit (if any), ignoring trailing words (e.g., "200ml milk")
-    const tokenMatch = normalized.match(/(\d+(?:\.\d+)?)(?:\s*([a-zA-Z]+))?/);
-    let qty = tokenMatch ? parseFloat(tokenMatch[1]) : 1;
-    const unit = tokenMatch && tokenMatch[2] ? tokenMatch[2].toLowerCase() : '';
-    if (!isFinite(qty) || qty <= 0) qty = 1;
-    return { qty, unit };
 }
 
 function ingredientKeywordsFromText(text) {
@@ -1214,118 +968,6 @@ function extractNumericFromUnit(unit) {
     const value = parseFloat(match[1]);
     return isNaN(value) ? null : value;
 }
-
-function keywordMatchScore(keywords, productNameNormalized) {
-    if (!productNameNormalized) return 0;
-    let score = 0;
-    keywords.forEach(word => {
-        if (!word) return;
-        const singular = word.endsWith('s') ? word.slice(0, -1) : word;
-        if (productNameNormalized.includes(word) || (singular && productNameNormalized.includes(singular))) {
-            score++;
-        }
-    });
-    return score;
-}
-
-function buildShoppingTableForShop(shop, items) {
-    const style = typeof getShopBrandStyle === 'function' ? getShopBrandStyle(shop) : { header: '', title: '' };
-    const currency = typeof getCurrencySymbol === 'function' ? getCurrencySymbol() : '£';
-    
-    let total = 0;
-    const rows = items.map(entry => {
-        const itemTotal = (entry.price ?? 0) * entry.qtyNeeded;
-        total += isFinite(itemTotal) ? itemTotal : 0;
-        const priceDisplay = isFinite(entry.price) ? `${currency}${entry.price.toFixed(2)}` : 'N/A';
-        const qtyDisplay = entry.qtyNeeded % 1 === 0 ? entry.qtyNeeded : entry.qtyNeeded.toFixed(2);
-        return `
-            <tr>
-                <td style="border: 1px solid #ddd; padding: 10px;">${entry.itemName}</td>
-                <td style="border: 1px solid #ddd; padding: 10px;">${entry.packUnit || entry.unit || ''}</td>
-                <td class="price-cell" style="border: 1px solid #ddd; padding: 10px; text-align: right;">${priceDisplay}</td>
-                <td class="qty-cell" style="border: 1px solid #ddd; padding: 10px; text-align: center;">${qtyDisplay}</td>
-            </tr>
-        `;
-    }).join('');
-    
-    return `
-        <div class="shopping-list-block" data-shop="${shop}" style="margin-bottom: 24px; page-break-inside: avoid; border: 2px solid #e5e7eb; border-radius: 10px; overflow: hidden;">
-            <div style="${style.header}; display:flex; align-items:center; justify-content:center; position:relative;">
-                <h3 style="${style.title}; margin:0 auto;">${shop}</h3>
-                <button class="list-delete-btn" style="position:absolute; right:10px; top:50%; transform: translateY(-50%); background: white; border: 1px solid #d1d5db; border-radius: 6px; padding: 4px 8px; cursor: pointer; font-weight: 700; color: #6b7280;">✕</button>
-            </div>
-            <table style="width: 100%; border-collapse: collapse;" data-shop="${shop}">
-                <thead>
-                    <tr style="background: #f9fafb;">
-                        <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">Item</th>
-                        <th style="border: 1px solid #ddd; padding: 10px; text-align: left;">Unit</th>
-                        <th style="border: 1px solid #ddd; padding: 10px; text-align: right;">Price</th>
-                        <th style="border: 1px solid #ddd; padding: 10px; text-align: center;">Quantity</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${rows}
-                    <tr class="totals-row" style="background: #f3f4f6; font-weight: 700;">
-                        <td colspan="2" style="border: 1px solid #ddd; padding: 10px; text-align: right;">Subtotal</td>
-                        <td class="total-price-cell" style="border: 1px solid #ddd; padding: 10px; text-align: right;">${currency}${total.toFixed(2)}</td>
-                        <td class="total-qty-cell" style="border: 1px solid #ddd; padding: 10px; text-align: center;">${items.length} items</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    `;
-}
-
-function buildUnresolvedTable(items, title) {
-    const rows = items.map(entry => `
-        <tr>
-            <td style="border: 1px solid #ddd; padding: 10px;">${entry.itemName}</td>
-            <td style="border: 1px solid #ddd; padding: 10px;">${entry.unit || ''}</td>
-            <td style="border: 1px solid #ddd; padding: 10px; text-align: right;">—</td>
-            <td style="border: 1px solid #ddd; padding: 10px; text-align: center;">${entry.qtyNeeded % 1 === 0 ? entry.qtyNeeded : entry.qtyNeeded.toFixed(2)}</td>
-        </tr>
-    `).join('');
-    
-    return `
-        <div class="shopping-list-block" data-shop="Elsewhere" style="margin-bottom: 24px; page-break-inside: avoid; border: 2px dashed #f59e0b; border-radius: 10px; overflow: hidden; background: #fffbeb;">
-            <div style="background: #fbbf24; color: #78350f; padding: 14px 16px; font-weight: 800; font-size: 16px; display:flex; align-items:center; justify-content:space-between;">
-                ${title || 'Currently selected shop does not have these items – buy elsewhere'}
-                <button class="list-delete-btn" style="background: white; border: 1px solid #d1d5db; border-radius: 6px; padding: 4px 8px; cursor: pointer; font-weight: 700; color: #6b7280;">✕</button>
-            </div>
-            <table style="width: 100%; border-collapse: collapse;">
-                <thead>
-                    <tr style="background: #fef3c7;">
-                        <th style="border: 1px solid #fcd34d; padding: 10px; text-align: left;">Item</th>
-                        <th style="border: 1px solid #fcd34d; padding: 10px; text-align: left;">Unit</th>
-                        <th style="border: 1px solid #fcd34d; padding: 10px; text-align: right;">Price</th>
-                        <th style="border: 1px solid #fcd34d; padding: 10px; text-align: center;">Quantity</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${rows}
-                </tbody>
-            </table>
-        </div>
-    `;
-}
-
-function findHomeInventoryMatch(inventory, itemName, preferredShop) {
-    if (!inventory || inventory.length === 0) return null;
-    const normalized = normalizeName(itemName);
-    const sameShop = inventory.find(entry => normalizeName(entry.itemName) === normalized && entry.shop === preferredShop);
-    if (sameShop) return sameShop;
-    const tapMatch = inventory.find(entry => entry.shop === 'Tap' && normalizeName(entry.itemName).includes('water') && normalized.includes('water'));
-    if (tapMatch) return tapMatch;
-    return inventory.find(entry => normalizeName(entry.itemName) === normalized) || null;
-}
-
-function loadHomeInventoryItems() {
-    if (typeof loadHomeInventory === 'function') {
-        return loadHomeInventory();
-    }
-    return [];
-}
-
 // ===================================
 // INITIALIZE ON LOAD
 // ===================================

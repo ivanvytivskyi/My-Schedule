@@ -957,8 +957,8 @@ function addSelectedToShopping() {
         }
         
         shoppingHTML += `
-                        <tr style="background: #f9f9f9; font-weight: bold;">
-                            <td colspan="2" style="border: 1px solid #ddd; padding: 10px; text-align: right;">Totals:</td>
+                        <tr class="totals-row" style="background: #f9f9f9; font-weight: bold;">
+                            <td style="border: 1px solid #ddd; padding: 10px; text-align: right;" colspan="2">Totals:</td>
                             <td style="border: 1px solid #ddd; padding: 10px; text-align: right;">${currencySymbol}${(shopTotal || 0).toFixed(2)}</td>
                             <td style="border: 1px solid #ddd; padding: 10px; text-align: center;">Total Qty: ${totalQtyDisplay}</td>
                         </tr>
@@ -988,7 +988,8 @@ function addSelectedToShopping() {
 function deleteShopList(shopId) {
     if (confirm('Delete this shopping list?')) {
         const container = document.getElementById('shoppingDisplay');
-        if (!container) return;
+        const quickSection = document.getElementById('quickAddLists') || container;
+        if (!quickSection) return;
         
         const shopDiv = document.getElementById(shopId);
         if (shopDiv) {
@@ -1015,7 +1016,7 @@ function deleteShopList(shopId) {
                 }
             }
             
-            let updatedHTML = container.innerHTML.trim();
+            let updatedHTML = quickSection.innerHTML.trim();
             updatedHTML = updatedHTML.replace(/(<div style="margin: 40px 0; border-top: 3px solid #ddd;"><\/div>\s*){2,}/g, '<div style="margin: 40px 0; border-top: 3px solid #ddd;"></div>');
             updatedHTML = updatedHTML.replace(/^<div style="margin: 40px 0; border-top: 3px solid #ddd;"><\/div>\s*/g, '');
             updatedHTML = updatedHTML.replace(/\s*<div style="margin: 40px 0; border-top: 3px solid #ddd;"><\/div>$/g, '');

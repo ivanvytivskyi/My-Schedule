@@ -52,7 +52,9 @@ function formatRecipeDatabase(recipes, batchDuration) {
         .sort((a, b) => a.id.localeCompare(b.id));
     
     const lines = [];
-    lines.push('=== RECIPE DATABASE ===\n');
+    lines.push('=== RECIPE DATABASE ===');
+    lines.push('Use the R-numbers shown here (R1, R2...) when adding meals in the schedule and in the final comma-separated list.');
+    lines.push('');
     
     lines.push('BREAKFAST OPTIONS (pick variety, serves 1):');
     lines.push(breakfast.length ? breakfast.map(formatRecipeLine).join('\n') : 'None available for current filters');
@@ -66,7 +68,7 @@ function formatRecipeDatabase(recipes, batchDuration) {
     lines.push(custom.length ? custom.map(formatRecipeLine).join('\n') : 'None yet');
     lines.push('');
     
-    lines.push('Legend: 🥬=Vegetarian 🌱=Vegan 🥜=Contains nuts 🥛=Contains dairy 🌾=Contains gluten');
+    lines.push('Allergy & diet key: 🥬=Vegetarian 🌱=Vegan 🥜=Contains nuts 🥛=Contains dairy 🌾=Contains gluten');
     
     return lines.join('\n');
 }
@@ -81,10 +83,9 @@ function describeDietaryFilters(filters) {
     return active.length ? active.join(', ') : 'None';
 }
 
-function buildRecipeSelectionRules({ shop, batchDuration, filters }) {
+function buildRecipeSelectionRules({ batchDuration, filters }) {
     const rules = [];
     rules.push('=== RECIPE SELECTION RULES ===');
-    rules.push(`Shop: ${shop || 'Any'}`);
     rules.push(`Batch cook lasts: ${batchDuration} day${batchDuration === '1' ? '' : 's'}`);
     rules.push(`Dietary: ${describeDietaryFilters(filters)}`);
     rules.push('');
@@ -93,13 +94,11 @@ function buildRecipeSelectionRules({ shop, batchDuration, filters }) {
     rules.push('- Use batch cook for lunch/dinner');
     rules.push('- Respect dietary restrictions');
     rules.push('- Consider pantry items to reduce cost');
-    rules.push('- Stay within budget');
     rules.push('');
     rules.push('❌ DON\'T:');
     rules.push('- Use the same breakfast every day');
     rules.push('- Suggest recipes user can\'t eat');
-    rules.push('- Exceed budget');
-    rules.push('- Include items not in the selected shop');
+    rules.push('- Ignore dietary restrictions');
     return rules.join('\n');
 }
 
@@ -108,7 +107,7 @@ function buildRecipePromptSection({ shop, batchDuration = '1', filters = {} }) {
     const filtered = filterRecipesByShop(filterRecipesByDietary(allRecipes, filters), shop);
     
     const databaseSection = formatRecipeDatabase(filtered, batchDuration);
-    const rulesSection = buildRecipeSelectionRules({ shop, batchDuration, filters });
+    const rulesSection = buildRecipeSelectionRules({ batchDuration, filters });
     
     return `${databaseSection}\n\n${rulesSection}`;
 }

@@ -39,12 +39,16 @@ function importSchedule() {
     }
     
     try {
-        parseAndCreateSchedule(input);
+        const result = parseAndCreateSchedule(input);
         closeImportSchedule();
         document.getElementById('scheduleInput').value = '';
         
         const daysCreated = Object.keys(scheduleData.days).length;
-        alert(`🎉 SUCCESS!\n\n${daysCreated} day${daysCreated > 1 ? 's' : ''} imported!`);
+        if (result?.recipeOnly) {
+            alert(`✅ Recipes linked (${result.recipeCount || 0}) and shopping list generated from recipe IDs.`);
+        } else {
+            alert(`🎉 SUCCESS!\n\n${daysCreated} day${daysCreated > 1 ? 's' : ''} imported!`);
+        }
     } catch (error) {
         console.error('Import error:', error);
         alert(`❌ Error: ${error.message}\n\nCheck console (F12) for details.`);

@@ -309,15 +309,7 @@
                     
                     <div style="display: grid; gap: 8px; margin-bottom: 12px;">
                         <button type="button" onclick="openImportSchedule()" style="width: 100%; padding: 12px; background: rgba(255,255,255,0.95); color: #667eea; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: all 0.3s ease;">
-                            📅 Import Schedule (Days & Time Blocks)
-                        </button>
-                        
-                        <button type="button" onclick="openImportShopping()" style="width: 100%; padding: 12px; background: rgba(255,255,255,0.95); color: #667eea; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: all 0.3s ease;">
-                            🛒 Import Shopping List
-                        </button>
-                        
-                        <button type="button" onclick="openImportRecipes()" style="width: 100%; padding: 12px; background: rgba(255,255,255,0.95); color: #667eea; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: all 0.3s ease;">
-                            👨‍🍳 Import Recipes
+                            📥 Import AI Output (Schedule + Recipe IDs)
                         </button>
                     </div>
                 </div>
@@ -563,13 +555,6 @@
                     <h3 style="margin: 0 0 15px 0; font-size: 20px;">🍳 Meals & Shopping</h3>
                     
                     <div style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">🏪 Preferred shop:</label>
-                        <select id="promptShop" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px; color: #2c3e50;">
-                            <option value="Tesco">Tesco</option>
-                        </select>
-                    </div>
-                    
-                    <div style="margin-bottom: 15px;">
                         <label style="display: block; margin-bottom: 8px; font-weight: 600;">Food preferences:</label>
                         <input type="text" id="promptFoodPrefs" placeholder="e.g., simple, quick, vegetarian" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
                     </div>
@@ -620,15 +605,6 @@
                         <p style="margin: 8px 0 0 0; font-size: 13px; opacity: 0.9; padding-left: 30px;">
                             If checked, AI will reduce shopping list and plan meals accordingly
                         </p>
-                    </div>
-                    
-                    <div style="margin-bottom: 0;">
-                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Budget:</label>
-                        <select id="promptBudget" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;">
-                            <option value="low">Low (£10-15/week)</option>
-                            <option value="moderate" selected>Moderate (£20-30/week)</option>
-                            <option value="flexible">Flexible (£30+/week)</option>
-                        </select>
                     </div>
                 </div>
                 
@@ -698,42 +674,37 @@
                         <li>Click "Copy Prompt" above</li>
                         <li>Go to ChatGPT.com or Claude.ai</li>
                         <li>Paste and send the prompt</li>
-                        <li>AI will give you: Schedule + Shopping + Recipes</li>
-                        <li>Use these buttons to import each part:</li>
-                        <li style="list-style: none; margin-top: 8px;">
-                            <span style="background: #f5576c; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin-right: 4px;">📥 Import Schedule</span>
-                            <span style="background: #00f2fe; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; margin-right: 4px;">🛒 Import Shopping</span>
-                            <span style="background: #38f9d7; color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px;">👨‍🍳 Import Recipes</span>
-                        </li>
+                        <li>AI will give you: Schedule + recipe IDs on one line</li>
+                        <li>Use the single import button below to paste it back</li>
                     </ol>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Response Importer Modal -->
-    <!-- Import Schedule Modal -->
+    <!-- Unified Import Modal -->
     <div id="importScheduleModal" class="modal">
         <div class="modal-content" style="max-width: 700px;">
             <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 20px; border-radius: 12px 12px 0 0; margin: -20px -20px 20px -20px;">
                 <h2 style="margin: 0; color: white; display: flex; align-items: center; gap: 10px;">
-                    📥 Import Schedule
+                    📥 Import AI Output
                     <button onclick="closeImportSchedule()" style="margin-left: auto; background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">✕ Close</button>
                 </h2>
-                <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">Paste daily schedule blocks here!</p>
+                <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">Paste the AI response with 7-day schedule and recipe IDs (last line, comma-separated).</p>
             </div>
             
             <div style="padding: 20px;">
-                <label style="display: block; margin-bottom: 10px; font-weight: 500;">Paste Schedule (Days & Time Blocks):</label>
-                <textarea id="scheduleInput" placeholder="=== FRIDAY — 12 Dec 2025 ===
+                <label style="display: block; margin-bottom: 10px; font-weight: 500;">Paste schedule + recipe IDs:</label>
+                <textarea id="scheduleInput" placeholder="=== MONDAY — 22 Dec 2025 ===
 
 07:00-07:30 | Morning Routine | Wake up, shower
-07:30-08:00 | Breakfast | Eggs and toast
-08:00-10:00 | Study | Math practice
-..." style="width: 100%; height: 300px; padding: 15px; border: 2px solid #ddd; border-radius: 8px; font-family: monospace; font-size: 12px; resize: vertical;"></textarea>
+07:30-08:00 | Breakfast | Porridge (R5)
+...more blocks...
+
+R4, R5, R6, R10" style="width: 100%; height: 300px; padding: 15px; border: 2px solid #ddd; border-radius: 8px; font-family: monospace; font-size: 12px; resize: vertical;"></textarea>
                 
                 <button onclick="importSchedule()" style="width: 100%; padding: 15px; background: #f5576c; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 15px;">
-                    ✨ Import Days!
+                    ✨ Import & Apply
                 </button>
                 
                 <div style="margin-top: 15px; padding: 12px; background: #fff3e0; border-radius: 6px; border-left: 4px solid #ff9800;">
