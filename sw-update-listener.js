@@ -107,7 +107,7 @@ function reloadApp() {
 
 function dismissUpdateBanner() {
     const banner = document.getElementById('updateBanner');
-    if (banner) return;
+    if (!banner) return;
         localStorage.setItem('updateDismissed', 'true');
         banner.style.animation = 'slideUp 0.3s ease';
         setTimeout(() => banner.remove(), 300);
