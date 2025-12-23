@@ -19,7 +19,7 @@ function updateInstallButtonVisibility(isReady) {
 function registerServiceWorker() {
     if (!('serviceWorker' in navigator)) return;
 
-    navigator.serviceWorker.register('/My-Schedule/service-worker.js').catch(err => {
+    navigator.serviceWorker.register('./service-worker.js').catch(err => {
         console.error('[PWA] Service worker registration failed:', err);
     });
 }
