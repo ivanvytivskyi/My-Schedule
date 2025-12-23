@@ -35,7 +35,7 @@ function initializeRecipeLibrary() {
         <div class="recipe-actions-bar" style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-bottom: 15px;">
             <div style="flex: 1; min-width: 220px; color: #4b5563; font-weight: 600; display: flex; align-items: center; gap: 10px;">
                 <span style="font-size: 22px;">✨</span>
-                <span>Save your own dishes as Custom Recipes (IDs auto-start at R50)</span>
+                <span>Save your own dishes as Custom Recipes (IDs auto-start at CR1)</span>
             </div>
             <button onclick="openCustomRecipeModal()" class="primary-btn">
                 ➕ Add Custom Recipe
@@ -453,7 +453,7 @@ function saveCustomRecipe() {
     if (editingRecipeId) {
         const updated = updateRecipe(editingRecipeId, recipeData);
         if (!updated) {
-            alert('Unable to update recipe. Only custom recipes (R50+) can be edited.');
+            alert('Unable to update recipe. Only custom recipes (CR1+) can be edited.');
             return;
         }
         alert('✅ Recipe updated!');
@@ -478,7 +478,7 @@ function confirmDeleteCustomRecipe() {
         closeCustomRecipeModal();
         alert('🗑️ Custom recipe deleted.');
     } else {
-        alert('Unable to delete this recipe. Only custom recipes (R50+) can be removed.');
+        alert('Unable to delete this recipe. Only custom recipes (CR1+) can be removed.');
     }
 }
 
@@ -492,7 +492,7 @@ function handleDeleteFromCard(recipeId) {
         refreshRecipeViews();
         alert('🗑️ Custom recipe deleted.');
     } else {
-        alert('Unable to delete this recipe. Only custom recipes (R50+) can be removed.');
+        alert('Unable to delete this recipe. Only custom recipes (CR1+) can be removed.');
     }
 }
 
