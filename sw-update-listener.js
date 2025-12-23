@@ -112,6 +112,20 @@ function dismissUpdateBanner() {
         banner.style.animation = 'slideUp 0.3s ease';
         setTimeout(() => banner.remove(), 300);
     }
+async function manualUpdateCheck() {
+  // allow the banner to show again
+  localStorage.removeItem('updateDismissed');
+
+  if (!('serviceWorker' in navigator)) {
+    window.location.reload();
+    return;
+  }
+
+  const reg = await navigator.serviceWorker.ready;
+  await reg.update(); // this should trigger your CACHE_UPDATED message if a new SW activates
+}
 }
 
 console.log('✅ Service Worker update detection loaded!');
+
+
