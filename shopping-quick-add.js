@@ -1217,67 +1217,52 @@ function saveCategoryNameInline(shopIndex, catIndex, newName) {
 // ========================================
 function loadCustomProducts() {
     const saved = localStorage.getItem('quickAddProducts');
-    
-    if (!saved) {
-        // First time - just use defaults
-        console.log('[Quick Add] First time load - using defaults');
-        return;
-    }
-    
+
+    // 1. If user never saved anything, just use defaults
+    if (!saved) return;
+
     try {
-        const userProducts = JSON.parse(saved);
-        const defaultProducts = quickAddProducts; // Save reference to defaults defined in code
-        
-        // Store original defaults for comparison
-        const originalDefaults = JSON.parse(JSON.stringify(defaultProducts));
-        
-        // Start with user's saved data
-        quickAddProducts = userProducts;
-        
-        console.log('[Quick Add] Merging user data with new defaults...');
-        
-        // Merge: Add new shops/categories/items from defaults
-        Object.keys(originalDefaults).forEach(shop => {
-            // Add new shop if it doesn't exist
-            if (!quickAddProducts[shop]) {
-                console.log(`[Quick Add] Adding new shop: ${shop}`);
-                quickAddProducts[shop] = originalDefaults[shop];
+        const userData = JSON.parse(saved);
+        const defaults = quickAddProducts;
+
+        // 2. Loop default shops
+        Object.keys(defaults).forEach(shop => {
+            if (!userData[shop]) {
+                // New shop → add fully
+                userData[shop] = defaults[shop];
                 return;
             }
-            
-            // Shop exists - merge categories
-            Object.keys(originalDefaults[shop]).forEach(category => {
-                // Add new category if it doesn't exist
-                if (!quickAddProducts[shop][category]) {
-                    console.log(`[Quick Add] Adding new category: ${shop} -> ${category}`);
-                    quickAddProducts[shop][category] = originalDefaults[shop][category];
+
+            // 3. Loop default categories
+            Object.keys(defaults[shop]).forEach(category => {
+                if (!userData[shop][category]) {
+                    // New category → add fully
+                    userData[shop][category] = defaults[shop][category];
                     return;
                 }
-                
-                // Category exists - merge items
-                const defaultItems = originalDefaults[shop][category];
-                const userItems = quickAddProducts[shop][category];
-                
-                // Create a map of existing items by name
-                const userItemNames = new Set(userItems.map(item => item.name.toLowerCase()));
-                
-                // Add new default items that don't exist
-                defaultItems.forEach(defaultItem => {
-                    if (!userItemNames.has(defaultItem.name.toLowerCase())) {
-                        console.log(`[Quick Add] Adding new item: ${shop} -> ${category} -> ${defaultItem.name}`);
-                        quickAddProducts[shop][category].push(defaultItem);
+
+                // 4. Loop default items
+                defaults[shop][category].forEach(defaultItem => {
+                    const exists = userData[shop][category].some(userItem =>
+                        userItem.name.toLowerCase() === defaultItem.name.toLowerCase()
+                    );
+
+                    // 5. Add ONLY missing items
+                    if (!exists) {
+                        userData[shop][category].push(defaultItem);
                     }
                 });
             });
         });
-        
-        // Save merged data back to localStorage
+
+        // 6. Use merged result
+        quickAddProducts = userData;
+
+        // 7. Save back (safe)
         localStorage.setItem('quickAddProducts', JSON.stringify(quickAddProducts));
-        console.log('[Quick Add] Merge complete!');
-        
+
     } catch (e) {
-        console.error('[Quick Add] Error loading/merging custom products:', e);
-        // If error, keep defaults
+        console.error('Quick Add load failed:', e);
     }
 }
 
