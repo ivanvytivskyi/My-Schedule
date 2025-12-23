@@ -110,6 +110,7 @@ let quickAddProducts = {
             { name: "Flour (Plain)", unit: "1.5kg", price: 1.10, defaultQty: 1 },
             { name: "Strawberry Jam", unit: "454g", price: 0.89, defaultQty: 1 },
             { name: "Sugar (White)", unit: "1kg", price: 1.20, defaultQty: 1 },
+            { name: "Grower's Harvest Sultanas", unit: "500g", price: 1.15, defaultQty: 1 },
             { name: "Buckwheat Groats", unit: "1kg", price: 2.20, defaultQty: 1 },
             { name: "Red Split Lentils", unit: "pack of 1kg", price: 2.50, defaultQty: 1},
             { name: "Light Soy Sauce", unit: "150ml", price: 0.55, defaultQty: 1 },
