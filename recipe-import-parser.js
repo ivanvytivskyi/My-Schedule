@@ -4,7 +4,7 @@
 
 function extractRecipeIDs(responseText) {
     if (!responseText) return [];
-    const matches = responseText.match(/R\d+/g) || [];
+    const matches = responseText.match(/\b(?:R|CR)\d+\b/g) || [];
     const uniqueIDs = [...new Set(matches)];
     return uniqueIDs.filter(id => {
         const recipe = typeof getRecipe === 'function' ? getRecipe(id) : null;
