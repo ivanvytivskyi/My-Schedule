@@ -114,20 +114,39 @@ function dismissUpdateBanner() {
         const btn = document.getElementById('manualUpdateBtn');
         if (btn) btn.style.display = 'flex';
     }
-async function manualUpdateCheck() {
-     // allow the banner to show again
-    localStorage.removeItem('updateDismissed');
-     // hide the button again
-    const btn = document.getElementById('manualUpdateBtn');
-    if (btn) btn.style.display = 'none';
 
-    if (!('serviceWorker' in navigator)) {
+async function manualUpdateCheck() {
+  // allow the banner to show again
+  localStorage.removeItem('updateDismissed');
+
+  // hide the button again
+  const btn = document.getElementById('manualUpdateBtn');
+  if (btn) btn.style.display = 'none';
+
+  if (!('serviceWorker' in navigator)) {
     window.location.reload();
     return;
   }
 
   const reg = await navigator.serviceWorker.ready;
-  await reg.update(); // this should trigger your CACHE_UPDATED message if a new SW activates
+
+  // Ask browser to re-check the SW file
+  await reg.update();
+
+  // If an update is already waiting, show banner immediately
+  if (reg.waiting) {
+    // if you want: show banner, or just force reload
+    showUpdateNotification(localStorage.getItem('lastSeenVersion') || 'new');
+    return;
+  }
+
+  // If nothing changed, give user feedback
+  alert('✅ You are already on the latest version.');
+}
+
+const manualBtn = document.getElementById('manualUpdateBtn');
+if (manualBtn && localStorage.getItem('updateDismissed') === 'true') {
+  manualBtn.style.display = 'flex';
 }
 
 console.log('✅ Service Worker update detection loaded!');
