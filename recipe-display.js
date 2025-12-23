@@ -229,6 +229,11 @@ function applyFilters(recipes) {
 
 function isCustomRecipeId(recipeId) {
     if (!recipeId || typeof recipeId !== 'string') return false;
+
+    // New format: CR1, CR2, ...
+    if (/^CR\d+$/i.test(recipeId)) return true;
+
+    // Legacy support: R50+
     const numeric = parseInt(recipeId.replace(/[^\d]/g, ''), 10);
     return !isNaN(numeric) && numeric >= 50;
 }
