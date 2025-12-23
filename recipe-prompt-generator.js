@@ -51,9 +51,10 @@ function formatRecipeDatabase(recipes, batchDuration) {
     
     const lines = [];
     lines.push('=== RECIPE DATABASE ===');
-    lines.push('Use the recipe IDs shown here when adding meals in the schedule and in the final comma-separated list.
-R1+ are default recipes, CR1+ are custom recipes. Choose whichever best fits available ingredients.');
-    lines.push(''); 
+    lines.push(
+  'Use the recipe IDs shown here when adding meals in the schedule and in the final comma-separated list.\n' +
+  'R1+ are default recipes, CR1+ are custom recipes. Choose whichever best fits available ingredients.'
+); 
     
     lines.push('BREAKFAST OPTIONS (pick variety, serves 1):');
     lines.push(breakfast.length ? breakfast.map(formatRecipeLine).join('\n') : 'None available for current filters');
