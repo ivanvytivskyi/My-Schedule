@@ -10,6 +10,12 @@ if ('serviceWorker' in navigator) {
             showUpdateNotification(event.data.version);
         }
     });
+
+    if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    window.location.reload();
+  });
+}
     
     // Check for updates on page load
     navigator.serviceWorker.ready.then(registration => {
@@ -116,10 +122,10 @@ function dismissUpdateBanner() {
     }
 
 async function manualUpdateCheck() {
-  // allow the banner to show again
+  // allow banner to show again
   localStorage.removeItem('updateDismissed');
 
-  // hide the button again
+  // hide the manual button while checking
   const btn = document.getElementById('manualUpdateBtn');
   if (btn) btn.style.display = 'none';
 
@@ -130,24 +136,32 @@ async function manualUpdateCheck() {
 
   const reg = await navigator.serviceWorker.ready;
 
-  // Ask browser to re-check the SW file
-  await reg.update();
-
-  // If an update is already waiting, show banner immediately
+  // If there's already a waiting SW, activate it now
   if (reg.waiting) {
-    // if you want: show banner, or just force reload
-    showUpdateNotification(localStorage.getItem('lastSeenVersion') || 'new');
+    reg.waiting.postMessage({ type: 'SKIP_WAITING' });
     return;
   }
 
-  // If nothing changed, give user feedback
+  // Ask browser to re-check the SW file
+  await reg.update();
+
+  // After update(), you might now have a waiting SW
+  if (reg.waiting) {
+    reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+    return;
+  }
+
   alert('✅ You are already on the latest version.');
 }
 
-const manualBtn = document.getElementById('manualUpdateBtn');
-if (manualBtn && localStorage.getItem('updateDismissed') === 'true') {
-  manualBtn.style.display = 'flex';
-}
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('manualUpdateBtn');
+  if (!btn) return;
+
+  btn.style.display = (localStorage.getItem('updateDismissed') === 'true')
+    ? 'flex'
+    : 'none';
+});
 
 console.log('✅ Service Worker update detection loaded!');
 
