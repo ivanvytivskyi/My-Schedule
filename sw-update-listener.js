@@ -25,12 +25,20 @@ if ('serviceWorker' in navigator) {
 }
 
 function showUpdateNotification(version) {
-    // Create update banner
-    const existingBanner = document.getElementById('updateBanner');
-    if (existingBanner) return; // Already showing
-    
+
+    const lastVersion = localStorage.getItem('lastSeenVersion');
+    if (lastVersion !== String(version)) {
+        localStorage.removeItem('updateDismissed');
+        localStorage.setItem('lastSeenVersion', String(version));
+    }
+
+    if (localStorage.getItem('updateDismissed') === 'true') return;
+
+    if (document.getElementById('updateBanner')) return;
+
     const banner = document.createElement('div');
     banner.id = 'updateBanner';
+
     banner.style.cssText = `
         position: fixed;
         top: 0;
@@ -76,6 +84,7 @@ function showUpdateNotification(version) {
 }
 
 function reloadApp() {
+    dismissUpdateBanner();
     // Clear service worker cache and reload
     if ('serviceWorker' in navigator) {
         navigator.serviceWorker.getRegistrations().then(registrations => {
@@ -98,7 +107,8 @@ function reloadApp() {
 
 function dismissUpdateBanner() {
     const banner = document.getElementById('updateBanner');
-    if (banner) {
+    if (banner) return;
+        localStorage.setItem('updateDismissed', 'true');
         banner.style.animation = 'slideUp 0.3s ease';
         setTimeout(() => banner.remove(), 300);
     }
