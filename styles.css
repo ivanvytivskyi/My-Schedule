@@ -80,7 +80,7 @@ body.edit-mode .static-name {
 
 .manual-update-btn {
   position: absolute;
-  top: 20px;
+  top: 50px;
   right: 20px;
 
   width: 42px;
@@ -292,7 +292,7 @@ body.edit-mode .add-event-btn {
     height: 50px;
     border-radius: 50%;
     cursor: pointer;
-    font-size: 20px;
+    font-size: 50px;
     transition: all 0.3s ease;
     flex-shrink: 0;
     display: flex;
