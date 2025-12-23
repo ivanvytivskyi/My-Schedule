@@ -124,7 +124,6 @@ async function manualUpdateCheck() {
   const reg = await navigator.serviceWorker.ready;
   await reg.update(); // this should trigger your CACHE_UPDATED message if a new SW activates
 }
-}
 
 console.log('✅ Service Worker update detection loaded!');
 
