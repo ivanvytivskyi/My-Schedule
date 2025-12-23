@@ -47,9 +47,7 @@ function formatRecipeDatabase(recipes, batchDuration) {
     const batch = recipes
         .filter((r) => r.category === 'batch')
         .sort((a, b) => a.id.localeCompare(b.id));
-    const custom = recipes
-        .filter((r) => r.id && r.id.startsWith('CR'))
-        .sort((a, b) => a.id.localeCompare(b.id));
+    
     
     const lines = [];
     lines.push('=== RECIPE DATABASE ===');
@@ -65,9 +63,7 @@ R1+ are default recipes, CR1+ are custom recipes. Choose whichever best fits ava
     lines.push(batch.length ? batch.map(formatRecipeLine).join('\n') : 'None available for current filters');
     lines.push('');
     
-    lines.push('CUSTOM RECIPES:');
-    lines.push(custom.length ? custom.map(formatRecipeLine).join('\n') : 'None yet');
-    lines.push('');
+   
     
     lines.push('Allergy & diet key: 🥬=Vegetarian 🌱=Vegan 🥜=Contains nuts 🥛=Contains dairy 🌾=Contains gluten');
     
