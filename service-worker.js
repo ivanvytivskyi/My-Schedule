@@ -1,5 +1,5 @@
 // Service Worker for Weekly Schedule Manager
-const CACHE_VERSION = '2.0'; // INCREMENT THIS FOR EACH UPDATE!
+const CACHE_VERSION = '2.0.0'; // INCREMENT THIS FOR EACH UPDATE!
 const CACHE_NAME = `schedule-manager-v${CACHE_VERSION}`;
 const urlsToCache = [
   './',
@@ -16,8 +16,9 @@ const urlsToCache = [
   './recipe-import-parser.js',
   './ingredient-keywords.js',
   './sw-update-listener.js',
-  './icon-192.png',
-  './icon-512.png'
+  './icon-192-v2.0.0.png',
+  './icon-512-v2.0.0.png',
+  './apple-touch-icon-v2.0.0.png'
 ];
 
 // Install service worker
