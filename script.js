@@ -3278,7 +3278,7 @@ Create a COMPLETE 7-day schedule only. Output must be copy-paste ready for the a
 FORMAT RULES:
 1) Each day header: === DAY — DD Mon YYYY ===
 2) Each block on its own line: HH:MM–HH:MM | EMOJI Title | Tasks
-3) Add the recipe ID next to meal titles, e.g., "🍳 Breakfast | Porridge oats with honey (R5)". Recipe IDs use the R-numbering shown in the database above.
+3) Add the recipe ID next to meal titles, e.g., "🍳 Breakfast | Porridge oats with honey (R5)". Recipe IDs use the R1+ for defaults and CR1+ for custom shown in the database above.
 4) After all 7 days, add one blank line, then a SINGLE LINE with all recipe IDs you used, comma-separated, and NO heading (e.g., R4, R5, R6).
 5) Do NOT include shopping lists, meal summaries, video links, or extra headings (specifically avoid: “🗓️ WEEKLY SCHEDULE”, “🛒 SHOPPING LIST…”, “🍽️ MEAL PLAN SUMMARY…”, “📌 RECIPES USED”, or any “If you want…” variants).
 6) Keep meals simple and quick. Use products at home first: ${homeInventorySummary || 'none'}.
@@ -3516,7 +3516,7 @@ function parseAndCreateSchedule(response) {
                 
                 if (title || tasks.length > 0) {
                     const blockText = `${title} ${tasks.join(' ')}`.trim();
-                    const recipeMatches = blockText.match(/R\d+/gi) || [];
+                    const recipeMatches = blockText.match(/(?:CR|R)\d+/gi) || [];
                     let recipeID = null;
                     let recipeName = null;
                     recipeMatches.forEach(id => {
