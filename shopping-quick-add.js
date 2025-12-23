@@ -94,7 +94,6 @@ let quickAddProducts = {
             { name: "Broccoli", unit: "375g", price: 0.82, defaultQty: 1 },
             { name: "Tomatoes", unit: "kg", price: 2.00, defaultQty: 0.5 },
             { name: "Cucumbers", unit: "each", price: 0.60, defaultQty: 1 },
-            { name: "Broccoli", unit: "head", price: 0.85, defaultQty: 1 },
             { name: "Bunched Spring Onions", unit: "100g", price: 0.69, defaultQty: 1 },
             { name: "Garlic", unit: "4 pack", price: 0.88, defaultQty: 1 },
             
