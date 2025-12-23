@@ -111,12 +111,17 @@ function dismissUpdateBanner() {
         localStorage.setItem('updateDismissed', 'true');
         banner.style.animation = 'slideUp 0.3s ease';
         setTimeout(() => banner.remove(), 300);
+        const btn = document.getElementById('manualUpdateBtn');
+        if (btn) btn.style.display = 'flex';
     }
 async function manualUpdateCheck() {
-  // allow the banner to show again
-  localStorage.removeItem('updateDismissed');
+     // allow the banner to show again
+    localStorage.removeItem('updateDismissed');
+     // hide the button again
+    const btn = document.getElementById('manualUpdateBtn');
+    if (btn) btn.style.display = 'none';
 
-  if (!('serviceWorker' in navigator)) {
+    if (!('serviceWorker' in navigator)) {
     window.location.reload();
     return;
   }
