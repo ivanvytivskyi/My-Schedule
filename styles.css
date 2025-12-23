@@ -95,7 +95,6 @@ body.edit-mode .static-name {
   font-size: 32px;
   cursor: pointer;
 
-  display: flex;
   align-items: center;
   justify-content: center;
 
