@@ -2,22 +2,22 @@
 const CACHE_VERSION = '7.4'; // INCREMENT THIS FOR EACH UPDATE!
 const CACHE_NAME = `schedule-manager-v${CACHE_VERSION}`;
 const urlsToCache = [
-  '/',
-  '/index.html',
-  '/styles.css',
-  '/script.js',
-  '/import-functions.js',
-  '/shopping-quick-add.js',
-  '/manifest.json',
-  '/pwa.js',
-  '/recipe-database.js',
-  '/recipe-display.js',
-  '/recipe-prompt-generator.js',
-  '/recipe-import-parser.js',
-  '/ingredient-keywords.js',
-  '/sw-update-listener.js',
-  '/icon-192.png',
-  '/icon-512.png'
+  './',
+  './index.html',
+  './styles.css',
+  './script.js',
+  './import-functions.js',
+  './shopping-quick-add.js',
+  './manifest.json',
+  './pwa.js',
+  './recipe-database.js',
+  './recipe-display.js',
+  './recipe-prompt-generator.js',
+  './recipe-import-parser.js',
+  './ingredient-keywords.js',
+  './sw-update-listener.js',
+  './icon-192.png',
+  './icon-512.png'
 ];
 
 // Install service worker
