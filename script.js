@@ -3279,7 +3279,7 @@ FORMAT RULES:
 1) Each day header: === DAY — DD Mon YYYY ===
 2) Each block on its own line: HH:MM–HH:MM | EMOJI Title | Tasks
 3) Add the recipe ID next to meal titles, e.g., "🍳 Breakfast | Porridge oats with honey (R5)". Recipe IDs use the R1+ for defaults and CR1+ for custom shown in the database above.
-4) After all 7 days, add one blank line, then a SINGLE LINE with all recipe IDs you used, comma-separated, and NO heading (e.g., R4, R5, R6).
+4) After all 7 days, add one blank line, then a SINGLE LINE with all recipe IDs you used, comma-separated, and NO heading (e.g., R4, CR2, R6).
 5) Do NOT include shopping lists, meal summaries, video links, or extra headings (specifically avoid: “🗓️ WEEKLY SCHEDULE”, “🛒 SHOPPING LIST…”, “🍽️ MEAL PLAN SUMMARY…”, “📌 RECIPES USED”, or any “If you want…” variants).
 6) Keep meals simple and quick. Use products at home first: ${homeInventorySummary || 'none'}.
 7) Always include realistic cooking/prep blocks before meals (especially lunch). Mention if dinner is reheated from lunch (for single-day batches) or from a batch that lasts multiple days, and state how many days it covers.
@@ -3292,7 +3292,7 @@ EXAMPLE (shortened):
 ...continue blocks...
 
 After 7th day:
-R4, R5, R6`;
+R4, CR2, R6`;
 
     // Show generated prompt
     document.getElementById('generatedPromptText').value = prompt;
