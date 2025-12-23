@@ -80,7 +80,7 @@ body.edit-mode .static-name {
 
 .manual-update-btn {
   position: absolute;
-  top: 50px;
+  top: 70px;
   right: 20px;
 
   width: 42px;
@@ -91,7 +91,7 @@ body.edit-mode .static-name {
   color: white;
   border: none;
 
-  font-size: 40px;
+  font-size: 32px;
   cursor: pointer;
 
   display: flex;
