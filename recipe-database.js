@@ -1440,7 +1440,7 @@ const defaultRecipes = {
 };
 
 // ===================================
-// USER RECIPES (R50+)
+// USER RECIPES (CR1+)
 // ===================================
 
 let userRecipes = {};
