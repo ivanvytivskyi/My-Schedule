@@ -48,7 +48,7 @@ function formatRecipeDatabase(recipes, batchDuration) {
         .filter((r) => r.category === 'batch')
         .sort((a, b) => a.id.localeCompare(b.id));
     const custom = recipes
-        .filter((r) => r.id && r.id.startsWith('R5'))
+        .filter((r) => r.id && r.id.startsWith('CR'))
         .sort((a, b) => a.id.localeCompare(b.id));
     
     const lines = [];
