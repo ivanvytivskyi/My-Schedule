@@ -73,10 +73,12 @@ let quickAddProducts = {
             { name: "Milk (Skimmed)", unit: "2.272L", price: 1.65, defaultQty: 1 },
             { name: "British Barn Eggs", unit: "pack of 10", price: 1.43, defaultQty: 1 },
             { name: "BUTTERPAK (SPRESDABLE Slightly Salted)", unit: "500g", price:2.18, defaultQty: 1 },
-            { name: "Cottage Cheese", unit: "300g", price: 1.20, defaultQty: 1 }
+            { name: "Cottage Cheese", unit: "300g", price: 1.20, defaultQty: 1 },
+            { name: "British Crème Fraîche", unit: "300ml", price: 0.85, defaultQty: 1 },
+            { name: "Greek Style Yogurt", unit: "500g", price: 1.15, defaultQty: 1 },
         ],
         "🍞 Bread & Bakery": [
-            { name: "White Toastie Bread Thick Sliced", unit: "loaf of 800g", price: 0.75, defaultQty: 1 },
+            { name: "White Toastie Bread Thick Sliced", unit: "800g", price: 0.75, defaultQty: 1 },
             { name: "Nevills Plain Croissants", unit: "pack of 8", price: 1.39, defaultQty: 1 },
             { name: "Nevills Plain White Tortilla", unit: "pack of 8", price: 0.99, defaultQty: 1 }
         ],
@@ -87,10 +89,14 @@ let quickAddProducts = {
         "🥬 Vegetables": [
             { name: "All Rounder Potatoes", unit: "Pack of 2kg", price: 1.20, defaultQty: 1 },
             { name: "BRITISH BROWN ONIONS", unit: "kg", price: 0.99, defaultQty: 1 },
-            { name: "Carrots", unit: "kg", price: 0.70, defaultQty: 1 },
+            { name: "Carrots", unit: "kg", price: 0.69, defaultQty: 1 },
+            { name: "Sweet Peppers", unit: "500g", price: 2.00, defaultQty: 1 },
+            { name: "Broccoli", unit: "375g", price: 0.82, defaultQty: 1 },
             { name: "Tomatoes", unit: "kg", price: 2.00, defaultQty: 0.5 },
             { name: "Cucumbers", unit: "each", price: 0.60, defaultQty: 1 },
-            { name: "Broccoli", unit: "head", price: 0.85, defaultQty: 1 }
+            { name: "Broccoli", unit: "head", price: 0.85, defaultQty: 1 },
+            { name: "Bunched Spring Onions", unit: "100g", price: 0.69, defaultQty: 1 },
+            { name: "Garlic", unit: "4 pack", price: 0.88, defaultQty: 1 },
             
         ],
         "🍎 Fruits": [
@@ -100,12 +106,15 @@ let quickAddProducts = {
             { name: "Bananas", unit: "7 pack", price: 1.05, defaultQty: 1 }
         ],
         "🍚 Pantry & Staples": [
-            { name: "Rice (Basmati)", unit: "1kg", price: 2.50, defaultQty: 1 },
+            { name: "Long Grain Rice", unit: "1kg", price: 0.52, defaultQty: 1 },
             { name: "Pasta (Spaghetti)", unit: "500g", price: 0.80, defaultQty: 1 },
             { name: "Flour (Plain)", unit: "1.5kg", price: 1.10, defaultQty: 1 },
+            { name: "Strawberry Jam", unit: "454g", price: 0.89, defaultQty: 1 },
             { name: "Sugar (White)", unit: "1kg", price: 1.20, defaultQty: 1 },
             { name: "Buckwheat Groats", unit: "1kg", price: 2.20, defaultQty: 1 },
-            
+            { name: "Red Split Lentils", unit: "pack of 1kg", price: 2.50, defaultQty: 1},
+            { name: "Light Soy Sauce", unit: "150ml", price: 0.55, defaultQty: 1 },
+            { name: "Honey", unit: "340g", price: 0.74, defaultQty: 1 },
             { name: "Vegetable Oil", unit: "1L", price: 2.50, defaultQty: 1 },
             { name: "BRITISH COOKING SALT", unit: "1.5kg", price: 1.90, defaultQty: 1 },
             { name: "Black Peppercorns", unit: "250g", price: 4.40, defaultQty: 1 }
@@ -123,14 +132,15 @@ let quickAddProducts = {
         ],
         "🧊 Frozen": [
             { name: "Frozen Peas", unit: "900g", price: 1.40, defaultQty: 1 },
-            { name: "Frozen Mixed Veg", unit: "1kg", price: 1.50, defaultQty: 1 },
+            { name: "Growes Harvest Mixed Veg", unit: "pack of 1kg", price: 0.99, defaultQty: 1 },
             { name: "Pizza (Margherita)", unit: "each", price: 1.50, defaultQty: 1 },
             { name: "Ice Cream", unit: "1L", price: 2.50, defaultQty: 1 }
         ],
         "🧼 Household": [
             { name: "Washing Up Liquid", unit: "500ml", price: 1.00, defaultQty: 1 },
             { name: "Laundry Detergent", unit: "1L", price: 4.00, defaultQty: 1 },
-            { name: "Bin Bags", unit: "pack of 40", price: 1.00, defaultQty: 1 }
+            { name: "Bin Bags", unit: "pack of 40", price: 1.00, defaultQty: 1 },
+            { name: "Assorted Bungee Cords", unit: "2 pack", price: 1.50, defaultQty: 1 }
         ]
     },
     "Lidl": {
