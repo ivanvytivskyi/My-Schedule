@@ -1451,37 +1451,17 @@ let userRecipes = {};
 
 function loadUserRecipes() {
     const saved = localStorage.getItem('userRecipes');
-    if (saved) {
-        try {
-            userRecipes = JSON.parse(saved) || {};
-            console.log(`Loaded ${Object.keys(userRecipes).length} custom recipes`);
+    if (!saved) {
+        userRecipes = {};
+        return;
+    }
 
-            // ✅ MIGRATION: old custom IDs R50+ -> new IDs CR1+
-            const migrated = {};
-            let didMigrate = false;
-
-            Object.entries(userRecipes).forEach(([id, recipe]) => {
-                const m = String(id).match(/^R(\d+)$/i);
-                const num = m ? parseInt(m[1], 10) : NaN;
-
-                if (Number.isFinite(num) && num >= 50) {
-                    const newId = `CR${num - 49}`; // R50 -> CR1, R51 -> CR2 ...
-                    migrated[newId] = { ...recipe, id: newId };
-                    didMigrate = true;
-                } else {
-                    migrated[id] = recipe;
-                }
-            });
-
-            if (didMigrate) {
-                userRecipes = migrated;
-                saveUserRecipes();
-                console.log('✅ Migrated custom recipes from R50+ to CR1+');
-            }
-        } catch (e) {
-            console.error('Error loading user recipes:', e);
-            userRecipes = {};
-        }
+    try {
+        userRecipes = JSON.parse(saved) || {};
+        console.log(`Loaded ${Object.keys(userRecipes).length} custom recipes`);
+    } catch (e) {
+        console.error('Error loading user recipes:', e);
+        userRecipes = {};
     }
 }
 
