@@ -1,5 +1,5 @@
 // ================================================
-// QUICK ADD SHOPPING - REDESIGNED VERSION
+// QUICK ADD SHOPPING - V2.1.0 REDESIGNED + FIXED
 // ================================================
 
 // Currency symbols
@@ -9,7 +9,7 @@ const currencySymbols = {
     'EUR': '€'
 };
 
-// Current currency (load from localStorage)
+// Current currency
 let currentCurrency = localStorage.getItem('currentCurrency') || 'GBP';
 
 // Function to get currency symbol
@@ -17,1257 +17,672 @@ function getCurrencySymbol() {
     return currencySymbols[currentCurrency] || '£';
 }
 
-// Function to get shop-specific brand styling
+// Get category icon
+function getCategoryIcon(category) {
+    const icons = {
+        'Dairy & Eggs': '🥛',
+        'Fruit': '🍎',
+        'Vegetables': '🥕',
+        'Meat & Fish': '🥩',
+        'Bakery': '🥖',
+        'Bread & Bakery': '🥖',
+        'Pantry': '🌾',
+        'Frozen': '❄️',
+        'Drinks': '🥤',
+        'Sweets & Spreads': '🍫',
+        'Other': '📦'
+    };
+    return icons[category] || '📦';
+}
+
+// Shop brand styling
 function getShopBrandStyle(shopName) {
+    // Check for custom shop first
+    if (typeof customShops !== 'undefined' && customShops[shopName]) {
+        const color = customShops[shopName].color;
+        return {
+            header: `background: linear-gradient(135deg, ${color} 0%, ${color}dd 100%); padding: 20px; text-align: center;`,
+            title: "margin: 0; color: white; font-size: clamp(20px, 5vw, 28px); font-weight: 700;"
+        };
+    }
+    
+    // Built-in shop styles
     const styles = {
         "Tesco": {
-            header: "background: linear-gradient(135deg, #0055a5 0%, #003d7a 100%); padding: 20px; text-align: center; position: relative;",
+            header: "background: linear-gradient(135deg, #0055a5 0%, #003d7a 100%); padding: 20px; text-align: center;",
             title: "margin: 0; color: #e31837; font-size: clamp(20px, 5vw, 32px); font-weight: 800; text-transform: uppercase; letter-spacing: 3px; text-shadow: 2px 2px 4px rgba(0,0,0,0.2); background: white; padding: 15px 30px; border-radius: 8px; display: inline-block;"
         },
         "Lidl": {
-            header: "background: linear-gradient(135deg, #0050aa 0%, #003d85 100%); padding: 20px; text-align: center; position: relative;",
-            title: "margin: 0; color: #ffd500; font-size: clamp(20px, 5vw, 32px); font-weight: 900; text-transform: uppercase; letter-spacing: 8px; text-shadow: 3px 3px 6px rgba(0,0,0,0.4); font-family: Arial Black, sans-serif;"
-        },
-        "Aldi": {
-            header: "background: linear-gradient(135deg, #0082c3 0%, #006399 100%); padding: 20px; text-align: center; position: relative;",
-            title: "margin: 0; color: #ff6600; font-size: clamp(20px, 5vw, 32px); font-weight: 800; text-transform: uppercase; letter-spacing: 4px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);"
-        },
-        "Asda": {
-            header: "background: linear-gradient(135deg, #78be20 0%, #5a9617 100%); padding: 20px; text-align: center; position: relative;",
-            title: "margin: 0; color: white; font-size: clamp(20px, 5vw, 32px); font-weight: 800; text-transform: uppercase; letter-spacing: 3px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);"
-        },
-        "Sainsburys": {
-            header: "background: linear-gradient(135deg, #ff8200 0%, #cc6800 100%); padding: 20px; text-align: center; position: relative;",
-            title: "margin: 0; color: white; font-size: clamp(20px, 5vw, 28px); font-weight: 700; letter-spacing: 2px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);"
-        },
-        "Morrisons": {
-            header: "background: linear-gradient(135deg, #fdb813 0%, #e5a410 100%); padding: 20px; text-align: center; position: relative;",
-            title: "margin: 0; color: #2c5234; font-size: clamp(20px, 5vw, 32px); font-weight: 800; text-transform: uppercase; letter-spacing: 3px; text-shadow: 1px 1px 2px rgba(255,255,255,0.5);"
-        },
-        "Waitrose": {
-            header: "background: linear-gradient(135deg, #006633 0%, #004d26 100%); padding: 20px; text-align: center; position: relative;",
-            title: "margin: 0; color: white; font-size: clamp(20px, 5vw, 28px); font-weight: 700; letter-spacing: 2px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);"
-        },
-        "Iceland": {
-            header: "background: linear-gradient(135deg, #e30613 0%, #b30510 100%); padding: 20px; text-align: center; position: relative;",
-            title: "margin: 0; color: white; font-size: clamp(20px, 5vw, 32px); font-weight: 800; text-transform: uppercase; letter-spacing: 3px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);"
-        },
-        "Co-op": {
-            header: "background: linear-gradient(135deg, #00b1e7 0%, #0090c5 100%); padding: 20px; text-align: center; position: relative;",
-            title: "margin: 0; color: white; font-size: clamp(20px, 5vw, 32px); font-weight: 800; text-transform: uppercase; letter-spacing: 3px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3);"
+            header: "background: linear-gradient(135deg, #0050aa 0%, #003d85 100%); padding: 20px; text-align: center;",
+            title: "margin: 0; color: #ffd500; font-size: clamp(20px, 5vw, 32px); font-weight: 900; text-transform: uppercase; letter-spacing: 8px; text-shadow: 3px 3px 6px rgba(0,0,0,0.4);"
         }
     };
     
     return styles[shopName] || {
-        header: "background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; text-align: center; position: relative;",
-        title: "margin: 0; color: white; font-size: clamp(20px, 5vw, 28px); font-weight: 700; text-transform: uppercase; letter-spacing: 2px; text-shadow: 2px 2px 4px rgba(0,0,0,0.2);"
+        header: "background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; text-align: center;",
+        title: "margin: 0; color: white; font-size: clamp(20px, 5vw, 28px); font-weight: 700;"
     };
 }
 
-// Product database organized by shop and category
-let quickAddProducts = {
-      "Tesco": {
-        "🥛 Dairy & Eggs": [
-            { name: "Milk (Semi-Skimmed)", unit: "2.272L", price: 1.65, defaultQty: 1},
-            { name: "Milk (Whole)", unit: "2.272L", price: 1.65, defaultQty: 1 },
-            { name: "Milk (Skimmed)", unit: "2.272L", price: 1.65, defaultQty: 1 },
-            { name: "British Barn Eggs", unit: "pack of 10", price: 1.43, defaultQty: 1 },
-            { name: "BUTTERPAK (SPRESDABLE Slightly Salted)", unit: "500g", price:2.18, defaultQty: 1 },
-            { name: "Cottage Cheese", unit: "300g", price: 1.20, defaultQty: 1 },
-            { name: "British Crème Fraîche", unit: "300ml", price: 0.85, defaultQty: 1 },
-            { name: "Greek Style Yogurt", unit: "500g", price: 1.15, defaultQty: 1 },
-        ],
-        "🍞 Bread & Bakery": [
-            { name: "White Toastie Bread Thick Sliced", unit: "800g", price: 0.75, defaultQty: 1 },
-            { name: "Nevills Plain Croissants", unit: "pack of 8", price: 1.39, defaultQty: 1 },
-            { name: "Nevills Plain White Tortilla", unit: "pack of 8", price: 0.99, defaultQty: 1 }
-        ],
-        "🍖 Meat & Fish": [
-            { name: "Chicken Breast", unit: "kg", price: 6.50, defaultQty: 0.5 },
-            { name: "White Fish", unit: "kg", price: 8.00, defaultQty: 0.3 }
-        ],
-        "🥬 Vegetables": [
-            { name: "All Rounder Potatoes", unit: "Pack of 2kg", price: 1.20, defaultQty: 1 },
-            { name: "BRITISH BROWN ONIONS", unit: "kg", price: 0.99, defaultQty: 1 },
-            { name: "Carrots", unit: "kg", price: 0.69, defaultQty: 1 },
-            { name: "Sweet Peppers", unit: "500g", price: 2.00, defaultQty: 1 },
-            { name: "Broccoli", unit: "375g", price: 0.82, defaultQty: 1 },
-            { name: "Tomatoes", unit: "kg", price: 2.00, defaultQty: 0.5 },
-            { name: "Cucumbers", unit: "each", price: 0.60, defaultQty: 1 },
-            { name: "Bunched Spring Onions", unit: "100g", price: 0.69, defaultQty: 1 },
-            { name: "Garlic", unit: "4 pack", price: 0.88, defaultQty: 1 },
-            
-        ],
-        "🍎 Fruits": [
-            { name: "Apples (ROSEDENE FARMS)", unit: "pack of 6", price: 0.80, defaultQty: 1 },
-            { name: "Banana Loose", unit: "kg", price: 0.90, defaultQty: 1 },
-            { name: "Oranges", unit: "kg", price: 1.50, defaultQty: 1 },
-            { name: "Bananas", unit: "7 pack", price: 1.05, defaultQty: 1 }
-        ],
-        "🍚 Pantry & Staples": [
-            { name: "Long Grain Rice", unit: "1kg", price: 0.52, defaultQty: 1 },
-            { name: "Pasta (Spaghetti)", unit: "500g", price: 0.80, defaultQty: 1 },
-            { name: "Flour (Plain)", unit: "1.5kg", price: 1.10, defaultQty: 1 },
-            { name: "Strawberry Jam", unit: "454g", price: 0.89, defaultQty: 1 },
-            { name: "Sugar (White)", unit: "1kg", price: 1.20, defaultQty: 1 },
-            { name: "Grower's Harvest Sultanas", unit: "500g", price: 1.15, defaultQty: 1 },
-            { name: "Buckwheat Groats", unit: "1kg", price: 2.20, defaultQty: 1 },
-            { name: "Red Split Lentils", unit: "pack of 1kg", price: 2.50, defaultQty: 1},
-            { name: "Light Soy Sauce", unit: "150ml", price: 0.55, defaultQty: 1 },
-            { name: "Honey", unit: "340g", price: 0.74, defaultQty: 1 },
-            { name: "Vegetable Oil", unit: "1L", price: 2.50, defaultQty: 1 },
-            { name: "BRITISH COOKING SALT", unit: "1.5kg", price: 1.90, defaultQty: 1 },
-            { name: "Black Peppercorns", unit: "250g", price: 4.40, defaultQty: 1 }
-        ],
-        "🥫 Canned & Packaged": [
-            { name: "Grower's Harvest Chopped Tomatoes", unit: "400g tin", price: 0.43, defaultQty: 1 }
-        ],
-        "🥤 Drinks": [
-            { name: "Orange Juice", unit: "1L", price: 1.50, defaultQty: 1 },
-            { name: "Apple Juice", unit: "1L", price: 1.50, defaultQty: 1 },
-            { name: "Cola", unit: "2L", price: 1.75, defaultQty: 1 },
-            { name: "Water (Still)", unit: "2L", price: 0.60, defaultQty: 2 },
-            { name: "Tea Bags", unit: "pack of 80", price: 2.00, defaultQty: 1 }
-            
-        ],
-        "🧊 Frozen": [
-            { name: "Frozen Peas", unit: "900g", price: 1.40, defaultQty: 1 },
-            { name: "Growes Harvest Mixed Veg", unit: "pack of 1kg", price: 0.99, defaultQty: 1 },
-            { name: "Pizza (Margherita)", unit: "each", price: 1.50, defaultQty: 1 },
-            { name: "Ice Cream", unit: "1L", price: 2.50, defaultQty: 1 }
-        ],
-        "🧼 Household": [
-            { name: "Washing Up Liquid", unit: "500ml", price: 1.00, defaultQty: 1 },
-            { name: "Laundry Detergent", unit: "1L", price: 4.00, defaultQty: 1 },
-            { name: "Bin Bags", unit: "pack of 40", price: 1.00, defaultQty: 1 },
-            { name: "Assorted Bungee Cords", unit: "2 pack", price: 1.50, defaultQty: 1 }
-        ]
-    },
-    "Lidl": {
-        "🥛 Dairy & Eggs": [
-            { name: "Milk (Semi-Skimmed)", unit: "pint", price: 1.39, defaultQty: 4 },
-            { name: "Eggs (Large)", unit: "pack of 10", price: 1.89, defaultQty: 1 },
-            { name: "Butter", unit: "250g", price: 1.75, defaultQty: 1 },
-            { name: "Cheese", unit: "400g", price: 2.49, defaultQty: 1 },
-            { name: "Yogurt", unit: "500g", price: 0.99, defaultQty: 1 }
-        ],
-        "🍞 Bread & Bakery": [
-            { name: "White Bread", unit: "loaf", price: 0.75, defaultQty: 1 },
-            { name: "Brown Bread", unit: "loaf", price: 0.85, defaultQty: 1 },
-            { name: "Rolls", unit: "pack of 6", price: 0.65, defaultQty: 1 },
-            { name: "Croissants", unit: "pack of 6", price: 1.29, defaultQty: 1 }
-        ],
-        "🍖 Meat & Fish": [
-            { name: "Chicken Breast", unit: "kg", price: 5.99, defaultQty: 0.5 },
-            { name: "Beef Mince", unit: "500g", price: 2.99, defaultQty: 1 },
-            { name: "Pork Chops", unit: "kg", price: 4.49, defaultQty: 0.5 },
-            { name: "Bacon", unit: "200g", price: 1.99, defaultQty: 1 }
-        ],
-        "🥬 Vegetables": [
-            { name: "Potatoes", unit: "2.5kg", price: 1.49, defaultQty: 1 },
-            { name: "Onions", unit: "1kg", price: 0.79, defaultQty: 1 },
-            { name: "Carrots", unit: "1kg", price: 0.59, defaultQty: 1 },
-            { name: "Tomatoes", unit: "500g", price: 0.99, defaultQty: 1 }
-        ],
-        "🍎 Fruits": [
-            { name: "Apples", unit: "kg", price: 1.49, defaultQty: 1 },
-            { name: "Bananas", unit: "kg", price: 0.89, defaultQty: 1 },
-            { name: "Oranges", unit: "kg", price: 1.29, defaultQty: 1 }
-        ],
-        "🍫 Sweets": [
-            { name: "fin Carre Milk Chocolate", unit: "Chocolate bar of 100g", price: 0.99, defaultQty: 1 },
-            { name: "Onions", unit: "1kg", price: 0.79, defaultQty: 1 },
-            { name: "Carrots", unit: "1kg", price: 0.59, defaultQty: 1 },
-            { name: "Tomatoes", unit: "500g", price: 0.99, defaultQty: 1 }
-        ],
-        "🥜 Spreads":[
-            {name:" Mister CHOC Peanut Butter Crunch", unit: "Bottle of 340g", price: 0.99, defautQty: 1 },
-        ]
-    }
-};
+// Product database
+let quickAddProducts = {};
 
-// State for selected items
+// Selected items
 let selectedShoppingItems = {};
 
-// State for category editing
-let editingCategory = null;
+// Auto-populate from CANONICAL_PRODUCTS
+function populateQuickAddFromCatalog() {
+    if (typeof CANONICAL_PRODUCTS === 'undefined') {
+        console.log('⏳ Waiting for CANONICAL_PRODUCTS...');
+        setTimeout(populateQuickAddFromCatalog, 100);
+        return;
+    }
+    
+    quickAddProducts = {};
+    
+    Object.keys(CANONICAL_PRODUCTS).forEach(canonicalKey => {
+        const product = CANONICAL_PRODUCTS[canonicalKey];
+        
+        // Skip unlimited products (e.g., tap water)
+        if (product.unlimited) return;
+        
+        if (!product.shops) return;
+        
+        Object.keys(product.shops).forEach(shopName => {
+            if (!quickAddProducts[shopName]) {
+                quickAddProducts[shopName] = {};
+            }
+            
+            // Determine category
+            const keyLower = canonicalKey.toLowerCase();
+            let category = 'Other';
+            
+            // Use stored category if available (for custom products)
+            if (product.category) {
+                category = product.category;
+            } else if (keyLower.includes('milk') || keyLower.includes('egg') || keyLower.includes('butter') || keyLower.includes('cheese') || keyLower.includes('yogurt') || keyLower.includes('cottage')) {
+                category = 'Dairy & Eggs';
+            } else if (keyLower.includes('banana') || keyLower.includes('apple') || keyLower.includes('orange')) {
+                category = 'Fruit';
+            } else if (keyLower.includes('potato') || keyLower.includes('onion') || keyLower.includes('carrot') || keyLower.includes('tomato') || keyLower.includes('pepper') || keyLower.includes('broccoli') || keyLower.includes('cucumber') || keyLower.includes('garlic')) {
+                category = 'Vegetables';
+            } else if (keyLower.includes('chicken') || keyLower.includes('beef') || keyLower.includes('pork') || keyLower.includes('bacon') || keyLower.includes('fish')) {
+                category = 'Meat & Fish';
+            } else if (keyLower.includes('bread') || keyLower.includes('croissant') || keyLower.includes('tortilla') || keyLower.includes('roll')) {
+                category = 'Bakery';
+            } else if (keyLower.includes('rice') || keyLower.includes('pasta') || keyLower.includes('flour') || keyLower.includes('sugar') || keyLower.includes('salt') || keyLower.includes('oil') || keyLower.includes('honey') || keyLower.includes('jam') || keyLower.includes('buckwheat') || keyLower.includes('lentil')) {
+                category = 'Pantry';
+            } else if (keyLower.includes('frozen') || keyLower.includes('peas') || keyLower.includes('pizza') || keyLower.includes('ice_cream') || keyLower.includes('mixed_veg')) {
+                category = 'Frozen';
+            } else if (keyLower.includes('juice') || keyLower.includes('cola') || keyLower.includes('water') || keyLower.includes('tea')) {
+                category = 'Drinks';
+            } else if (keyLower.includes('chocolate') || keyLower.includes('peanut') || keyLower.includes('sultana')) {
+                category = 'Sweets & Spreads';
+            }
+            
+            if (!quickAddProducts[shopName][category]) {
+                quickAddProducts[shopName][category] = [];
+            }
+            
+            // Add each SKU
+            product.shops[shopName].forEach(sku => {
+                const packInfo = `${sku.packQty}${sku.packUnit}`;
+                quickAddProducts[shopName][category].push({
+                    name: sku.sku,
+                    unit: packInfo,
+                    price: sku.price,
+                    defaultQty: sku.defaultQty || 1,
+                    loose: sku.loose || false,
+                    category: category,
+                    canonicalKey: canonicalKey
+                });
+            });
+        });
+    });
+    
+    console.log('✅ Quick Add populated from Product Catalog');
+    console.log('Shops available:', Object.keys(quickAddProducts));
+}
 
-// Index registries for safe onclick handling (Solution B)
-let shopsArray = [];
-let categoriesMap = {};
-let itemsMap = {};
+// Initialize
+if (typeof CANONICAL_PRODUCTS !== 'undefined') {
+    populateQuickAddFromCatalog();
+} else {
+    document.addEventListener('DOMContentLoaded', function() {
+        populateQuickAddFromCatalog();
+    });
+}
 
 // Open Quick Add Modal
 function openQuickAdd() {
-    window.quickAddEditMode = document.body.classList.contains('edit-mode');
+    // Ensure products are loaded
+    if (Object.keys(quickAddProducts).length === 0) {
+        populateQuickAddFromCatalog();
+    }
+    
     document.getElementById('quickAddModal').classList.add('active');
+    
+    // Show/hide Manage Products button based on Edit Mode
+    const manageProductsBtn = document.getElementById('manageProductsQuickAddBtn');
+    if (manageProductsBtn) {
+        if (window.quickAddEditMode || document.body.classList.contains('edit-mode')) {
+            manageProductsBtn.style.display = 'inline-block';
+        } else {
+            manageProductsBtn.style.display = 'none';
+        }
+    }
+    
     renderQuickAddModal();
 }
 
 // Close Quick Add Modal
 function closeQuickAdd() {
     document.getElementById('quickAddModal').classList.remove('active');
-    editingCategory = null;
 }
 
-// Change currency
-function changeCurrency(currency) {
-    currentCurrency = currency;
-    localStorage.setItem('currentCurrency', currency);
-    renderQuickAddModal();
-}
-
-// Show add shop form
-function showAddShopForm() {
-    const existing = document.getElementById('addShopForm');
-    if (existing) {
-        existing.remove();
-        return;
-    }
-    
-    const form = document.createElement('div');
-    form.id = 'addShopForm';
-    form.style.cssText = 'background: #f0f8ff; padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 2px solid #667eea;';
-    form.innerHTML = `
-        <h4 style="margin: 0 0 15px 0; color: #667eea;">➕ Add New Shop</h4>
-        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-            <input type="text" id="newShopNameInput" list="shopsList" placeholder="Shop name (e.g., Tesco)" 
-                style="flex: 1; min-width: 200px; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;">
-            <datalist id="shopsList">
-                <option value="Tesco">
-                <option value="Lidl">
-                <option value="Sainsburys">
-                <option value="Aldi">
-                <option value="Asda">
-                <option value="Morrisons">
-                <option value="Waitrose">
-                <option value="Iceland">
-                <option value="Co-op">
-            </datalist>
-            <button onclick="addNewShop()" style="padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Add Shop</button>
-            <button onclick="document.getElementById('addShopForm').remove()" style="padding: 10px 20px; background: #f44336; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Cancel</button>
-        </div>
-    `;
-    
-    const container = document.getElementById('quickAddContent');
-    container.insertBefore(form, container.firstChild);
-    document.getElementById('newShopNameInput').focus();
-}
-
-// Add new shop
-function addNewShop() {
-    const input = document.getElementById('newShopNameInput');
-    const shopName = input.value.trim();
-    
-    if (!shopName) {
-        alert('⚠️ Please enter a shop name!');
-        return;
-    }
-    
-    if (quickAddProducts[shopName]) {
-        alert('⚠️ This shop already exists!');
-        return;
-    }
-    
-    quickAddProducts[shopName] = {};
-    localStorage.setItem('quickAddProducts', JSON.stringify(quickAddProducts));
-    
-    document.getElementById('addShopForm').remove();
-    renderQuickAddModal();
-}
-
-// Edit shop name
-function editShop(shopName) {
-    const newName = prompt('Edit shop name:', shopName);
-    if (newName && newName !== shopName && newName.trim()) {
-        if (quickAddProducts[newName]) {
-            alert('⚠️ A shop with this name already exists!');
-            return;
-        }
-        quickAddProducts[newName] = quickAddProducts[shopName];
-        delete quickAddProducts[shopName];
-        localStorage.setItem('quickAddProducts', JSON.stringify(quickAddProducts));
-        renderQuickAddModal();
-    }
-}
-
-// Delete shop
-function deleteShop(shopName) {
-    if (confirm(`Delete shop "${shopName}" and all its items?`)) {
-        delete quickAddProducts[shopName];
-        localStorage.setItem('quickAddProducts', JSON.stringify(quickAddProducts));
-        renderQuickAddModal();
-    }
-}
-
-// Show add category form
-function showAddCategoryForm(shop) {
-    const formId = `addCatForm-${shop.replace(/[^a-zA-Z0-9]/g, '-')}`;
-    const existing = document.getElementById(formId);
-    if (existing) {
-        existing.remove();
-        return;
-    }
-    
-    const form = document.createElement('div');
-    form.id = formId;
-    form.style.cssText = 'background: #fff3e0; padding: 15px; border-radius: 8px; margin: 10px 0; border: 2px solid #ff9800;';
-    form.innerHTML = `
-        <h5 style="margin: 0 0 10px 0; color: #ff9800;">➕ Add Category</h5>
-        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-            <input type="text" id="newCatInput-${shop.replace(/[^a-zA-Z0-9]/g, '-')}" list="categoriesList" placeholder="Category name" 
-                style="flex: 1; min-width: 200px; padding: 8px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;">
-            <datalist id="categoriesList">
-                <option value="🥛 Dairy & Eggs">
-                <option value="🍞 Bread & Bakery">
-                <option value="🍖 Meat & Fish">
-                <option value="🥬 Vegetables">
-                <option value="🍎 Fruits">
-                <option value="🍚 Pantry & Staples">
-                <option value="🥫 Canned & Packaged">
-                <option value="🥤 Drinks">
-                <option value="🧊 Frozen">
-                <option value="🧼 Household">
-            </datalist>
-            <button onclick="addNewCategoryForShop('${shop.replace(/'/g, "\\'")}', '${formId}')" style="padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Add</button>
-            <button onclick="document.getElementById('${formId}').remove()" style="padding: 8px 16px; background: #f44336; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Cancel</button>
-        </div>
-    `;
-    
-    const shopDiv = document.querySelector(`[data-shop="${shop}"]`);
-    if (shopDiv) {
-        shopDiv.insertBefore(form, shopDiv.querySelector('.categories-container'));
-    }
-}
-
-// Add new category (helper for form button)
-function addNewCategoryForShop(shop, formId) {
-    const inputId = `newCatInput-${shop.replace(/[^a-zA-Z0-9]/g, '-')}`;
-    const input = document.getElementById(inputId);
-    const categoryName = input.value.trim();
-    
-    if (!categoryName) {
-        alert('⚠️ Please enter a category name!');
-        return;
-    }
-    
-    if (quickAddProducts[shop][categoryName]) {
-        alert('⚠️ This category already exists!');
-        return;
-    }
-    
-    quickAddProducts[shop][categoryName] = [];
-    localStorage.setItem('quickAddProducts', JSON.stringify(quickAddProducts));
-    
-    document.getElementById(formId).remove();
-    renderQuickAddModal();
-}
-
-// Add new category
-function addNewCategory(shop) {
-    const input = document.getElementById(`newCatInput-${shop}`);
-    const categoryName = input.value.trim();
-    
-    if (!categoryName) {
-        alert('⚠️ Please enter a category name!');
-        return;
-    }
-    
-    if (quickAddProducts[shop][categoryName]) {
-        alert('⚠️ This category already exists!');
-        return;
-    }
-    
-    quickAddProducts[shop][categoryName] = [];
-    localStorage.setItem('quickAddProducts', JSON.stringify(quickAddProducts));
-    
-    const formId = `addCatForm-${shop}`;
-    document.getElementById(formId).remove();
-    renderQuickAddModal();
-}
-
-// Edit category - show inline editable table
-function editCategory(shop, category) {
-    if (editingCategory === `${shop}|${category}`) {
-        cancelEditCategory(shop, category);
-        return;
-    }
-    
-    editingCategory = `${shop}|${category}`;
-    renderQuickAddModal();
-}
-
-// Save category changes
-function saveCategory(shop, category) {
-    // Find the shop and category indices
-    const shopIndex = shopsArray.indexOf(shop);
-    if (shopIndex === -1) return;
-    
-    const catIndex = categoriesMap[shopIndex].indexOf(category);
-    if (catIndex === -1) return;
-    
-    // Use same catId format as rendering
-    const catId = `${shopIndex}-${catIndex}`;
-    const table = document.getElementById(`edit-table-${catId}`);
-    
-    if (!table) {
-        console.error('Table not found:', `edit-table-${catId}`);
-        return;
-    }
-    
-    const rows = table.querySelectorAll('tbody tr');
-    
-    const items = [];
-    rows.forEach(row => {
-        const cells = row.querySelectorAll('td');
-        if (cells.length >= 4) {
-            const name = cells[0].textContent.trim();
-            const unit = cells[1].textContent.trim();
-            const priceText = cells[2].textContent.trim();
-            const qtyText = cells[3].textContent.trim();
-            
-            if (name) {
-                items.push({
-                    name: name,
-                    unit: unit || 'each',
-                    price: parseFloat(priceText) || 0,
-                    defaultQty: parseFloat(qtyText) || 1
-                });
-            }
-        }
-    });
-    
-    quickAddProducts[shop][category] = items;
-    localStorage.setItem('quickAddProducts', JSON.stringify(quickAddProducts));
-    editingCategory = null;
-    renderQuickAddModal();
-}
-
-// Cancel category editing
-function cancelEditCategory(shop, category) {
-    editingCategory = null;
-    renderQuickAddModal();
-}
-
-// Delete category
-function deleteCategory(shop, category) {
-    if (confirm(`Delete category "${category}"?`)) {
-        delete quickAddProducts[shop][category];
-        localStorage.setItem('quickAddProducts', JSON.stringify(quickAddProducts));
-        renderQuickAddModal();
-    }
-}
-
-// Show add item form in edit table
-function showAddItemForm(shop, category) {
-    // Find the shop and category indices
-    const shopIndex = shopsArray.indexOf(shop);
-    if (shopIndex === -1) return;
-    
-    const catIndex = categoriesMap[shopIndex].indexOf(category);
-    if (catIndex === -1) return;
-    
-    // Use same catId format as rendering
-    const catId = `${shopIndex}-${catIndex}`;
-    const tbody = document.querySelector(`#edit-table-${catId} tbody`);
-    
-    if (!tbody) {
-        console.error('Table body not found:', `#edit-table-${catId}`);
-        return;
-    }
-    
-    const existingForm = document.getElementById(`addItemRow-${catId}`);
-    if (existingForm) {
-        existingForm.remove();
-        return;
-    }
-    
-    const row = document.createElement('tr');
-    row.id = `addItemRow-${catId}`;
-    row.style.background = '#e8f5e9';
-    row.innerHTML = `
-        <td><input type="text" id="newItemName-${catId}" placeholder="Item name" style="width: 100%; padding: 6px; border: 2px solid #4CAF50; border-radius: 4px;"></td>
-        <td><input type="text" id="newItemUnit-${catId}" placeholder="Unit" style="width: 100%; padding: 6px; border: 2px solid #4CAF50; border-radius: 4px;"></td>
-        <td><input type="number" id="newItemPrice-${catId}" placeholder="0.00" step="0.01" style="width: 100%; padding: 6px; border: 2px solid #4CAF50; border-radius: 4px;"></td>
-        <td><input type="number" id="newItemQty-${catId}" placeholder="1" step="0.1" style="width: 100%; padding: 6px; border: 2px solid #4CAF50; border-radius: 4px;"></td>
-        <td>
-            <button onclick="addNewItemFromFormByIndex(${shopIndex}, ${catIndex})" style="background: #4CAF50; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: 600;">✓</button>
-            <button onclick="document.getElementById('addItemRow-${catId}').remove()" style="background: #f44336; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: 600; margin-left: 5px;">✕</button>
-        </td>
-    `;
-    
-    tbody.appendChild(row);
-    document.getElementById(`newItemName-${catId}`).focus();
-}
-
-// Add new item from form
-function addNewItemFromForm(shop, category, catId) {
-    if (!catId) {
-        catId = `${shop}|${category}`.replace(/[^a-zA-Z0-9]/g, '-');
-    }
-    const name = document.getElementById(`newItemName-${catId}`).value.trim();
-    const unit = document.getElementById(`newItemUnit-${catId}`).value.trim();
-    const price = parseFloat(document.getElementById(`newItemPrice-${catId}`).value) || 0;
-    const qty = parseFloat(document.getElementById(`newItemQty-${catId}`).value) || 1;
-    
-    if (!name) {
-        alert('⚠️ Please enter an item name!');
-        return;
-    }
-    
-    quickAddProducts[shop][category].push({
-        name: name,
-        unit: unit || 'each',
-        price: price,
-        defaultQty: qty
-    });
-    
-    localStorage.setItem('quickAddProducts', JSON.stringify(quickAddProducts));
-    document.getElementById(`addItemRow-${catId}`).remove();
-    renderQuickAddModal();
-}
-
-// Delete item
-function deleteItem(shop, category, index) {
-    if (confirm('Delete this item?')) {
-        quickAddProducts[shop][category].splice(index, 1);
-        
-        if (quickAddProducts[shop][category].length === 0) {
-            delete quickAddProducts[shop][category];
-        }
-        
-        if (Object.keys(quickAddProducts[shop]).length === 0) {
-            delete quickAddProducts[shop];
-        }
-        
-        localStorage.setItem('quickAddProducts', JSON.stringify(quickAddProducts));
-        renderQuickAddModal();
-    }
-}
-
-// Render the Quick Add Modal
+// Render modal
 function renderQuickAddModal() {
-    const container = document.getElementById('quickAddContent');
-    const isEditMode = window.quickAddEditMode || false;
+    const modal = document.getElementById('quickAddModalContent');
+    if (!modal) return;
+    
+    // Show/hide Manage Products button based on edit mode
+    const manageBtn = document.getElementById('manageProductsQuickAddBtn');
+    if (manageBtn) {
+        if (window.quickAddEditMode || document.body.classList.contains('edit-mode')) {
+            manageBtn.style.display = 'inline-block';
+        } else {
+            manageBtn.style.display = 'none';
+        }
+    }
+    
     const currencySymbol = getCurrencySymbol();
+    const shops = Object.keys(quickAddProducts);
     
-    // Save scroll position before re-rendering
-    const scrollContainer = document.getElementById('quickAddScrollContent');
-    const savedScrollPosition = scrollContainer ? scrollContainer.scrollTop : 0;
+    if (shops.length === 0) {
+        modal.innerHTML = '<p style="padding: 40px; text-align: center; color: #999;">Loading products...</p>';
+        return;
+    }
     
-    // Build index arrays for safe onclick handling
-    shopsArray = Object.keys(quickAddProducts);
-    categoriesMap = {};
-    itemsMap = {};
+    let html = '';
     
-    shopsArray.forEach((shop, shopIndex) => {
-        categoriesMap[shopIndex] = Object.keys(quickAddProducts[shop]);
-        categoriesMap[shopIndex].forEach((category, catIndex) => {
-            const key = `${shopIndex}|${catIndex}`;
-            itemsMap[key] = quickAddProducts[shop][category];
-        });
-    });
-    
-    let html = `
-        <div style="margin-bottom: 20px;">
-            <!-- Currency Selector -->
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <label style="font-weight: 600; color: #333;">Currency:</label>
-                    <select onchange="changeCurrency(this.value)" style="padding: 8px 12px; border: 2px solid #667eea; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer;">
-                        <option value="GBP" ${currentCurrency === 'GBP' ? 'selected' : ''}>£ GBP</option>
-                        <option value="USD" ${currentCurrency === 'USD' ? 'selected' : ''}>$ USD</option>
-                        <option value="EUR" ${currentCurrency === 'EUR' ? 'selected' : ''}>€ EUR</option>
-                    </select>
-                </div>
-                ${isEditMode ? `
-                    <button onclick="showAddShopForm()" style="padding: 10px 20px; background: #2196F3; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">➕ Create Shop</button>
-                ` : ''}
-            </div>
-            
-            <p style="color: #666; margin: 10px 0;">Click items to select, then adjust quantity and price</p>
-            <button onclick="clearAllItems()" style="padding: 8px 16px; background: #f44336; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">✕ Clear All</button>
-        </div>
-        
-        <!-- Scrollable content wrapper -->
-        <div id="quickAddScrollContent" style="max-height: calc(90vh - 350px); overflow-y: auto; padding-right: 5px; margin-bottom: 15px;">
-    `;
-    
-    // Loop through shops
-    shopsArray.forEach((shop, shopIndex) => {
-        const shopStyles = getShopBrandStyle(shop);
-        
+    shops.forEach(shop => {
+        const brandStyle = getShopBrandStyle(shop);
         html += `
-            <div data-shop="${shop}" style="margin-bottom: 30px;">
-                <div style="${shopStyles.header}; position: relative;">
-                    <h3 id="shop-name-${shopIndex}" ${isEditMode ? 'contenteditable="true"' : ''} 
-                        onblur="${isEditMode ? `saveShopNameInline(${shopIndex}, this.textContent)` : ''}"
-                        style="${shopStyles.title}${isEditMode ? '; cursor: text; border: 2px dashed rgba(255,255,255,0.5); padding: 12px; background: rgba(255,255,255,0.1);' : ''}"
-                        title="${isEditMode ? 'Click to edit shop name' : ''}">${shop}</h3>
-                    ${isEditMode ? `
-                        <div style="position: absolute; top: 10px; right: 10px; display: flex; gap: 5px;">
-                            <button onclick="deleteShopByIndex(${shopIndex})" style="background: rgba(255,100,100,0.9); color: white; border: none; padding: 6px 10px; border-radius: 4px; cursor: pointer; font-size: 16px;" title="Delete shop">🗑️</button>
-                        </div>
-                    ` : ''}
+            <div style="margin-bottom: 30px; border: 2px solid #ddd; border-radius: 12px; overflow: hidden;">
+                <div style="${brandStyle.header}">
+                    <h3 style="${brandStyle.title}">${shop}</h3>
                 </div>
-                
-                ${isEditMode ? `
-                    <div style="padding: 15px; background: #f8f9fa;">
-                        <button onclick="showAddCategoryFormByIndex(${shopIndex})" style="padding: 8px 16px; background: #ff9800; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 14px;">➕ Add Category</button>
-                    </div>
-                ` : ''}
-                
-                <div class="categories-container">
         `;
         
-        const categories = categoriesMap[shopIndex];
-        
-        // Loop through categories
-        categories.forEach((category, catIndex) => {
-            const shop = shopsArray[shopIndex];
-            const catId = `${shopIndex}-${catIndex}`;
-            const isEditing = editingCategory === `${shop}|${category}`;
+        const categories = Object.keys(quickAddProducts[shop]);
+        categories.forEach(category => {
+            const items = quickAddProducts[shop][category];
+            const categoryIcon = getCategoryIcon(category);
             
             html += `
-                <div style="margin-bottom: 25px; background: #f8f9fa; padding: 15px; border-radius: 8px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
-                        <h4 id="cat-name-${shopIndex}-${catIndex}" 
-                            ${isEditMode && !isEditing ? 'contenteditable="true"' : ''} 
-                            onblur="${isEditMode && !isEditing ? `saveCategoryNameInline(${shopIndex}, ${catIndex}, this.textContent)` : ''}"
-                            style="margin: 0; color: #333; font-size: 16px;${isEditMode && !isEditing ? ' cursor: text; border: 2px dashed #667eea; padding: 6px; background: white; border-radius: 4px;' : ''}"
-                            title="${isEditMode && !isEditing ? 'Click to edit category name' : ''}">${category}</h4>
-                        ${isEditMode ? `
-                            <div style="display: flex; gap: 5px; flex-wrap: wrap;">
-                                <button onclick="editCategoryByIndex(${shopIndex}, ${catIndex})" style="background: ${isEditing ? '#f093fb' : 'white'}; border: 1px solid #ddd; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 600;" title="Edit items in category">${isEditing ? '📝 Editing...' : '✏️ Edit Items'}</button>
-                                <button onclick="deleteCategoryByIndex(${shopIndex}, ${catIndex})" style="background: #ff6b6b; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 14px;" title="Delete category">🗑️</button>
+                <div style="padding: 20px; background: #f9f9f9;">
+                    <h4 style="margin: 0 0 15px 0; color: #333; font-size: 18px;">${categoryIcon} ${category}</h4>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px;">
+            `;
+            
+            items.forEach((product, idx) => {
+                const itemKey = `${shop}|${category}|${idx}`;
+                const isSelected = selectedShoppingItems[itemKey];
+                
+                // Escape single quotes for onclick handlers
+                const escapedShop = shop.replace(/'/g, "\\'");
+                const escapedCategory = category.replace(/'/g, "\\'");
+                
+                html += `
+                    <div onclick="toggleQuickItem('${escapedShop}', '${escapedCategory}', ${idx})" 
+                         style="padding: 12px; background: white; border: 2px solid ${isSelected ? '#4CAF50' : '#ddd'}; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div style="width: 20px; height: 20px; border: 2px solid ${isSelected ? '#4CAF50' : '#999'}; border-radius: 4px; background: ${isSelected ? '#4CAF50' : 'white'}; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
+                                ${isSelected ? '<span style="color: white; font-size: 14px;">✓</span>' : ''}
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600; color: #2c3e50; font-size: 14px;">${product.name}</div>
+                                <div style="color: #7f8c8d; font-size: 12px;">${product.unit} · ${currencySymbol}${product.price.toFixed(2)}</div>
+                            </div>
+                        </div>
+                        ${isSelected ? `
+                            <div style="margin-top: 8px; display: flex; gap: 8px; align-items: center;">
+                                <span style="font-size: 12px; color: #666;">Qty:</span>
+                                <input type="number" value="${selectedShoppingItems[itemKey]?.quantity || product.defaultQty}" 
+                                       min="${product.loose ? '0.1' : '1'}" 
+                                       step="${product.loose ? '0.1' : '1'}"
+                                       onclick="event.stopPropagation()"
+                                       onchange="updateQuickItemQty('${escapedShop}', '${escapedCategory}', ${idx}, this.value)"
+                                       style="width: 70px; padding: 4px; border: 1px solid #ddd; border-radius: 4px;">
                             </div>
                         ` : ''}
                     </div>
-            `;
-            
-            if (isEditing && isEditMode) {
-                // Show editable table
-                const items = itemsMap[`${shopIndex}|${catIndex}`];
-                html += `
-                    <div style="background: white; padding: 15px; border-radius: 8px; margin-bottom: 10px; border: 2px solid #667eea;">
-                        <div style="overflow-x: auto; -webkit-overflow-scrolling: touch; margin-bottom: 10px;">
-                            <table id="edit-table-${catId}" style="width: 100%; border-collapse: collapse; min-width: 480px;">
-                                <thead>
-                                    <tr style="background: #667eea; color: white;">
-                                        <th style="padding: 10px; text-align: left; border: 1px solid #ddd; min-width: 120px;">Item Name</th>
-                                        <th style="padding: 10px; text-align: left; border: 1px solid #ddd; min-width: 70px;">Unit</th>
-                                        <th style="padding: 10px; text-align: left; border: 1px solid #ddd; min-width: 65px;">Price</th>
-                                        <th style="padding: 10px; text-align: left; border: 1px solid #ddd; min-width: 50px;">Qty</th>
-                                        <th style="padding: 10px; text-align: center; border: 1px solid #ddd; width: 60px;">Del</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
                 `;
-                
-                items.forEach((product, itemIndex) => {
-                    html += `
-                        <tr>
-                            <td contenteditable="true" style="padding: 8px; border: 1px solid #ddd; background: white;">${product.name}</td>
-                            <td contenteditable="true" style="padding: 8px; border: 1px solid #ddd; background: white;">${product.unit}</td>
-                            <td contenteditable="true" style="padding: 8px; border: 1px solid #ddd; background: white;">${product.price}</td>
-                            <td contenteditable="true" style="padding: 8px; border: 1px solid #ddd; background: white;">${product.defaultQty}</td>
-                            <td style="padding: 8px; border: 1px solid #ddd; text-align: center;">
-                                <button onclick="deleteItemByIndex(${shopIndex}, ${catIndex}, ${itemIndex})" style="background: #ff6b6b; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 16px;">✕</button>
-                            </td>
-                        </tr>
-                    `;
-                });
-                
-                html += `
-                                </tbody>
-                            </table>
-                        </div>
-                        <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
-                            <button onclick="showAddItemFormByIndex(${shopIndex}, ${catIndex})" style="padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">➕ Add Item</button>
-                            <button onclick="saveCategoryByIndex(${shopIndex}, ${catIndex})" style="padding: 8px 16px; background: #667eea; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">💾 Save</button>
-                            <button onclick="cancelEditCategoryByIndex(${shopIndex}, ${catIndex})" style="padding: 8px 16px; background: #f44336; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">✕ Cancel</button>
-                        </div>
-                    </div>
-                `;
-            } else {
-                // Show normal item grid
-                const items = itemsMap[`${shopIndex}|${catIndex}`];
-                html += `
-                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px;">
-                `;
-                
-                items.forEach((product, itemIndex) => {
-                    const itemId = `${shop}|${category}|${itemIndex}`;
-                    const isSelected = selectedShoppingItems[itemId];
-                    
-                    html += `
-                        <div class="quick-add-item ${isSelected ? 'selected' : ''}" 
-                             onclick="${isEditMode ? '' : `toggleQuickItemByIndex(${shopIndex}, ${catIndex}, ${itemIndex})`}"
-                             style="padding: 12px; background: white; border: 2px solid ${isSelected ? '#4CAF50' : '#ddd'}; border-radius: 6px; ${isEditMode ? '' : 'cursor: pointer;'} transition: all 0.2s; position: relative;">
-                            ${!isEditMode ? `
-                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: ${isSelected ? '8px' : '0'};">
-                                    <div style="width: 20px; height: 20px; border: 2px solid ${isSelected ? '#4CAF50' : '#999'}; border-radius: 4px; background: ${isSelected ? '#4CAF50' : 'white'}; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
-                                        ${isSelected ? '<span style="color: white; font-size: 14px;">✓</span>' : ''}
-                                    </div>
-                                    <div style="flex: 1;">
-                                        <div style="font-weight: 600; color: #2c3e50; font-size: 14px;">${product.name}</div>
-                                        <div style="color: #7f8c8d; font-size: 12px;">${product.unit} · ${currencySymbol}${(parseFloat(product.price) || 0).toFixed(2)}</div>
-                                    </div>
-                                </div>
-                            ` : `
-                                <div style="font-weight: 600; color: #2c3e50; font-size: 14px;">${product.name}</div>
-                                <div style="color: #7f8c8d; font-size: 12px;">${product.unit} · ${currencySymbol}${(parseFloat(product.price) || 0).toFixed(2)}</div>
-                            `}
-                            ${isSelected && !isEditMode ? `
-                                <div style="display: flex; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #e0e0e0;">
-                                    <input type="number" 
-                                           value="${selectedShoppingItems[itemId].quantity || product.defaultQty}" 
-                                           step="${product.unit.toLowerCase().includes('kg') ? '0.1' : '1'}" 
-                                           min="${product.unit.toLowerCase().includes('kg') ? '0.1' : '1'}"
-                                           onclick="event.stopPropagation()"
-                                           oninput="updateQuantity('${itemId}', this.value, this)"
-                                           onchange="updateQuantity('${itemId}', this.value, this)"
-                                           style="width: 70px; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
-                                    <input type="number" 
-                                           value="${selectedShoppingItems[itemId].price || product.price}" 
-                                           step="0.01" 
-                                           min="0"
-                                           onclick="event.stopPropagation()"
-                                           oninput="updatePrice('${itemId}', this.value, this)"
-                                           onchange="updatePrice('${itemId}', this.value, this)"
-                                           style="width: 70px; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;"
-                                           placeholder="${currencySymbol}">
-                                    <div class="quick-add-line-total" data-item-id="${itemId}" style="flex: 1; text-align: right; padding: 6px; background: #e8f5e9; border-radius: 4px; font-weight: 600; color: #2e7d32; font-size: 13px;">
-                                        ${currencySymbol}${((parseFloat(selectedShoppingItems[itemId].quantity) || parseFloat(product.defaultQty) || 0) * (parseFloat(selectedShoppingItems[itemId].price) || parseFloat(product.price) || 0)).toFixed(2)}
-                                    </div>
-                                </div>
-                            ` : ''}
-                        </div>
-                    `;
-                });
-                
-                html += `
-                    </div>
-                `;
-            }
+            });
             
             html += `
+                    </div>
                 </div>
             `;
         });
         
-        html += `
-                </div>
-            </div>
-        `;
+        html += `</div>`;
     });
     
-    // Calculate totals
-    const selectedCount = Object.keys(selectedShoppingItems).length;
-    const totalPrice = Object.values(selectedShoppingItems).reduce((sum, item) => {
-        const qty = parseFloat(item.quantity) || 0;
-        const price = parseFloat(item.price) || 0;
-        return sum + (qty * price);
-    }, 0);
+    modal.innerHTML = html;
+    updateQuickAddTotal();
+}
+
+// Toggle item selection
+function toggleQuickItem(shop, category, idx) {
+    const itemKey = `${shop}|${category}|${idx}`;
+    const product = quickAddProducts[shop][category][idx];
     
-    // Close the scrollable content wrapper
-    html += `</div>`; // Close quickAddScrollContent
+    if (selectedShoppingItems[itemKey]) {
+        delete selectedShoppingItems[itemKey];
+    } else {
+        selectedShoppingItems[itemKey] = {
+            ...product,
+            shop: shop,
+            quantity: product.defaultQty
+        };
+    }
     
-    // Sticky footer - flex-shrink: 0 keeps it at bottom
-    html += `
-        <div style="flex-shrink: 0; background: white; padding: 15px 0 0 0; border-top: 3px solid #e0e0e0; margin-top: auto;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
-                <div id="quickAddSelectedCount" style="font-size: 16px; font-weight: 600; color: #2c3e50;">
-                    Selected: ${selectedCount} items
-                </div>
-                <div id="quickAddTotalValue" style="font-size: 18px; font-weight: bold; color: #27ae60;">
-                    Total: ${currencySymbol}${(totalPrice || 0).toFixed(2)}
-                </div>
-            </div>
-            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <button onclick="closeQuickAdd()" style="flex: 1; min-width: 100px; padding: 12px; background: #f44336; color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">
-                    ✕ Cancel
+    renderQuickAddModal();
+}
+
+// Update item quantity
+function updateQuickItemQty(shop, category, idx, qty) {
+    const itemKey = `${shop}|${category}|${idx}`;
+    if (selectedShoppingItems[itemKey]) {
+        const numQty = parseFloat(qty) || 1;
+        // Ensure minimum 0.1 for loose items, 1 for fixed packs
+        const product = quickAddProducts[shop][category][idx];
+        const minQty = product.loose ? 0.1 : 1;
+        selectedShoppingItems[itemKey].quantity = Math.max(numQty, minQty);
+        updateQuickAddTotal();
+    }
+}
+
+// Update total
+function updateQuickAddTotal() {
+    const selected = Object.values(selectedShoppingItems);
+    const count = selected.length;
+    const total = selected.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    
+    const countEl = document.getElementById('quickAddSelectedCount');
+    const totalEl = document.getElementById('quickAddTotal');
+    
+    if (countEl) countEl.textContent = `Selected: ${count} items`;
+    if (totalEl) totalEl.textContent = `Total: ${getCurrencySymbol()}${total.toFixed(2)}`;
+}
+
+// Add items to shopping list
+function addQuickAddItems() {
+    const selected = Object.values(selectedShoppingItems);
+    
+    if (selected.length === 0) {
+        alert('Please select items first');
+        return;
+    }
+    
+    // Group by shop
+    const byShop = {};
+    selected.forEach(item => {
+        if (!byShop[item.shop]) byShop[item.shop] = [];
+        byShop[item.shop].push(item);
+    });
+    
+    // Get existing HTML
+    const existingHTML = localStorage.getItem('shoppingListHTML') || '';
+    let newHTML = '';
+    
+    // Add each shop's table
+    Object.keys(byShop).forEach(shop => {
+        newHTML += generateShoppingTableHTML(shop, byShop[shop]);
+    });
+    
+    // Combine with existing
+    const combinedHTML = existingHTML + newHTML;
+    localStorage.setItem('shoppingListHTML', combinedHTML);
+    
+    // Clear selection
+    selectedShoppingItems = {};
+    closeQuickAdd();
+    
+    // Refresh display
+    if (typeof renderShopping === 'function') {
+        renderShopping();
+    }
+    
+    alert(`✅ Added ${selected.length} items to shopping!`);
+}
+
+// Generate shopping table HTML
+function generateShoppingTableHTML(shop, items, existingTableId = null) {
+    const currencySymbol = getCurrencySymbol();
+    const brandStyle = getShopBrandStyle(shop);
+    
+    const tableId = existingTableId || `quickadd-${Date.now()}`;
+    
+    let totalPrice = 0;
+    let totalQuantity = 0;
+    const rows = items.map((item, index) => {
+        const itemId = `${tableId}-item-${index}`;
+        const itemTotal = item.price * item.quantity;
+        totalPrice += itemTotal;
+        totalQuantity += item.quantity;
+        
+        const isChecked = trolleyItems.has(itemId);
+        
+        return `
+            <tr>
+                <td style="padding: 10px; border: 1px solid #e5e7eb;">
+                    <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                        <input type="checkbox" 
+                               class="trolley-checkbox" 
+                               data-table-id="${tableId}"
+                               data-item-id="${itemId}"
+                               ${isChecked ? 'checked' : ''}
+                               onchange="toggleQuickAddTrolleyItem('${itemId}', '${tableId}')">
+                        <span style="font-weight: 500;">${item.name}</span>
+                    </label>
+                </td>
+                <td style="padding: 10px; border: 1px solid #e5e7eb; text-align: left;">${item.unit}</td>
+                <td style="padding: 10px; border: 1px solid #e5e7eb; text-align: right; font-weight: 600;">${currencySymbol}${item.price.toFixed(2)}</td>
+                <td style="padding: 10px; border: 1px solid #e5e7eb; text-align: center; font-weight: 700; font-size: 16px;">${typeof item.quantity === 'number' ? (item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(1)) : item.quantity}</td>
+            </tr>
+        `;
+    }).join('');
+    
+    // Calculate ticked total
+    let tickedTotal = 0;
+    items.forEach((item, index) => {
+        const itemId = `${tableId}-item-${index}`;
+        if (trolleyItems.has(itemId)) {
+            tickedTotal += item.price * item.quantity;
+        }
+    });
+    
+    return `
+        <div id="${tableId}" style="margin-bottom: 30px; border-radius: 12px; overflow: hidden; border: 2px solid #ddd; background: white;">
+            <!-- Header with Delete Button -->
+            <div style="${brandStyle.header}; position: relative;">
+                <h3 style="${brandStyle.title}">${shop}</h3>
+                <button onclick="deleteQuickAddTable('${tableId}')" 
+                        style="position: absolute; top: 10px; right: 10px; background: #ff6b6b; color: white; border: none; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; font-size: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); z-index: 10;">
+                    🗑️
                 </button>
-                <button onclick="addSelectedToShopping()" style="flex: 2; min-width: 150px; padding: 12px; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 14px;">
-                    🛒 Add ${selectedCount} Items
+            </div>
+            
+            <!-- Table -->
+            <table style="width: 100%; border-collapse: collapse; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+                <thead>
+                    <tr style="background: #f5f5f5;">
+                        <th style="padding: 12px; border: 1px solid #ddd; text-align: left; font-weight: bold;">Item</th>
+                        <th style="padding: 12px; border: 1px solid #ddd; text-align: left; font-weight: bold;">Unit</th>
+                        <th style="padding: 12px; border: 1px solid #ddd; text-align: right; font-weight: bold;">Price</th>
+                        <th style="padding: 12px; border: 1px solid #ddd; text-align: center; font-weight: bold;">Quantity</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows}
+                    <tr style="background: #f9f9f9; font-weight: bold;">
+                        <td style="padding: 12px; border: 1px solid #ddd; text-align: left;"><span>Totals:</span></td>
+                        <td style="padding: 12px; border: 1px solid #ddd;"></td>
+                        <td style="padding: 12px; border: 1px solid #ddd; text-align: right; font-size: 18px;">${currencySymbol}${totalPrice.toFixed(2)}</td>
+                        <td style="padding: 12px; border: 1px solid #ddd; text-align: center; font-size: 18px;">${totalQuantity % 1 === 0 ? totalQuantity : totalQuantity.toFixed(1)}</td>
+                    </tr>
+                </tbody>
+            </table>
+            
+            <!-- Checkout button -->
+            <div style="padding: 20px; text-align: center; background: #f9fafb;">
+                <button id="checkout-btn-${tableId}"
+                        onclick="checkoutQuickAddTable('${tableId}')" 
+                        class="checkout-btn"
+                        style="padding: 14px 28px; background: ${tickedTotal > 0 ? '#10b981' : '#d1d5db'}; color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: ${tickedTotal > 0 ? 'pointer' : 'not-allowed'}; transition: all 0.2s ease; box-shadow: ${tickedTotal > 0 ? '0 4px 12px rgba(16,185,129,0.3)' : 'none'};"
+                        ${tickedTotal === 0 ? 'disabled' : ''}>
+                    ✅ Checkout ${currencySymbol}${tickedTotal.toFixed(2)}
                 </button>
             </div>
         </div>
     `;
-    
-    container.innerHTML = html;
-    
-    // Restore scroll position after re-rendering (immediately and next frame to avoid flicker)
-    const newScrollContainer = document.getElementById('quickAddScrollContent');
-    if (newScrollContainer) {
-        newScrollContainer.scrollTop = savedScrollPosition;
-        requestAnimationFrame(() => {
-            newScrollContainer.scrollTop = savedScrollPosition;
-        });
-    }
 }
 
-// Toggle item selection
-function toggleQuickItem(itemId, product, shop, category) {
-    if (selectedShoppingItems[itemId]) {
-        delete selectedShoppingItems[itemId];
-    } else {
-        selectedShoppingItems[itemId] = {
-            name: product.name,
-            unit: product.unit,
-            quantity: product.defaultQty,
-            price: product.price,
-            shop: shop,
-            category: category
-        };
-    }
-    renderQuickAddModal();
-}
-
-// Update quantity
-function updateQuantity(itemId, value, inputEl) {
-    if (!selectedShoppingItems[itemId]) return;
-    const numeric = parseFloat(value);
-    selectedShoppingItems[itemId].quantity = isNaN(numeric) ? '' : numeric;
-    refreshQuickAddLine(itemId, inputEl);
-}
-
-// Update price
-function updatePrice(itemId, value, inputEl) {
-    if (!selectedShoppingItems[itemId]) return;
-    const numeric = parseFloat(value);
-    selectedShoppingItems[itemId].price = isNaN(numeric) ? '' : numeric;
-    refreshQuickAddLine(itemId, inputEl);
-}
-
-// Clear all items
-function clearAllItems() {
-    selectedShoppingItems = {};
-    renderQuickAddModal();
-}
-
-function refreshQuickAddFooterTotals() {
-    const selectedCount = Object.keys(selectedShoppingItems).length;
-    const currencySymbol = getCurrencySymbol();
-    const totalPrice = Object.values(selectedShoppingItems).reduce((sum, item) => {
-        const qty = parseFloat(item.quantity) || 0;
-        const price = parseFloat(item.price) || 0;
-        return sum + (qty * price);
-    }, 0);
-    const selectedEl = document.getElementById('quickAddSelectedCount');
-    const totalEl = document.getElementById('quickAddTotalValue');
-    if (selectedEl) selectedEl.textContent = `Selected: ${selectedCount} items`;
-    if (totalEl) totalEl.textContent = `Total: ${currencySymbol}${(totalPrice || 0).toFixed(2)}`;
-}
-
-function refreshQuickAddLine(itemId, inputEl) {
-    const currencySymbol = getCurrencySymbol();
-    const item = selectedShoppingItems[itemId];
-    if (!item) return;
-    const safeId = (typeof CSS !== 'undefined' && CSS.escape) ? CSS.escape(itemId) : itemId.replace(/"/g, '\\"');
-    const line = document.querySelector(`.quick-add-line-total[data-item-id="${safeId}"]`);
-    const card = inputEl?.closest('.quick-add-item');
-    const qtyInput = inputEl?.closest('.quick-add-item')?.querySelector('input[type="number"]');
-    const priceInput = card?.querySelector('input[type="number"]:not([oninput*="updateQuantity"])');
-    const qty = parseFloat(qtyInput?.value ?? item.quantity) || 0;
-    const price = parseFloat(priceInput?.value ?? item.price) || 0;
-    if (line) {
-        line.textContent = `${currencySymbol}${(qty * price).toFixed(2)}`;
-    }
-    refreshQuickAddFooterTotals();
-}
-// Add selected items to shopping list
-function addSelectedToShopping() {
-    const itemCount = Object.keys(selectedShoppingItems).length;
-    
-    if (itemCount === 0) {
-        alert('⚠️ Please select at least one item!');
-        return;
-    }
-    
-    const currencySymbol = getCurrencySymbol();
-    
-    // Group items by shop
-    const itemsByShop = {};
-    Object.values(selectedShoppingItems).forEach(item => {
-        if (!itemsByShop[item.shop]) {
-            itemsByShop[item.shop] = {};
-        }
-        if (!itemsByShop[item.shop][item.category]) {
-            itemsByShop[item.shop][item.category] = [];
-        }
-        itemsByShop[item.shop][item.category].push(item);
-    });
-    
-    // Generate HTML table
-    let shoppingHTML = '';
-    let grandTotal = 0;
-    let listId = Date.now();
-    
-    Object.keys(itemsByShop).forEach(shop => {
-        const shopId = `shop-${listId}-${shop.replace(/[^a-zA-Z0-9]/g, '-')}`;
-        const shopStyles = getShopBrandStyle(shop);
+// Delete Quick Add table
+function deleteQuickAddTable(tableId) {
+    const table = document.getElementById(tableId);
+    if (table) {
+        table.remove();
         
-        shoppingHTML += `
-            <div id="${shopId}" style="margin-bottom: 30px; page-break-inside: avoid; border: 2px solid #ddd; border-radius: 8px; overflow: hidden; position: relative;">
-                <button onclick="deleteShopList('${shopId}')" 
-                    style="position: absolute; top: 10px; right: 10px; z-index: 10; background: #ff4444; color: white; border: none; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 18px; box-shadow: 0 2px 5px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; padding: 0;"
-                    title="Delete this list">
-                    ✕
-                </button>
-                
-                <div style="${shopStyles.header}">
-                    <h2 style="${shopStyles.title}">${shop}</h2>
-                </div>
-                
-                <div style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
-                    <table style="width: 100%; border-collapse: collapse; min-width: 400px;">
-                        <thead>
-                            <tr style="background: #f5f5f5;">
-                                <th style="border: 1px solid #ddd; padding: 12px; text-align: left; font-weight: bold; min-width: 120px;">Item</th>
-                                <th style="border: 1px solid #ddd; padding: 12px; text-align: left; font-weight: bold; min-width: 80px;">Unit</th>
-                                <th style="border: 1px solid #ddd; padding: 12px; text-align: right; font-weight: bold; min-width: 70px;">Price</th>
-                                <th style="border: 1px solid #ddd; padding: 12px; text-align: center; font-weight: bold; min-width: 80px;">Quantity</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-        `;
-        
-        let shopTotal = 0;
-        let shopTotalQuantity = 0;
-        
-        Object.keys(itemsByShop[shop]).forEach(category => {
-            itemsByShop[shop][category].forEach(item => {
-                const qty = parseFloat(item.quantity) || 0;
-                const price = parseFloat(item.price) || 0;
-                const itemTotal = qty * price;
-                shopTotal += itemTotal;
-                grandTotal += itemTotal;
-                shopTotalQuantity += qty;
-                
-                let qtyDisplay = qty;
-                if (qty % 1 !== 0) {
-                    qtyDisplay = qty.toFixed(1);
-                }
-                
-                shoppingHTML += `
-                    <tr>
-                        <td style="border: 1px solid #ddd; padding: 10px;">${item.name || ''}</td>
-                        <td style="border: 1px solid #ddd; padding: 10px;">${item.unit || ''}</td>
-                        <td style="border: 1px solid #ddd; padding: 10px; text-align: right;">${currencySymbol}${price.toFixed(2)}</td>
-                        <td style="border: 1px solid #ddd; padding: 10px; text-align: center;">${qtyDisplay}</td>
-                    </tr>
-                `;
-            });
-        });
-        
-        let totalQtyDisplay = shopTotalQuantity;
-        if (shopTotalQuantity % 1 !== 0) {
-            totalQtyDisplay = shopTotalQuantity.toFixed(1);
-        }
-        
-        shoppingHTML += `
-                        <tr class="totals-row" style="background: #f9f9f9; font-weight: bold;">
-                            <td style="border: 1px solid #ddd; padding: 10px; text-align: right;" colspan="2">Totals:</td>
-                            <td style="border: 1px solid #ddd; padding: 10px; text-align: right;">${currencySymbol}${(shopTotal || 0).toFixed(2)}</td>
-                            <td style="border: 1px solid #ddd; padding: 10px; text-align: center;">Total Qty: ${totalQtyDisplay}</td>
-                        </tr>
-                    </tbody>
-                </table>
-                </div>
-            </div>
-        `;
-    });
-    
-    // Save to localStorage
-    const existingHTML = localStorage.getItem('shoppingListHTML') || '';
-    const newHTML = existingHTML + (existingHTML ? '<div style="margin: 40px 0; border-top: 3px solid #ddd;"></div>' : '') + shoppingHTML;
-    localStorage.setItem('shoppingListHTML', newHTML);
-    
-    // Update display and switch tab
-    renderShopping();
-    document.querySelector('[data-tab="shopping"]').click();
-    
-    closeQuickAdd();
-    alert(`✅ Added ${itemCount} items!\n\nTotal: ${currencySymbol}${(grandTotal || 0).toFixed(2)}`);
-    
-    selectedShoppingItems = {};
-}
-
-// Delete shop list
-function deleteShopList(shopId) {
-    if (confirm('Delete this shopping list?')) {
+        // Update localStorage - get all remaining Quick Add tables
         const container = document.getElementById('shoppingDisplay');
-        const quickSection = document.getElementById('quickAddLists') || container;
-        if (!quickSection) return;
+        if (container) {
+            const allDivs = container.querySelectorAll('div[id^="quickadd-"]');
+            const remainingHTML = Array.from(allDivs).map(div => div.outerHTML).join('');
+            localStorage.setItem('shoppingListHTML', remainingHTML);
+        }
         
-        const shopDiv = document.getElementById(shopId);
-        if (shopDiv) {
-            const nextSibling = shopDiv.nextElementSibling;
-            const prevSibling = shopDiv.previousElementSibling;
-            
-            // Remove the shop div
-            shopDiv.remove();
-            
-            // Only remove dividers (not other shop lists)
-            // Divider has specific style: "margin: 40px 0; border-top: 3px solid #ddd;"
-            // Shop list has id starting with "shop-"
-            if (nextSibling && !nextSibling.id && nextSibling.tagName === 'DIV') {
-                // This is likely a divider
-                const style = nextSibling.getAttribute('style');
-                if (style && style.includes('border-top: 3px solid #ddd')) {
-                    nextSibling.remove();
-                }
-            } else if (prevSibling && !prevSibling.id && prevSibling.tagName === 'DIV') {
-                // This is likely a divider
-                const style = prevSibling.getAttribute('style');
-                if (style && style.includes('border-top: 3px solid #ddd')) {
-                    prevSibling.remove();
-                }
-            }
-            
-            let updatedHTML = quickSection.innerHTML.trim();
-            updatedHTML = updatedHTML.replace(/(<div style="margin: 40px 0; border-top: 3px solid #ddd;"><\/div>\s*){2,}/g, '<div style="margin: 40px 0; border-top: 3px solid #ddd;"></div>');
-            updatedHTML = updatedHTML.replace(/^<div style="margin: 40px 0; border-top: 3px solid #ddd;"><\/div>\s*/g, '');
-            updatedHTML = updatedHTML.replace(/\s*<div style="margin: 40px 0; border-top: 3px solid #ddd;"><\/div>$/g, '');
-            
-            if (updatedHTML === '' || !updatedHTML.includes('shop-')) {
-                localStorage.removeItem('shoppingListHTML');
-            } else {
-                localStorage.setItem('shoppingListHTML', updatedHTML);
-            }
-            
-            // Always refresh display after deletion
+        // Refresh if no tables left
+        if (typeof renderShopping === 'function') {
             renderShopping();
         }
     }
 }
 
-// Index-based wrapper functions (Solution B)
-function editShopByIndex(shopIndex) {
-    const shopName = shopsArray[shopIndex];
-    editShop(shopName);
-}
-
-function deleteShopByIndex(shopIndex) {
-    const shopName = shopsArray[shopIndex];
-    deleteShop(shopName);
-}
-
-function showAddCategoryFormByIndex(shopIndex) {
-    const shopName = shopsArray[shopIndex];
-    showAddCategoryForm(shopName);
-}
-
-function editCategoryByIndex(shopIndex, catIndex) {
-    const shop = shopsArray[shopIndex];
-    const category = categoriesMap[shopIndex][catIndex];
-    editCategory(shop, category);
-}
-
-function saveCategoryByIndex(shopIndex, catIndex) {
-    const shop = shopsArray[shopIndex];
-    const category = categoriesMap[shopIndex][catIndex];
-    saveCategory(shop, category);
-}
-
-function cancelEditCategoryByIndex(shopIndex, catIndex) {
-    const shop = shopsArray[shopIndex];
-    const category = categoriesMap[shopIndex][catIndex];
-    cancelEditCategory(shop, category);
-}
-
-function deleteCategoryByIndex(shopIndex, catIndex) {
-    const shop = shopsArray[shopIndex];
-    const category = categoriesMap[shopIndex][catIndex];
-    deleteCategory(shop, category);
-}
-
-function showAddItemFormByIndex(shopIndex, catIndex) {
-    const shop = shopsArray[shopIndex];
-    const category = categoriesMap[shopIndex][catIndex];
-    showAddItemForm(shop, category);
-}
-
-function showAddItemFormByIndex(shopIndex, catIndex) {
-    const shop = shopsArray[shopIndex];
-    const category = categoriesMap[shopIndex][catIndex];
-    showAddItemForm(shop, category);
-}
-
-function addNewItemFromFormByIndex(shopIndex, catIndex) {
-    const shop = shopsArray[shopIndex];
-    const category = categoriesMap[shopIndex][catIndex];
-    const catId = `${shopIndex}-${catIndex}`;
-    
-    const name = document.getElementById(`newItemName-${catId}`).value.trim();
-    const unit = document.getElementById(`newItemUnit-${catId}`).value.trim();
-    const price = parseFloat(document.getElementById(`newItemPrice-${catId}`).value) || 0;
-    const qty = parseFloat(document.getElementById(`newItemQty-${catId}`).value) || 1;
-    
-    if (!name) {
-        alert('⚠️ Please enter an item name!');
-        return;
+// Toggle trolley item for Quick Add (uses shared trolleyItems from smart-shopping.js)
+function toggleQuickAddTrolleyItem(itemId, tableId) {
+    if (trolleyItems.has(itemId)) {
+        trolleyItems.delete(itemId);
+    } else {
+        trolleyItems.add(itemId);
     }
     
-    quickAddProducts[shop][category].push({
-        name: name,
-        unit: unit || 'each',
-        price: price,
-        defaultQty: qty
+    if (typeof saveTrolleyItems === 'function') {
+        saveTrolleyItems();
+    } else {
+        localStorage.setItem('trolleyItems_v2', JSON.stringify([...trolleyItems]));
+    }
+    
+    updateQuickAddCheckoutButton(tableId);
+}
+
+// Update checkout button for Quick Add table
+function updateQuickAddCheckoutButton(tableId) {
+    const table = document.getElementById(tableId);
+    if (!table) return;
+    
+    // Calculate ticked total from table rows
+    let tickedTotal = 0;
+    const rows = table.querySelectorAll('tbody tr:not(:last-child)');
+    
+    rows.forEach((row, index) => {
+        const itemId = `${tableId}-item-${index}`;
+        const checkbox = row.querySelector(`input[data-item-id="${itemId}"]`);
+        
+        if (checkbox && checkbox.checked) {
+            const priceCell = row.cells[2];
+            const quantityCell = row.cells[3];
+            
+            if (priceCell && quantityCell) {
+                const priceText = priceCell.textContent.replace(/[^0-9.]/g, '');
+                const price = parseFloat(priceText);
+                const quantity = parseFloat(quantityCell.textContent); // Fixed: was parseInt
+                
+                if (!isNaN(price) && !isNaN(quantity)) {
+                    tickedTotal += price * quantity;
+                }
+            }
+        }
     });
     
-    localStorage.setItem('quickAddProducts', JSON.stringify(quickAddProducts));
-    document.getElementById(`addItemRow-${catId}`).remove();
-    renderQuickAddModal();
-}
-
-function deleteItemByIndex(shopIndex, catIndex, itemIndex) {
-    const shop = shopsArray[shopIndex];
-    const category = categoriesMap[shopIndex][catIndex];
-    deleteItem(shop, category, itemIndex);
-}
-
-function toggleQuickItemByIndex(shopIndex, catIndex, itemIndex) {
-    const shop = shopsArray[shopIndex];
-    const category = categoriesMap[shopIndex][catIndex];
-    const product = itemsMap[`${shopIndex}|${catIndex}`][itemIndex];
-    const itemId = `${shop}|${category}|${itemIndex}`;
+    const btn = document.getElementById(`checkout-btn-${tableId}`);
+    if (!btn) return;
     
-    if (selectedShoppingItems[itemId]) {
-        delete selectedShoppingItems[itemId];
+    const currencySymbol = getCurrencySymbol();
+    
+    if (tickedTotal === 0) {
+        btn.textContent = `✅ Checkout ${currencySymbol}0.00`;
+        btn.disabled = true;
+        btn.style.background = '#d1d5db';
+        btn.style.cursor = 'not-allowed';
+        btn.style.boxShadow = 'none';
     } else {
-        selectedShoppingItems[itemId] = {
-            name: product.name,
-            unit: product.unit,
-            quantity: product.defaultQty,
-            price: product.price,
-            shop: shop,
-            category: category
+        btn.textContent = `✅ Checkout ${currencySymbol}${tickedTotal.toFixed(2)}`;
+        btn.disabled = false;
+        btn.style.background = '#10b981';
+        btn.style.cursor = 'pointer';
+        btn.style.boxShadow = '0 4px 12px rgba(16,185,129,0.3)';
+    }
+}
+
+// Checkout Quick Add table
+function checkoutQuickAddTable(tableId) {
+    const table = document.getElementById(tableId);
+    if (!table) return;
+    
+    // Collect items to checkout AND items to keep
+    const tickedItems = [];
+    const remainingItems = [];
+    const rows = table.querySelectorAll('tbody tr:not(:last-child)');
+    
+    rows.forEach((row, index) => {
+        const itemId = `${tableId}-item-${index}`;
+        const checkbox = row.querySelector(`input[data-item-id="${itemId}"]`);
+        
+        const itemCell = row.cells[0];
+        const unitCell = row.cells[1];
+        const priceCell = row.cells[2];
+        const quantityCell = row.cells[3];
+        
+        const itemName = itemCell.querySelector('span').textContent;
+        const unit = unitCell.textContent;
+        const priceText = priceCell.textContent.replace(/[^0-9.]/g, '');
+        const price = parseFloat(priceText);
+        const quantity = parseFloat(quantityCell.textContent);
+        
+        const item = {
+            name: itemName,
+            unit: unit,
+            price: price,
+            quantity: quantity
         };
-    }
-    renderQuickAddModal();
-}
-
-// ========================================
-// INLINE EDITING - Shop & Category Names
-// ========================================
-
-function saveShopNameInline(shopIndex, newName) {
-    newName = newName.trim();
-    
-    if (!newName) {
-        alert('⚠️ Shop name cannot be empty!');
-        renderQuickAddModal();
-        return;
-    }
-    
-    const oldName = shopsArray[shopIndex];
-    
-    // Check if name already exists
-    if (newName !== oldName && quickAddProducts[newName]) {
-        alert('⚠️ A shop with this name already exists!');
-        renderQuickAddModal();
-        return;
-    }
-    
-    // Update shop name
-    if (newName !== oldName) {
-        quickAddProducts[newName] = quickAddProducts[oldName];
-        delete quickAddProducts[oldName];
         
-        // Save and refresh
-        localStorage.setItem('quickAddProducts', JSON.stringify(quickAddProducts));
-        renderQuickAddModal();
-    }
-}
-
-function saveCategoryNameInline(shopIndex, catIndex, newName) {
-    newName = newName.trim();
+        if (checkbox && checkbox.checked) {
+            tickedItems.push(item);
+            // Remove from trolley
+            trolleyItems.delete(itemId);
+        } else {
+            remainingItems.push(item);
+        }
+    });
     
-    if (!newName) {
-        alert('⚠️ Category name cannot be empty!');
-        renderQuickAddModal();
+    if (tickedItems.length === 0) {
+        alert('Please select items to checkout');
         return;
     }
     
-    const shop = shopsArray[shopIndex];
-    const oldName = categoriesMap[shopIndex][catIndex];
-    
-    // Check if category already exists in this shop
-    if (newName !== oldName && quickAddProducts[shop][newName]) {
-        alert('⚠️ A category with this name already exists in this shop!');
-        renderQuickAddModal();
-        return;
-    }
-    
-    // Update category name
-    if (newName !== oldName) {
-        quickAddProducts[shop][newName] = quickAddProducts[shop][oldName];
-        delete quickAddProducts[shop][oldName];
+    // Add to Kitchen Stock
+    tickedItems.forEach(item => {
+        // Parse pack size to get quantity and unit
+        const match = item.unit.match(/^(\d+(?:\.\d+)?)(ml|g|count|L|kg)$/);
+        if (!match) return;
         
-        // Save and refresh
-        localStorage.setItem('quickAddProducts', JSON.stringify(quickAddProducts));
-        renderQuickAddModal();
-    }
-}
-
-// ========================================
-// SMART MERGE - Preserve user data + add new defaults
-// ========================================
-function loadCustomProducts() {
-    const saved = localStorage.getItem('quickAddProducts');
-
-    // 1. If user never saved anything, just use defaults
-    if (!saved) return;
-
-    try {
-        const userData = JSON.parse(saved);
-        const defaults = quickAddProducts;
-
-        // 2. Loop default shops
-        Object.keys(defaults).forEach(shop => {
-            if (!userData[shop]) {
-                // New shop → add fully
-                userData[shop] = defaults[shop];
-                return;
-            }
-
-            // 3. Loop default categories
-            Object.keys(defaults[shop]).forEach(category => {
-                if (!userData[shop][category]) {
-                    // New category → add fully
-                    userData[shop][category] = defaults[shop][category];
-                    return;
-                }
-
-                // 4. Loop default items
-                defaults[shop][category].forEach(defaultItem => {
-                    const exists = userData[shop][category].some(userItem =>
-                        userItem.name.toLowerCase() === defaultItem.name.toLowerCase()
-                    );
-
-                    // 5. Add ONLY missing items
-                    if (!exists) {
-                        userData[shop][category].push(defaultItem);
+        const packQty = parseFloat(match[1]);
+        let packUnit = match[2];
+        
+        // Find canonical key from SKU name
+        let canonicalKey = null;
+        Object.keys(CANONICAL_PRODUCTS).some(key => {
+            const product = CANONICAL_PRODUCTS[key];
+            return Object.values(product.shops || {}).some(skus => {
+                return skus.some(sku => {
+                    if (sku.sku === item.name) {
+                        canonicalKey = key;
+                        return true;
                     }
+                    return false;
                 });
             });
         });
-
-        // 6. Use merged result
-        quickAddProducts = userData;
-
-        // 7. Save back (safe)
-        localStorage.setItem('quickAddProducts', JSON.stringify(quickAddProducts));
-
-    } catch (e) {
-        console.error('Quick Add load failed:', e);
+        
+        if (!canonicalKey) return;
+        
+        // Convert to base units
+        let qtyBase = packQty * item.quantity;
+        if (packUnit === 'kg') qtyBase *= 1000;
+        if (packUnit === 'L') qtyBase *= 1000;
+        
+        if (typeof addToKitchenStock === 'function') {
+            addToKitchenStock(canonicalKey, qtyBase);
+        }
+    });
+    
+    // Check if table should be deleted or re-rendered
+    if (remainingItems.length === 0) {
+        // Delete the entire table
+        table.remove();
+        
+        // Update localStorage
+        const container = document.getElementById('shoppingDisplay');
+        if (container) {
+            const allDivs = container.querySelectorAll('div[id^="quickadd-"]');
+            const remainingHTML = Array.from(allDivs).map(div => div.outerHTML).join('');
+            localStorage.setItem('shoppingListHTML', remainingHTML);
+        }
+        
+        const currencySymbol = getCurrencySymbol();
+        const total = tickedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        showToast(`✅ Checked out ${tickedItems.length} items (${currencySymbol}${total.toFixed(2)}) - Table deleted`);
+    } else {
+        // Re-render table with remaining items (preserve tableId)
+        const shop = table.querySelector('h3').textContent;
+        const newTableHTML = generateShoppingTableHTML(shop, remainingItems, tableId);
+        table.outerHTML = newTableHTML;
+        
+        // Update localStorage
+        const container = document.getElementById('shoppingDisplay');
+        if (container) {
+            const allDivs = container.querySelectorAll('div[id^="quickadd-"]');
+            const remainingHTML = Array.from(allDivs).map(div => div.outerHTML).join('');
+            localStorage.setItem('shoppingListHTML', remainingHTML);
+        }
+        
+        const currencySymbol = getCurrencySymbol();
+        const total = tickedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        showToast(`✅ Checked out ${tickedItems.length} items (${currencySymbol}${total.toFixed(2)}) - Added to Kitchen Stock!`);
     }
 }
 
-// Initialize
-loadCustomProducts();
+// Update Quick Add table totals after checkout
+function updateQuickAddTableTotals(tableId) {
+    const table = document.getElementById(tableId);
+    if (!table) return;
+    
+    const rows = table.querySelectorAll('tbody tr:not(:last-child)');
+    let totalPrice = 0;
+    let totalQuantity = 0;
+    
+    rows.forEach(row => {
+        const priceCell = row.cells[2];
+        const quantityCell = row.cells[3];
+        
+        const priceText = priceCell.textContent.replace(/[^0-9.]/g, '');
+        const price = parseFloat(priceText);
+        const quantity = parseFloat(quantityCell.textContent);
+        
+        totalPrice += price * quantity;
+        totalQuantity += quantity;
+    });
+    
+    // Update totals row
+    const totalsRow = table.querySelector('tbody tr:last-child');
+    if (totalsRow) {
+        const currencySymbol = getCurrencySymbol();
+        totalsRow.cells[2].textContent = `${currencySymbol}${totalPrice.toFixed(2)}`;
+        totalsRow.cells[3].textContent = totalQuantity.toFixed(1);
+    }
+}
 
-console.log('✅ Quick Add Shopping redesigned and loaded!');
-console.log('Available shops:', Object.keys(quickAddProducts));
+console.log('✅ Quick Add Shopping loaded - V2.1.0 FIXED');

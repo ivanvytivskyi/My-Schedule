@@ -1,6 +1,71 @@
 // ========================================
-// SERVICE WORKER UPDATE DETECTION
+// PWA MANAGER
+// - Service Worker Registration
+// - App Installation
+// - Update Detection & Notifications
 // ========================================
+
+// ===================================
+// SERVICE WORKER REGISTRATION
+// ===================================
+
+let deferredInstallPrompt = null;
+
+function updateInstallButtonVisibility(isReady) {
+    const btn = document.getElementById('installAppBtn');
+    if (!btn) return;
+    if (isReady) {
+        btn.classList.add('ready');
+        btn.classList.remove('hidden');
+    } else {
+        btn.classList.remove('ready');
+        btn.classList.add('hidden');
+    }
+}
+
+function registerServiceWorker() {
+    if (!('serviceWorker' in navigator)) return;
+
+    navigator.serviceWorker.register('./service-worker.js').catch(err => {
+        console.error('[PWA] Service worker registration failed:', err);
+    });
+}
+
+function setupInstallPrompt() {
+    const btn = document.getElementById('installAppBtn');
+    if (!btn) return;
+
+    btn.addEventListener('click', async () => {
+        if (!deferredInstallPrompt) return;
+        deferredInstallPrompt.prompt();
+        const { outcome } = await deferredInstallPrompt.userChoice;
+        console.log('[PWA] User response to install prompt:', outcome);
+        deferredInstallPrompt = null;
+        updateInstallButtonVisibility(false);
+    });
+
+    window.addEventListener('beforeinstallprompt', (event) => {
+        event.preventDefault();
+        deferredInstallPrompt = event;
+        updateInstallButtonVisibility(true);
+    });
+
+    // Hide button if already installed
+    const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+    if (isStandalone) {
+        updateInstallButtonVisibility(false);
+    }
+
+    window.addEventListener('appinstalled', () => {
+        deferredInstallPrompt = null;
+        updateInstallButtonVisibility(false);
+        console.log('[PWA] App installed');
+    });
+}
+
+// ===================================
+// UPDATE DETECTION
+// ===================================
 
 if ('serviceWorker' in navigator) {
     // Listen for service worker updates
@@ -11,11 +76,9 @@ if ('serviceWorker' in navigator) {
         }
     });
 
-    if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    window.location.reload();
-  });
-}
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+        window.location.reload();
+    });
     
     // Check for updates on page load
     navigator.serviceWorker.ready.then(registration => {
@@ -31,7 +94,6 @@ if ('serviceWorker' in navigator) {
 }
 
 function showUpdateNotification(version) {
-
     const lastVersion = localStorage.getItem('lastSeenVersion');
     if (lastVersion !== String(version)) {
         localStorage.removeItem('updateDismissed');
@@ -39,7 +101,6 @@ function showUpdateNotification(version) {
     }
 
     if (localStorage.getItem('updateDismissed') === 'true') return;
-
     if (document.getElementById('updateBanner')) return;
 
     const banner = document.createElement('div');
@@ -114,55 +175,60 @@ function reloadApp() {
 function dismissUpdateBanner() {
     const banner = document.getElementById('updateBanner');
     if (!banner) return;
-        localStorage.setItem('updateDismissed', 'true');
-        banner.style.animation = 'slideUp 0.3s ease';
-        setTimeout(() => banner.remove(), 300);
-        const btn = document.getElementById('manualUpdateBtn');
-        if (btn) btn.style.display = 'flex';
-    }
-
-async function manualUpdateCheck() {
-  // allow banner to show again
-  localStorage.removeItem('updateDismissed');
-
-  // hide the manual button while checking
-  const btn = document.getElementById('manualUpdateBtn');
-  if (btn) btn.style.display = 'none';
-
-  if (!('serviceWorker' in navigator)) {
-    window.location.reload();
-    return;
-  }
-
-  const reg = await navigator.serviceWorker.ready;
-
-  // If there's already a waiting SW, activate it now
-  if (reg.waiting) {
-    reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-    return;
-  }
-
-  // Ask browser to re-check the SW file
-  await reg.update();
-
-  // After update(), you might now have a waiting SW
-  if (reg.waiting) {
-    reg.waiting.postMessage({ type: 'SKIP_WAITING' });
-    return;
-  }
-
-  alert('✅ You are already on the latest version.');
+    localStorage.setItem('updateDismissed', 'true');
+    banner.style.animation = 'slideUp 0.3s ease';
+    setTimeout(() => banner.remove(), 300);
+    const btn = document.getElementById('manualUpdateBtn');
+    if (btn) btn.style.display = 'flex';
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  const btn = document.getElementById('manualUpdateBtn');
-  if (!btn) return;
+async function manualUpdateCheck() {
+    // allow banner to show again
+    localStorage.removeItem('updateDismissed');
 
-  btn.style.display = (localStorage.getItem('updateDismissed') === 'true')
-    ? 'flex'
-    : 'none';
+    // hide the manual button while checking
+    const btn = document.getElementById('manualUpdateBtn');
+    if (btn) btn.style.display = 'none';
+
+    if (!('serviceWorker' in navigator)) {
+        window.location.reload();
+        return;
+    }
+
+    const reg = await navigator.serviceWorker.ready;
+
+    // If there's already a waiting SW, activate it now
+    if (reg.waiting) {
+        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+        return;
+    }
+
+    // Ask browser to re-check the SW file
+    await reg.update();
+
+    // After update(), you might now have a waiting SW
+    if (reg.waiting) {
+        reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+        return;
+    }
+
+    alert('✅ You are already on the latest version.');
+}
+
+// ===================================
+// INITIALIZATION
+// ===================================
+
+document.addEventListener('DOMContentLoaded', () => {
+    registerServiceWorker();
+    setupInstallPrompt();
+    
+    const btn = document.getElementById('manualUpdateBtn');
+    if (!btn) return;
+
+    btn.style.display = (localStorage.getItem('updateDismissed') === 'true')
+        ? 'flex'
+        : 'none';
 });
 
-console.log('✅ Service Worker update detection loaded!');
-
-
+console.log('✅ PWA Manager loaded!');

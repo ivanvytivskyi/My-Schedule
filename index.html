@@ -7,39 +7,50 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="theme-color" content="#667eea" />
-    <title>Weekly Schedule Manager V2.0.3</title>
-    <link rel="manifest" href="manifest.json?v=2.0.0">
-    <link rel="icon" href="icon-192-v=2.0.0.png" sizes="192x192">
-    <link rel="apple-touch-icon" href="/apple-touch-icon-v2.0.0.png">
+    <title>Weekly Schedule Manager V2.1.0</title>
+    <link rel="manifest" href="manifest.json?v=2.1.0">
+    <link rel="icon" href="icon-192-v2.1.0.png" sizes="192x192">
+    <link rel="apple-touch-icon" href="/apple-touch-icon-v2.1.0.png">
     <link rel="stylesheet" href="styles.css">
     <script src="import-functions.js" defer></script>
     <script src="recipe-database.js" defer></script>
     <script src="recipe-display.js" defer></script>
-    <script src="recipe-prompt-generator.js" defer></script>
-    <script src="recipe-import-parser.js" defer></script>
-    <script src="ingredient-keywords.js" defer></script>
-    <script src="pwa.js" defer></script>
+    <script src="recipe-utils.js" defer></script>
+    <script src="pwa-manager.js" defer></script>
 </head>
 <body>
     <div class="container">
         <div class="header">
             <div class="header-title">
                 <h1>
-                    <span class="static-name" id="staticName">Ivan</span>
-                    <input type="text" class="editable-name" id="editableName" value="Ivan" />
+                    <span class="static-name" id="staticName">Name</span>
+                    <input type="text" class="editable-name" id="editableName" value="Name" />
                     's Weekly Schedule
-                    <span class="version-badge">V2.0.3</span>
                 </h1>
             </div>
-            <div class="date-info">
-                <div class="date-display" id="dateDisplay">December 2025 🚴</div>
-                <input type="text" class="editable-date" id="editableDate" placeholder="e.g., December 2025 🚴" />
+            <div class="date-info" id="dateInfoContainer">
+                <div class="date-display" id="dateDisplay">December 2025 🎄</div>
+                <input type="text" class="editable-date" id="editableDate" placeholder="e.g., December 2025 🎄" />
             </div>
-            <div class="mode-buttons">
-                <button class="mode active" id="calendarMode">📅 Calendar</button>
-                <button class="mode" id="editMode">✏️ Edit</button>
-                <button class="mode hidden" id="manageDefaultsBtn">⚙️ Manage Defaults</button>
-                <button class="mode install-btn hidden" id="installAppBtn" type="button">📥 Install App</button>
+            <div class="mode-buttons" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <div style="display: flex; gap: 15px; align-items: center;">
+                    <!-- Split Calendar/Edit Button - Exact style from HTML file -->
+                    <button class="toggle-button" id="toggleModeBtn" style="position: relative; display: inline-flex; height: 50px; cursor: pointer; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 25px; overflow: hidden; width: 200px; padding: 0;">
+                        <div class="button-section section-left" id="calendarSection" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 20px; font-weight: 600; color: white; transition: all 0.3s ease; background: linear-gradient(135deg, #7B68EE, #6B5FD8); border-radius: 25px 0 0 25px;">
+                            <span>📅</span>
+                            <span>Cal</span>
+                        </div>
+                        <div class="button-section section-right" id="editSection" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 20px; font-weight: 600; color: white; transition: all 0.3s ease; background: #FFD700; border-radius: 0 25px 25px 0; position: relative;">
+                            <span style="position: absolute; left: 0; top: 0; width: 1px; height: 100%; background: rgba(255, 255, 255, 0.3);"></span>
+                            <span>✏️</span>
+                            <span>Ed</span>
+                        </div>
+                    </button>
+                </div>
+                <div style="display: flex; gap: 15px; align-items: center;">
+                    <button class="settings-button" id="settingsBtn" onclick="openSettings()" style="width: 50px; height: 50px; border-radius: 50%; background: #FFD700; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: all 0.3s ease;">🛠️</button>
+                    <button class="mode install-btn hidden" id="installAppBtn" type="button">📥 Install App</button>
+                </div>
             </div>
 
             <div class="important-events">
@@ -68,39 +79,55 @@
         <div class="content" id="shoppingContent">
             <div class="shopping-content" style="max-width: 900px; margin: 0 auto;">
                 <!-- Import & Edit Buttons -->
-                <div style="margin-bottom: 20px;">
-                    <button onclick="openQuickAdd()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 12px 24px; border-radius: 10px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3); transition: all 0.3s ease; font-size: 15px; display: flex; align-items: center; gap: 8px;"
+                <div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
+                    <button onclick="openQuickAdd()" style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 12px 24px; border-radius: 10px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3); transition: all 0.3s ease; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 8px;"
                             onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(102, 126, 234, 0.4)';"
                             onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.3)';">
                         <span style="font-size: 18px;">⚡</span>
                         <span>Quick Add</span>
                     </button>
-                    <button onclick="openHomeInventoryModal()" style="margin-top: 10px; background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%); color: white; border: none; padding: 12px 24px; border-radius: 10px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3); transition: all 0.3s ease; font-size: 15px; display: flex; align-items: center; gap: 8px;"
+                    <button onclick="openKitchenStock()" style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); color: white; border: none; padding: 12px 24px; border-radius: 10px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3); transition: all 0.3s ease; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 8px;"
                             onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(249, 115, 22, 0.4)';"
                             onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(249, 115, 22, 0.3)';">
                         <span style="font-size: 18px;">🏠</span>
-                        <span>Products at Home</span>
+                        <span>Kitchen Stock</span>
                     </button>
                 </div>
                 
-                <div id="shoppingDisplay" style="background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); min-height: 200px;">
-                    <!-- Shopping list will be rendered here -->
+                <!-- Shopping Tables Container -->
+                <div id="shoppingListsContainer" style="margin-bottom: 30px;">
+                    <!-- Shopping tables will be rendered here -->
                 </div>
-                <div id="homeInventoryDisplay" style="margin-top: 16px;">
-                    <!-- Home inventory table -->
+                
+                <!-- Quick Add Shopping Display (for manual shopping) -->
+                <div id="shoppingDisplay" style="margin-bottom: 30px;">
+                    <!-- Manual Quick Add shopping displays here -->
                 </div>
-                <div id="autoShoppingControls" style="margin-top: 16px; background: white; padding: 16px; border-radius: 12px; box-shadow: 0 1px 6px rgba(0,0,0,0.05); display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
-                    <div style="display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;">
-                        <div style="display: flex; flex-direction: column; gap: 6px; min-width: 200px;">
-                            <label for="shoppingPreferredShop" style="font-weight: 700; color: #374151;">🛒 Preferred shop</label>
-                            <select id="shoppingPreferredShop" style="padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-weight: 600; min-width: 180px;">
+                
+                <div id="autoShoppingControls" style="margin-top: 16px; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 1px 6px rgba(0,0,0,0.05);">
+                    <div style="display: flex; gap: 16px; align-items: flex-end;">
+                        <div style="flex: 0 0 250px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">🛒 Preferred shop</label>
+                            <select id="preferredShopSelect" style="width: 100%; padding: 12px; border: 2px solid #d1d5db; border-radius: 8px; font-weight: 600; font-size: 14px;">
+                                <option value="Tesco">Tesco</option>
+                                <option value="Lidl">Lidl</option>
+                                <option value="Aldi">Aldi</option>
+                                <option value="Asda">Asda</option>
+                                <option value="Sainsburys">Sainsbury's</option>
+                                <option value="Morrisons">Morrisons</option>
+                                <option value="Waitrose">Waitrose</option>
+                                <option value="Iceland">Iceland</option>
+                                <option value="Co-op">Co-op</option>
                             </select>
                         </div>
-                        <button onclick="generateShoppingListFromRecipes()" class="primary-btn" style="padding: 12px 18px;">
-                            🧾 Generate Shopping from Recipes
-                        </button>
+                        <div style="flex: 1;">
+                            <button onclick="generateSmartShopping()" style="width: 100%; padding: 14px 20px; font-size: 15px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 700; box-shadow: 0 4px 12px rgba(16,185,129,0.3); display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                <span style="font-size: 18px;">🛒</span>
+                                <span>Generate Shopping List</span>
+                            </button>
+                        </div>
                     </div>
-                    <p style="margin: 0; color: #6b7280;">Uses your home products first, then buys missing items.</p>
+                    <p style="margin: 12px 0 0 0; font-size: 13px; color: #6b7280;">Uses your home products first, then buys missing items.</p>
                 </div>
             </div>
         </div>
@@ -160,15 +187,14 @@
                     <div class="time-picker-single-row">
                         <div class="time-input-wrapper">
                             <label>Start:</label>
-                            <input type="time" id="startTime" class="custom-time-input" />
-                            <span class="custom-clock-icon">🕐</span>
+                            <input type="time" id="startTime" class="custom-time-input" required />
                         </div>
                         <div class="time-input-wrapper">
                             <label>End:</label>
-                            <input type="time" id="endTime" class="custom-time-input" />
-                            <span class="custom-clock-icon">🕐</span>
+                            <input type="time" id="endTime" class="custom-time-input" required />
                         </div>
                     </div>
+                    <p style="font-size: 12px; color: #666; margin: 5px 0 0 0;">💡 Tip: Click input to pick OR type directly (e.g., 09:00)</p>
                     <!-- Hidden input for backward compatibility -->
                     <input type="hidden" id="blockTime" required />
                 </div>
@@ -191,11 +217,11 @@
                         <option value="">No recipe linked</option>
                     </select>
                 </div>
-                <div class="form-group" style="display: flex; align-items: center; gap: 10px;">
-                    <label style="margin: 0;">
-                        <input type="checkbox" id="blockLeftoverToggle" />
+                <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+                    <label style="margin: 0; font-size: 16px; flex: 1;">
                         Mark as leftover meal
                     </label>
+                    <input type="checkbox" id="blockLeftoverToggle" style="width: 20px; height: 20px;" />
                 </div>
                 <div class="form-group">
                     <label for="blockNote">Note (optional):</label>
@@ -287,15 +313,109 @@
 
     <!-- Manage Defaults Modal -->
     <div class="modal" id="manageDefaultsModal">
-        <div class="modal-content">
-            <h2>⚙️ Manage Default Blocks</h2>
-            <p style="color: #666; margin-bottom: 20px;">These blocks will be automatically added to all NEW days you create.</p>
-            <div id="defaultBlocksList" style="margin-bottom: 20px;">
+        <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0;">⚙️ Manage Default Blocks</h2>
+                <button type="button" onclick="closeDefaultsModal()" style="background: #e0e0e0; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600;">✕ Close</button>
+            </div>
+            
+            <p style="color: #666; margin-bottom: 20px;">Default blocks automatically appear on new days you create. Enable/disable, edit, or delete them below.</p>
+            
+            <button type="button" onclick="openAddDefaultModal()" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(102,126,234,0.3);">
+                ➕ Add New Default Block
+            </button>
+            
+            <!-- Quick Templates -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
+                <button type="button" onclick="addMorningRoutineTemplate()" style="padding: 12px; background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(251,191,36,0.3);">
+                    🌅 Add Morning Routine
+                </button>
+                <button type="button" onclick="addBedtimeRoutineTemplate()" style="padding: 12px; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(139,92,246,0.3);">
+                    🌙 Add Bedtime Routine
+                </button>
+            </div>
+            
+            <div id="defaultBlocksList">
                 <!-- Default blocks will be listed here -->
             </div>
-            <div class="modal-buttons">
-                <button type="button" class="btn btn-secondary" onclick="closeDefaultsModal()">Close</button>
-            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Default Block Modal -->
+    <div class="modal" id="addEditDefaultModal">
+        <div class="modal-content" style="max-width: 600px;">
+            <h2 id="defaultModalTitle">➕ Add Default Block</h2>
+            <form id="defaultBlockForm" onsubmit="saveDefaultBlock(event)">
+                <!-- Days Selection -->
+                <div class="form-group">
+                    <label style="font-weight: 600; margin-bottom: 10px; display: block;">Apply to these days:</label>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f5f5f5; border-radius: 6px; cursor: pointer;">
+                            <input type="checkbox" class="default-day-checkbox" value="Monday" checked style="width: 18px; height: 18px;">
+                            <span>Monday</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f5f5f5; border-radius: 6px; cursor: pointer;">
+                            <input type="checkbox" class="default-day-checkbox" value="Tuesday" checked style="width: 18px; height: 18px;">
+                            <span>Tuesday</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f5f5f5; border-radius: 6px; cursor: pointer;">
+                            <input type="checkbox" class="default-day-checkbox" value="Wednesday" checked style="width: 18px; height: 18px;">
+                            <span>Wednesday</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f5f5f5; border-radius: 6px; cursor: pointer;">
+                            <input type="checkbox" class="default-day-checkbox" value="Thursday" checked style="width: 18px; height: 18px;">
+                            <span>Thursday</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f5f5f5; border-radius: 6px; cursor: pointer;">
+                            <input type="checkbox" class="default-day-checkbox" value="Friday" checked style="width: 18px; height: 18px;">
+                            <span>Friday</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f5f5f5; border-radius: 6px; cursor: pointer;">
+                            <input type="checkbox" class="default-day-checkbox" value="Saturday" style="width: 18px; height: 18px;">
+                            <span>Saturday</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f5f5f5; border-radius: 6px; cursor: pointer;">
+                            <input type="checkbox" class="default-day-checkbox" value="Sunday" style="width: 18px; height: 18px;">
+                            <span>Sunday</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Time -->
+                <div class="form-group">
+                    <label style="font-weight: 600; margin-bottom: 10px; display: block;">Time:</label>
+                    <div style="display: flex; gap: 15px; align-items: center;">
+                        <div style="flex: 1; position: relative;">
+                            <label style="font-size: 14px; color: #666; margin-bottom: 5px; display: block;">Start:</label>
+                            <input type="time" id="defaultStartTime" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;" />
+                        </div>
+                        <div style="flex: 1; position: relative;">
+                            <label style="font-size: 14px; color: #666; margin-bottom: 5px; display: block;">End:</label>
+                            <input type="time" id="defaultEndTime" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;" />
+                        </div>
+                    </div>
+                    <p style="font-size: 12px; color: #666; margin: 8px 0 0 0;">💡 Tip: Click input to pick OR type directly (e.g., 09:00)</p>
+                </div>
+
+                <!-- Title -->
+                <div class="form-group">
+                    <label for="defaultTitle" style="font-weight: 600;">Title:</label>
+                    <input type="text" id="defaultTitle" placeholder="e.g., 💼 Work" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;" />
+                </div>
+
+                <!-- Tasks -->
+                <div class="form-group">
+                    <label for="defaultTasks" style="font-weight: 600;">Tasks (optional, one per line):</label>
+                    <textarea id="defaultTasks" placeholder="Meetings&#10;Emails&#10;Projects" style="width: 100%; min-height: 80px; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; resize: vertical;"></textarea>
+                </div>
+
+                <input type="hidden" id="defaultBlockIndex" value="-1" />
+
+                <div class="modal-buttons">
+                    <button type="submit" class="btn btn-primary">💾 Save Default</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeAddEditDefaultModal()">Cancel</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -851,39 +971,353 @@ The app will parse and beautify automatically!" style="width: 100%; height: 300p
             <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 12px 12px 0 0; margin: -20px -20px 20px -20px; flex-shrink: 0;">
                 <h2 style="margin: 0; color: white; display: flex; align-items: center; gap: 10px;">
                     ⚡ Quick Add Shopping
+                    <button id="manageProductsQuickAddBtn" onclick="openProductManagement()" style="background: #fbbf24; border: none; color: #1f2937; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 700; display: none;">➕ Manage Products</button>
                     <button onclick="closeQuickAdd()" style="margin-left: auto; background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">✕ Close</button>
                 </h2>
                 <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">Select items from common products - quantities and prices are editable!</p>
             </div>
             
-            <div id="quickAddContent" style="padding: 0 20px 0 20px; flex: 1; overflow-y: auto; display: flex; flex-direction: column;">
+            <div id="quickAddModalContent" style="padding: 0; flex: 1; overflow-y: auto;">
                 <!-- Content will be dynamically generated -->
             </div>
-        </div>
-    </div>
-
-    <!-- Home Inventory Modal -->
-    <div id="homeInventoryModal" class="modal">
-        <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
-                <h2 style="margin: 0; display: flex; align-items: center; gap: 8px;">🏠 Products at Home</h2>
-                <div style="display: flex; gap: 8px;">
-                    <button onclick="closeHomeInventoryModal()" class="secondary-btn">✕ Close</button>
-                    <button onclick="saveHomeInventory()" class="primary-btn">💾 Save</button>
+            
+            <div style="padding: 20px; border-top: 2px solid #e5e7eb; flex-shrink: 0; background: white;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <span id="quickAddSelectedCount" style="font-weight: 600; color: #374151;">Selected: 0 items</span>
+                    <span id="quickAddTotal" style="font-weight: 700; font-size: 18px; color: #10b981;">Total: £0.00</span>
+                </div>
+                <div style="display: flex; gap: 12px;">
+                    <button onclick="closeQuickAdd()" style="flex: 1; padding: 12px; background: #ef4444; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">✕ Cancel</button>
+                    <button onclick="addQuickAddItems()" style="flex: 2; padding: 12px; background: #10b981; color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer;">🛒 Add Items</button>
                 </div>
             </div>
-            <p style="margin-top: 0; color: #4b5563;">Select items you currently have at home so we only buy what's missing. Quantities are what you have left (eggs, grams, litres) — not how many packs you bought.</p>
-            <div style="display: flex; gap: 12px; align-items: center; margin-bottom: 12px;">
-                <label style="font-weight: 600; color: #374151;">Shop (tap water shown under Home sources):</label>
-                <select id="homeInventoryShop" style="padding: 10px; border: 2px solid #d1d5db; border-radius: 8px; font-weight: 600; min-width: 180px;"></select>
-                <span style="color: #6b7280; font-size: 13px;">Checklist updates when you change shop. Tap water stays unlimited.</span>
-            </div>
-            <div id="homeInventoryChecklist" style="display: flex; flex-direction: column; gap: 12px;"></div>
         </div>
     </div>
 
-    <script src="script.js"></script>
-    <script src="shopping-quick-add.js"></script>
-    <script src="sw-update-listener.js"></script>
+    <!-- Kitchen Stock Modal - Compact Layout -->
+    <div id="kitchenStockModal" class="modal">
+        <div class="modal-content" style="max-width: 1400px; max-height: 95vh; display: flex; flex-direction: column;">
+            <!-- Header -->
+            <div style="background: white; padding: 20px; border-bottom: 2px solid #e5e7eb; flex-shrink: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h2 style="margin: 0; color: #1f2937; font-size: 24px; display: flex; align-items: center; gap: 8px;">
+                        🏠 Kitchen Stock
+                    </h2>
+                    <button onclick="closeKitchenStock()" style="background: #6b7280; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer;">✕ Close</button>
+                </div>
+                <p style="margin: 0; color: #4b5563; line-height: 1.6; font-size: 14px;">
+                    Select items you currently have at home so we only buy what's missing. Quantities are what you have left (eggs, grams, litres) — not how many packs you bought.
+                </p>
+            </div>
+            
+            <!-- Compact Controls - ALL on ONE LINE -->
+            <div style="background: white; padding: 12px 20px; border-bottom: 2px solid #e5e7eb; flex-shrink: 0;">
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <!-- Tab Buttons -->
+                    <button class="kitchen-tab active" data-tab="select" onclick="switchKitchenTab('select')" style="padding: 12px 24px; border: 2px solid #667eea; background: white; cursor: pointer; font-weight: 600; color: #667eea; font-size: 16px; border-radius: 6px; transition: all 0.2s;">
+                        📋 Select
+                    </button>
+                    <button class="kitchen-tab" data-tab="stock" onclick="switchKitchenTab('stock')" style="padding: 12px 24px; border: 2px solid transparent; background: white; cursor: pointer; font-weight: 600; color: #6b7280; font-size: 16px; border-radius: 6px; transition: all 0.2s;">
+                        🏠 Stock
+                    </button>
+                    <button class="kitchen-tab" data-tab="measures" onclick="switchKitchenTab('measures')" style="padding: 12px 24px; border: 2px solid transparent; background: white; cursor: pointer; font-weight: 600; color: #6b7280; font-size: 16px; border-radius: 6px; transition: all 0.2s;">
+                        📏 Measures
+                    </button>
+                    
+                    <!-- Shop Selector (only visible in Select tab) -->
+                    <select id="kitchenStockShopSelect" onchange="changeKitchenShop()" style="padding: 8px 12px; border: 2px solid #d1d5db; border-radius: 6px; font-weight: 600; font-size: 13px; min-width: 120px;">
+                        <option value="Tesco">Tesco</option>
+                        <option value="Lidl">Lidl</option>
+                    </select>
+                    
+                    <!-- Divider (only visible in Select tab) -->
+                    <div id="kitchenShopDivider" style="width: 1px; height: 30px; background: #e5e7eb;"></div>
+                    
+                    <!-- Counter -->
+                    <div style="flex: 1; min-width: 150px;">
+                        <span id="kitchenStockSelectedCount" style="font-weight: 600; color: #1f2937; font-size: 14px;">Selected: 0 items</span>
+                        <span id="kitchenStockItemCount" style="font-weight: 600; color: #1f2937; font-size: 14px; display: none;">Items in Stock: 0</span>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <button id="saveToStockBtn" onclick="saveKitchenStockSelections()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 8px 20px; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px;">
+                        💾 Save to Stock
+                    </button>
+                    <button id="clearStockBtn" onclick="clearAllKitchenStock()" style="background: #ef4444; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px; display: none;">
+                        🗑️ Clear all
+                    </button>
+                    <button id="resetMeasuresBtn" onclick="resetAllMeasurements()" style="background: #f59e0b; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px; display: none;">
+                        ↺ Reset All
+                    </button>
+                </div>
+            </div>
+            
+            <!-- SELECT TAB -->
+            <div id="kitchenSelectTab" class="kitchen-tab-content" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 600px;">
+                <!-- Grid Container -->
+                <div id="kitchenStockGridContainer" style="flex: 1; overflow-y: auto; padding: 20px; background: #f9fafb;">
+                    <!-- Grid will be rendered here -->
+                </div>
+            </div>
+            
+            <!-- STOCK TAB -->
+            <div id="kitchenStockTab" class="kitchen-tab-content" style="flex: 1; overflow-y: auto; display: none; flex-direction: column; min-height: 600px;">
+                <!-- Stock Display - Full Height -->
+                <div id="kitchenStockDisplay" style="flex: 1; overflow-y: auto; padding: 20px; background: #f9fafb; min-height: 500px;">
+                    <!-- Stock items will be rendered here -->
+                </div>
+            </div>
+            
+            <!-- MEASURES TAB -->
+            <div id="kitchenMeasuresTab" class="kitchen-tab-content" style="flex: 1; overflow-y: auto; display: none; flex-direction: column; min-height: 600px;">
+                <!-- Measures Display - Full Height -->
+                <div id="kitchenMeasuresDisplay" style="flex: 1; overflow-y: auto; padding: 20px; background: #f9fafb; min-height: 500px;">
+                    <!-- Measurements will be rendered here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+        <!-- V2.1.0 New Systems (Load in order) -->
+    <script src="product-catalog.js" defer></script>
+    <script src="kitchen-stock.js" defer></script>
+    <script src="smart-shopping.js" defer></script>
+    <script src="cooking-integration.js" defer></script>
+    
+    <!-- Product Management Modal -->
+    <div id="productManagementModal" class="modal">
+        <div class="modal-content" style="max-width: 900px; max-height: 90vh; display: flex; flex-direction: column;">
+            <!-- Header -->
+            <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 20px; border-radius: 12px 12px 0 0; margin: -20px -20px 20px -20px; flex-shrink: 0;">
+                <h2 style="margin: 0; color: white; display: flex; align-items: center; gap: 10px;">
+                    ➕ Manage Products
+                    <button onclick="closeProductManagement()" style="margin-left: auto; background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">✕ Close</button>
+                </h2>
+                <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">Add new items, create shops, and organize categories</p>
+            </div>
+            
+            <!-- Tabs -->
+            <div style="display: flex; gap: 8px; border-bottom: 2px solid #e5e7eb; padding-bottom: 0; flex-shrink: 0;">
+                <button id="addItemTab" class="product-mgmt-tab active" onclick="switchProductTab('addItem')" style="flex: 1; padding: 12px; border: none; background: transparent; cursor: pointer; font-weight: 600; border-bottom: 3px solid #f59e0b; color: #f59e0b;">
+                    🛍️ Add Item
+                </button>
+                <button id="newShopTab" class="product-mgmt-tab" onclick="switchProductTab('newShop')" style="flex: 1; padding: 12px; border: none; background: transparent; cursor: pointer; font-weight: 600; border-bottom: 3px solid transparent; color: #6b7280;">
+                    🏪 New Shop
+                </button>
+                <button id="newCategoryTab" class="product-mgmt-tab" onclick="switchProductTab('newCategory')" style="flex: 1; padding: 12px; border: none; background: transparent; cursor: pointer; font-weight: 600; border-bottom: 3px solid transparent; color: #6b7280;">
+                    📦 New Category
+                </button>
+            </div>
+            
+            <!-- Tab Content -->
+            <div style="flex: 1; overflow-y: auto; padding: 20px;">
+                <!-- Add Item Tab -->
+                <div id="addItemTabContent" class="product-tab-content">
+                    <form id="addItemForm" onsubmit="addNewItem(event)">
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Select Shop</label>
+                            <select id="addItemShop" required style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                <option value="">Choose a shop...</option>
+                            </select>
+                        </div>
+                        
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Select Category</label>
+                            <select id="addItemCategory" required style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                <option value="">Choose a category...</option>
+                            </select>
+                        </div>
+                        
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Product Name</label>
+                            <input type="text" id="addItemName" required placeholder="e.g., Organic Bananas" style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+                            <div>
+                                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Pack Quantity</label>
+                                <input type="number" id="addItemPackQty" required min="0.1" step="0.1" placeholder="1" style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Unit</label>
+                                <select id="addItemPackUnit" required style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                    <option value="kg">kg</option>
+                                    <option value="g">g</option>
+                                    <option value="L">L</option>
+                                    <option value="ml">ml</option>
+                                    <option value="count">count (pieces)</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+                            <div>
+                                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Price (£)</label>
+                                <input type="number" id="addItemPrice" required min="0" step="0.01" placeholder="2.50" style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Default Qty</label>
+                                <input type="number" id="addItemDefaultQty" required min="0.1" step="0.1" value="1" placeholder="1" style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                            </div>
+                        </div>
+                        
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="addItemLoose" style="width: 20px; height: 20px; cursor: pointer;">
+                                <span style="font-weight: 600; color: #374151;">Sold Loose (by weight/volume)</span>
+                                <span style="color: #6b7280; font-size: 12px;">- Only for kg/L units</span>
+                            </label>
+                        </div>
+                        
+                        <button type="submit" style="width: 100%; padding: 14px; background: #f59e0b; color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 16px;">✅ Add Product</button>
+                    </form>
+                    
+                    <!-- My Products Section -->
+                    <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+                        <h3 style="margin: 0 0 15px 0; color: #374151;">My Custom Products</h3>
+                        <div id="customProductsList" style="display: flex; flex-direction: column; gap: 8px;">
+                            <!-- Will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- New Shop Tab -->
+                <div id="newShopTabContent" class="product-tab-content" style="display: none;">
+                    <form id="newShopForm" onsubmit="addNewShop(event)">
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Shop Name</label>
+                            <input type="text" id="newShopName" required placeholder="e.g., Asda, Morrisons" style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                        </div>
+                        
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Brand Color (Header)</label>
+                            <input type="color" id="newShopColor" value="#0055a5" style="width: 100%; height: 50px; border: 2px solid #e5e7eb; border-radius: 8px; cursor: pointer;">
+                        </div>
+                        
+                        <button type="submit" style="width: 100%; padding: 14px; background: #10b981; color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 16px;">🏪 Create Shop</button>
+                    </form>
+                    
+                    <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+                        <h3 style="margin: 0 0 15px 0; color: #374151;">Existing Shops</h3>
+                        <div id="existingShopsList" style="display: flex; flex-direction: column; gap: 8px;">
+                            <!-- Will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- New Category Tab -->
+                <div id="newCategoryTabContent" class="product-tab-content" style="display: none;">
+                    <form id="newCategoryForm" onsubmit="addNewCategory(event)">
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Category Name</label>
+                            <input type="text" id="newCategoryName" required placeholder="e.g., Snacks, Beverages" style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                        </div>
+                        
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Category Icon (Emoji)</label>
+                            <input type="text" id="newCategoryIcon" placeholder="🍕" maxlength="2" style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 24px; text-align: center;">
+                            <p style="margin: 8px 0 0 0; color: #6b7280; font-size: 12px;">Optional: Enter an emoji like 🍕 🥤 🍪</p>
+                        </div>
+                        
+                        <button type="submit" style="width: 100%; padding: 14px; background: #8b5cf6; color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 16px;">📦 Create Category</button>
+                    </form>
+                    
+                    <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+                        <h3 style="margin: 0 0 15px 0; color: #374151;">Existing Categories</h3>
+                        <div id="existingCategoriesList" style="display: flex; flex-wrap: wrap; gap: 8px;">
+                            <!-- Will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
+            <span class="close" onclick="closeSettings()" style="font-size: 28px; cursor: pointer; float: right;">&times;</span>
+            
+            <h2 style="margin-top: 0; color: #1f2937;">⚙️ Settings & History <span style="font-size: 14px; background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%); color: white; padding: 4px 12px; border-radius: 12px; font-weight: 600; margin-left: 8px;">V2.1.0</span></h2>
+            
+            <!-- Quick Actions -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px;">
+                <button onclick="openEventModal(); closeSettings();" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 14px 20px; border: none; border-radius: 10px; cursor: pointer; font-size: 15px; font-weight: 700; box-shadow: 0 4px 12px rgba(16,185,129,0.3);">
+                    ➕ Add Event
+                </button>
+                <button onclick="openDefaultsModal(); closeSettings();" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 14px 20px; border: none; border-radius: 10px; cursor: pointer; font-size: 15px; font-weight: 700; box-shadow: 0 4px 12px rgba(245,158,11,0.3);">
+                    ⚙️ Manage Defaults
+                </button>
+            </div>
+            
+            <!-- Statistics Section -->
+            <div style="background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%); padding: 20px; border-radius: 12px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <h3 style="margin: 0 0 16px 0; color: #1f2937; font-size: 18px;">📊 Usage Statistics</h3>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div style="background: white; padding: 16px; border-radius: 8px;">
+                        <div style="color: #6b7280; font-size: 13px; margin-bottom: 4px;">AI Generations</div>
+                        <div style="color: #1f2937; font-size: 28px; font-weight: 700;" id="statsGenerationCount">0</div>
+                    </div>
+                    
+                    <div style="background: white; padding: 16px; border-radius: 8px;">
+                        <div style="color: #6b7280; font-size: 13px; margin-bottom: 4px;">Recipes Cooked</div>
+                        <div style="color: #1f2937; font-size: 28px; font-weight: 700;">
+                            <span id="statsRecipesTried">0</span> <span style="color: #9ca3af; font-size: 16px;">/ 53</span>
+                        </div>
+                    </div>
+                    
+                    <div style="background: white; padding: 16px; border-radius: 8px;">
+                        <div style="color: #6b7280; font-size: 13px; margin-bottom: 4px;">First Generated</div>
+                        <div style="color: #1f2937; font-size: 16px; font-weight: 600;" id="statsFirstGenerated">Never</div>
+                    </div>
+                    
+                    <div style="background: white; padding: 16px; border-radius: 8px;">
+                        <div style="color: #6b7280; font-size: 13px; margin-bottom: 4px;">Last Generated</div>
+                        <div style="color: #1f2937; font-size: 16px; font-weight: 600;" id="statsLastGenerated">Never</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Schedule History Section -->
+            <div style="margin-bottom: 24px;">
+                <h3 style="margin: 0 0 12px 0; color: #1f2937; font-size: 18px;">📅 Schedule History (Last 14 Days)</h3>
+                <div id="scheduleHistoryList" style="max-height: 300px; overflow-y: auto;">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+            
+            <!-- Reset Options Section -->
+            <div style="background: #fef2f2; padding: 20px; border-radius: 12px; border: 2px solid #fecaca;">
+                <h3 style="margin: 0 0 12px 0; color: #991b1b; font-size: 18px;">🗑️ Reset Data</h3>
+                <p style="color: #991b1b; font-size: 14px; margin: 0 0 16px 0;">
+                    ⚠️ Warning: These actions cannot be undone.
+                </p>
+                
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <button onclick="resetRecipeHistory()" style="background: #ef4444; color: white; padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: background 0.2s;">
+                        Reset Recipe Usage History
+                    </button>
+                    
+                    <button onclick="resetScheduleHistory()" style="background: #f97316; color: white; padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: background 0.2s;">
+                        Clear Schedule History
+                    </button>
+                    
+                    <button onclick="resetAllData()" style="background: #dc2626; color: white; padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: background 0.2s;">
+                        ⚠️ RESET EVERYTHING
+                    </button>
+                </div>
+                
+                <p style="color: #6b7280; font-size: 12px; margin: 12px 0 0 0;">
+                    "Reset Everything" will delete: Custom recipes, Kitchen Stock, recipe history, schedule history, and all settings. Only PWA essentials will be kept.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Core Scripts -->
+    <script src="script.js" defer></script>
+    <script src="shopping-quick-add.js" defer></script>
+    <script src="product-management.js" defer></script>
 </body>
 </html>

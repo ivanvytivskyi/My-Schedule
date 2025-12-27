@@ -1091,39 +1091,17 @@ body.edit-mode .recipe-table textarea {
 }
 
 .custom-time-input {
-    padding: 8px 35px 8px 12px;
+    padding: 8px 12px;
     border: 2px solid #e0e0e0;
     border-radius: 6px;
     font-size: 14px;
     min-width: 140px;
-}
-
-/* Hide default browser clock icon */
-.custom-time-input::-webkit-calendar-picker-indicator {
-    opacity: 0;
-    position: absolute;
-    right: 0;
-    width: 100%;
-    height: 100%;
     cursor: pointer;
 }
 
-/* Custom clock icon */
-.custom-clock-icon {
-    position: absolute;
-    right: 10px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 18px;
-    pointer-events: none;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    width: 28px;
-    height: 28px;
-    border-radius: 6px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
+/* Let browser show native time picker - don't hide it! */
+.custom-time-input::-webkit-calendar-picker-indicator {
+    cursor: pointer;
 }
 
 .time-picker {
@@ -1924,4 +1902,54 @@ body.edit-mode .time-block.hidden-past {
     .dietary-filters {
         flex-direction: column !important;
     }
+}
+
+/* ===================================
+   PHASE 6: SETTINGS UI - CSS STYLES
+   =================================== */
+
+/* Settings Modal Styles */
+#settingsModal .modal-content {
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Button hover effects */
+#settingsModal button:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+#settingsModal button:active {
+    transform: translateY(0);
+}
+
+/* Scrollbar styling for history list */
+#scheduleHistoryList::-webkit-scrollbar {
+    width: 8px;
+}
+
+#scheduleHistoryList::-webkit-scrollbar-track {
+    background: #f3f4f6;
+    border-radius: 4px;
+}
+
+#scheduleHistoryList::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 4px;
+}
+
+#scheduleHistoryList::-webkit-scrollbar-thumb:hover {
+    background: #9ca3af;
 }

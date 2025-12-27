@@ -39,6 +39,13 @@ function importSchedule() {
     }
     
     try {
+        // Phase 5: Track schedule generation (recipe usage, history, stats)
+        if (typeof handleScheduleGenerated === 'function') {
+            console.log('🔄 Running Phase 5 tracking for imported schedule...');
+            handleScheduleGenerated(input, {});
+            console.log('✅ Phase 5: Schedule tracking complete');
+        }
+        
         const result = parseAndCreateSchedule(input);
         closeImportSchedule();
         document.getElementById('scheduleInput').value = '';
@@ -284,10 +291,11 @@ function importRecipes() {
                 if (typeof renderThisWeekRecipes === 'function') renderThisWeekRecipes();
             }
             
-            // Map to Quick Add items and auto-select
-            const items = typeof mapRecipesToQuickAdd === 'function' ? mapRecipesToQuickAdd(ids) : [];
-            if (items.length > 0 && typeof autoSelectQuickAddItems === 'function') {
-                autoSelectQuickAddItems(items);
+            // Auto-generate shopping list
+            if (typeof generateSmartShopping === 'function') {
+                setTimeout(() => {
+                    generateSmartShopping();
+                }, 500);
             }
         }
         
@@ -297,14 +305,17 @@ function importRecipes() {
         closeImportRecipes();
         document.getElementById('recipesInput').value = '';
         
-        // Switch to recipes tab
-        document.querySelector('[data-tab="recipes"]').click();
+        // Switch to shopping tab to show generated list
+        setTimeout(() => {
+            const shoppingTab = document.querySelector('[data-tab="shopping"]');
+            if (shoppingTab) shoppingTab.click();
+        }, 600);
         
         const videoCount = (input.match(youtubeRegex) || []).length;
-        const videoMsg = videoCount > 0 ? `\n\n✨ ${videoCount} video button${videoCount > 1 ? 's' : ''} added!` : '';
-        const idsMsg = ids.length > 0 ? `\n\n✅ ${ids.length} recipe ID${ids.length > 1 ? 's' : ''} added to \"This Week\" and Quick Add.` : '';
+        const videoMsg = videoCount > 0 ? `\n✨ ${videoCount} video button${videoCount > 1 ? 's' : ''} added!` : '';
+        const idsMsg = ids.length > 0 ? `\n✅ ${ids.length} recipe${ids.length > 1 ? 's' : ''} added to "This Week"\n🛒 Shopping list generated automatically!` : '';
         
-        alert(`👨‍🍳 SUCCESS!\n\nYour beautifully formatted recipes are now displayed!${videoMsg}${idsMsg}\n\nCheck the Recipes tab!`);
+        alert(`👨‍🍳 SUCCESS!\n\nRecipes imported and formatted!${videoMsg}${idsMsg}\n\nCheck the Shopping tab!`);
         
     } catch (error) {
         console.error('Recipes import error:', error);
