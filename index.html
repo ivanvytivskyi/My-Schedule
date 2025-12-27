@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="theme-color" content="#667eea" />
+    <title>Weekly Schedule Manager V2.1.0</title>
+    <link rel="manifest" href="manifest.json?v=2.1.0">
+    <link rel="icon" href="icon-192-v2.1.0.png" sizes="192x192">
+    <link rel="apple-touch-icon" href="/apple-touch-icon-v2.1.0.png">
+    <link rel="stylesheet" href="styles.css">
+    <script src="import-functions.js" defer></script>
+    <script src="recipe-database.js" defer></script>
+    <script src="recipe-display.js" defer></script>
+    <script src="recipe-utils.js" defer></script>
+    <script src="pwa-manager.js" defer></script>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-title">
+                <h1>
+                    <span class="static-name" id="staticName">Name</span>
+                    <input type="text" class="editable-name" id="editableName" value="Name" />
+                    's Weekly Schedule
+                </h1>
+            </div>
+            <div class="date-info" id="dateInfoContainer">
+                <div class="date-display" id="dateDisplay">December 2025 🎄</div>
+                <input type="text" class="editable-date" id="editableDate" placeholder="e.g., December 2025 🎄" />
+            </div>
+            <div class="mode-buttons" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <div style="display: flex; gap: 15px; align-items: center;">
+                    <!-- Split Calendar/Edit Button - Exact style from HTML file -->
+                    <button class="toggle-button" id="toggleModeBtn" style="position: relative; display: inline-flex; height: 50px; cursor: pointer; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 25px; overflow: hidden; width: 200px; padding: 0;">
+                        <div class="button-section section-left" id="calendarSection" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 20px; font-weight: 600; color: white; transition: all 0.3s ease; background: linear-gradient(135deg, #7B68EE, #6B5FD8); border-radius: 25px 0 0 25px;">
+                            <span>📅</span>
+                            <span>Cal</span>
+                        </div>
+                        <div class="button-section section-right" id="editSection" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 20px; font-weight: 600; color: white; transition: all 0.3s ease; background: #FFD700; border-radius: 0 25px 25px 0; position: relative;">
+                            <span style="position: absolute; left: 0; top: 0; width: 1px; height: 100%; background: rgba(255, 255, 255, 0.3);"></span>
+                            <span>✏️</span>
+                            <span>Ed</span>
+                        </div>
+                    </button>
+                </div>
+                <div style="display: flex; gap: 15px; align-items: center;">
+                    <button class="settings-button" id="settingsBtn" onclick="openSettings()" style="width: 50px; height: 50px; border-radius: 50%; background: #FFD700; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: all 0.3s ease;">🛠️</button>
+                    <button class="mode install-btn hidden" id="installAppBtn" type="button">📥 Install App</button>
+                </div>
+            </div>
+
+            <div class="important-events">
+                <div class="events-container" id="eventsContainer">
+                    <!-- Events will be dynamically added -->
+                </div>
+            </div>
+            <button id="manualUpdateBtn" class="manual-update-btn" onclick="manualUpdateCheck()"  title="Check for updates">⟳</button>
+        </div>
+
+        <div class="day-nav-container">
+            <div class="day-nav-wrapper">
+                <button class="nav-arrow" id="prevDay">‹</button>
+                <div class="day-tabs-container">
+                    <div class="day-tabs" id="dayTabsContainer">
+                        <!-- Day tabs will be dynamically generated -->
+                    </div>
+                </div>
+                <button class="nav-arrow" id="nextDay">›</button>
+                <button class="add-day-btn" id="addDayBtn" title="Add New Day/Week">➕</button>
+            </div>
+        </div>
+
+        <div class="content active" id="scheduleContent"></div>
+
+        <div class="content" id="shoppingContent">
+            <div class="shopping-content" style="max-width: 900px; margin: 0 auto;">
+                <!-- Import & Edit Buttons -->
+                <div style="display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap;">
+                    <button onclick="openQuickAdd()" style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 12px 24px; border-radius: 10px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3); transition: all 0.3s ease; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 8px;"
+                            onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(102, 126, 234, 0.4)';"
+                            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(102, 126, 234, 0.3)';">
+                        <span style="font-size: 18px;">⚡</span>
+                        <span>Quick Add</span>
+                    </button>
+                    <button onclick="openKitchenStock()" style="flex: 1; min-width: 200px; background: linear-gradient(135deg, #f97316 0%, #ea580c 100%); color: white; border: none; padding: 12px 24px; border-radius: 10px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3); transition: all 0.3s ease; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 8px;"
+                            onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(249, 115, 22, 0.4)';"
+                            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(249, 115, 22, 0.3)';">
+                        <span style="font-size: 18px;">🏠</span>
+                        <span>Kitchen Stock</span>
+                    </button>
+                </div>
+                
+                <!-- Shopping Tables Container -->
+                <div id="shoppingListsContainer" style="margin-bottom: 30px;">
+                    <!-- Shopping tables will be rendered here -->
+                </div>
+                
+                <!-- Quick Add Shopping Display (for manual shopping) -->
+                <div id="shoppingDisplay" style="margin-bottom: 30px;">
+                    <!-- Manual Quick Add shopping displays here -->
+                </div>
+                
+                <div id="autoShoppingControls" style="margin-top: 16px; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 1px 6px rgba(0,0,0,0.05);">
+                    <div style="display: flex; gap: 16px; align-items: flex-end;">
+                        <div style="flex: 0 0 250px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">🛒 Preferred shop</label>
+                            <select id="preferredShopSelect" style="width: 100%; padding: 12px; border: 2px solid #d1d5db; border-radius: 8px; font-weight: 600; font-size: 14px;">
+                                <option value="Tesco">Tesco</option>
+                                <option value="Lidl">Lidl</option>
+                                <option value="Aldi">Aldi</option>
+                                <option value="Asda">Asda</option>
+                                <option value="Sainsburys">Sainsbury's</option>
+                                <option value="Morrisons">Morrisons</option>
+                                <option value="Waitrose">Waitrose</option>
+                                <option value="Iceland">Iceland</option>
+                                <option value="Co-op">Co-op</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1;">
+                            <button onclick="generateSmartShopping()" style="width: 100%; padding: 14px 20px; font-size: 15px; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border: none; border-radius: 10px; cursor: pointer; font-weight: 700; box-shadow: 0 4px 12px rgba(16,185,129,0.3); display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                <span style="font-size: 18px;">🛒</span>
+                                <span>Generate Shopping List</span>
+                            </button>
+                        </div>
+                    </div>
+                    <p style="margin: 12px 0 0 0; font-size: 13px; color: #6b7280;">Uses your home products first, then buys missing items.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="content" id="recipesContent">
+            <div class="recipes-content" style="max-width: 900px; margin: 0 auto;">
+                <!-- Import & Edit Buttons -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <button onclick="openImportRecipes()" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); color: white; border: none; padding: 12px 24px; border-radius: 10px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(67, 233, 123, 0.3); transition: all 0.3s ease; font-size: 15px; display: flex; align-items: center; gap: 8px;"
+                            onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 6px 16px rgba(67, 233, 123, 0.4)';"
+                            onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 4px 12px rgba(67, 233, 123, 0.3)';">
+                        <span style="font-size: 18px;">👨‍🍳</span>
+                        <span>Import Recipes</span>
+                    </button>
+                    
+                    <!-- Edit Toggle Button -->
+                    <button id="toggleRecipesEdit" onclick="toggleRecipesEditMode()" class="edit-toggle-btn" title="Toggle Edit Mode">
+                        <span class="edit-icon">✏️</span>
+                    </button>
+                </div>
+                
+                <div id="recipesDisplay" style="background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); min-height: 200px;">
+                    <div style="text-align: center; color: #999; padding: 40px 20px;">
+                        <p style="font-size: 18px; margin: 0;">👨‍🍳 No recipes yet</p>
+                        <p style="font-size: 14px; margin: 10px 0 0 0;">Use "👨‍🍳 Import Recipes" button above to add recipes</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="bottom-nav">
+        <button class="nav-item active" data-tab="schedule">
+            <div class="icon">📅</div>
+            <div class="label">Schedule</div>
+        </button>
+        <button class="nav-item" data-tab="shopping">
+            <div class="icon">🛒</div>
+            <div class="label">Shopping</div>
+        </button>
+        <button class="nav-item" data-tab="recipes">
+            <div class="icon">👨‍🍳</div>
+            <div class="label">Recipes</div>
+        </button>
+    </div>
+
+    <button class="scroll-top" id="scrollTop">↑</button>
+
+    <!-- Edit Modal -->
+    <div class="modal" id="editModal">
+        <div class="modal-content">
+            <h2 id="modalTitle">Edit Time Block</h2>
+            <div class="error-message" id="errorMessage"></div>
+            <form id="editForm">
+                <div class="form-group">
+                    <label for="blockTime">Time:</label>
+                    <div class="time-picker-single-row">
+                        <div class="time-input-wrapper">
+                            <label>Start:</label>
+                            <input type="time" id="startTime" class="custom-time-input" required />
+                        </div>
+                        <div class="time-input-wrapper">
+                            <label>End:</label>
+                            <input type="time" id="endTime" class="custom-time-input" required />
+                        </div>
+                    </div>
+                    <p style="font-size: 12px; color: #666; margin: 5px 0 0 0;">💡 Tip: Click input to pick OR type directly (e.g., 09:00)</p>
+                    <!-- Hidden input for backward compatibility -->
+                    <input type="hidden" id="blockTime" required />
+                </div>
+                <div class="form-group">
+                    <label for="blockTitle">Title:</label>
+                    <div class="input-with-icon">
+                        <input type="text" id="blockTitle" placeholder="e.g., Morning Routine" required />
+                        <button type="button" class="icon-btn" id="titleSuggestBtn" title="Common Titles">📋</button>
+                    </div>
+                    <div class="title-suggestions" id="titleSuggestions" style="display: none;"></div>
+                    <div class="emoji-suggestions" id="emojiSuggestions"></div>
+                </div>
+                <div class="form-group">
+                    <label for="blockTasks">Tasks (one per line):</label>
+                    <textarea id="blockTasks" placeholder="Wake up&#10;Shower&#10;Get dressed"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="blockRecipeSelect">Recipe (optional):</label>
+                    <select id="blockRecipeSelect">
+                        <option value="">No recipe linked</option>
+                    </select>
+                </div>
+                <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+                    <label style="margin: 0; font-size: 16px; flex: 1;">
+                        Mark as leftover meal
+                    </label>
+                    <input type="checkbox" id="blockLeftoverToggle" style="width: 20px; height: 20px;" />
+                </div>
+                <div class="form-group">
+                    <label for="blockNote">Note (optional):</label>
+                    <textarea id="blockNote" placeholder="Any additional notes"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="blockVideo">YouTube Video Link (optional):</label>
+                    <input type="url" id="blockVideo" placeholder="https://www.youtube.com/watch?v=..." />
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" id="applyToAllDays" />
+                        Apply this time block to all days as default
+                    </label>
+                </div>
+                <div class="modal-buttons">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Event Modal -->
+    <div class="modal" id="eventModal">
+        <div class="modal-content">
+            <h2 id="eventModalTitle">Add Important Event</h2>
+            <form id="eventForm">
+                <div class="form-group">
+                    <label for="eventName">Event Name:</label>
+                    <input type="text" id="eventName" placeholder="e.g., Math Exam" required />
+                </div>
+                <div class="form-group">
+                    <label for="eventDate">Date & Time:</label>
+                    <input type="datetime-local" id="eventDate" required />
+                </div>
+                <div class="form-group">
+                    <label for="eventColor">Color:</label>
+                    <div class="color-options" id="colorOptions">
+                        <label class="color-option">
+                            <input type="radio" name="color" value="pink" checked />
+                            <span class="color-square" style="background: #f093fb;"></span>
+                            <span>Pink</span>
+                        </label>
+                        <label class="color-option">
+                            <input type="radio" name="color" value="blue" />
+                            <span class="color-square" style="background: #4facfe;"></span>
+                            <span>Blue</span>
+                        </label>
+                        <label class="color-option">
+                            <input type="radio" name="color" value="green" />
+                            <span class="color-square" style="background: #43e97b;"></span>
+                            <span>Green</span>
+                        </label>
+                        <label class="color-option">
+                            <input type="radio" name="color" value="orange" />
+                            <span class="color-square" style="background: #fa709a;"></span>
+                            <span>Orange</span>
+                        </label>
+                        <label class="color-option">
+                            <input type="radio" name="color" value="purple" />
+                            <span class="color-square" style="background: #a8c0ff;"></span>
+                            <span>Purple</span>
+                        </label>
+                        <label class="color-option">
+                            <input type="radio" name="color" value="red" />
+                            <span class="color-square" style="background: #ff6b6b;"></span>
+                            <span>Red</span>
+                        </label>
+                        <label class="color-option">
+                            <input type="radio" name="color" value="yellow" />
+                            <span class="color-square" style="background: #feca57;"></span>
+                            <span>Yellow</span>
+                        </label>
+                        <label class="color-option">
+                            <input type="radio" name="color" value="teal" />
+                            <span class="color-square" style="background: #1dd1a1;"></span>
+                            <span>Teal</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="modal-buttons">
+                    <button type="submit" class="btn btn-primary">Save</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeEventModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Manage Defaults Modal -->
+    <div class="modal" id="manageDefaultsModal">
+        <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0;">⚙️ Manage Default Blocks</h2>
+                <button type="button" onclick="closeDefaultsModal()" style="background: #e0e0e0; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600;">✕ Close</button>
+            </div>
+            
+            <p style="color: #666; margin-bottom: 20px;">Default blocks automatically appear on new days you create. Enable/disable, edit, or delete them below.</p>
+            
+            <button type="button" onclick="openAddDefaultModal()" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(102,126,234,0.3);">
+                ➕ Add New Default Block
+            </button>
+            
+            <!-- Quick Templates -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
+                <button type="button" onclick="addMorningRoutineTemplate()" style="padding: 12px; background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(251,191,36,0.3);">
+                    🌅 Add Morning Routine
+                </button>
+                <button type="button" onclick="addBedtimeRoutineTemplate()" style="padding: 12px; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(139,92,246,0.3);">
+                    🌙 Add Bedtime Routine
+                </button>
+            </div>
+            
+            <div id="defaultBlocksList">
+                <!-- Default blocks will be listed here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Add/Edit Default Block Modal -->
+    <div class="modal" id="addEditDefaultModal">
+        <div class="modal-content" style="max-width: 600px;">
+            <h2 id="defaultModalTitle">➕ Add Default Block</h2>
+            <form id="defaultBlockForm" onsubmit="saveDefaultBlock(event)">
+                <!-- Days Selection -->
+                <div class="form-group">
+                    <label style="font-weight: 600; margin-bottom: 10px; display: block;">Apply to these days:</label>
+                    <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f5f5f5; border-radius: 6px; cursor: pointer;">
+                            <input type="checkbox" class="default-day-checkbox" value="Monday" checked style="width: 18px; height: 18px;">
+                            <span>Monday</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f5f5f5; border-radius: 6px; cursor: pointer;">
+                            <input type="checkbox" class="default-day-checkbox" value="Tuesday" checked style="width: 18px; height: 18px;">
+                            <span>Tuesday</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f5f5f5; border-radius: 6px; cursor: pointer;">
+                            <input type="checkbox" class="default-day-checkbox" value="Wednesday" checked style="width: 18px; height: 18px;">
+                            <span>Wednesday</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f5f5f5; border-radius: 6px; cursor: pointer;">
+                            <input type="checkbox" class="default-day-checkbox" value="Thursday" checked style="width: 18px; height: 18px;">
+                            <span>Thursday</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f5f5f5; border-radius: 6px; cursor: pointer;">
+                            <input type="checkbox" class="default-day-checkbox" value="Friday" checked style="width: 18px; height: 18px;">
+                            <span>Friday</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f5f5f5; border-radius: 6px; cursor: pointer;">
+                            <input type="checkbox" class="default-day-checkbox" value="Saturday" style="width: 18px; height: 18px;">
+                            <span>Saturday</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 8px; padding: 10px; background: #f5f5f5; border-radius: 6px; cursor: pointer;">
+                            <input type="checkbox" class="default-day-checkbox" value="Sunday" style="width: 18px; height: 18px;">
+                            <span>Sunday</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Time -->
+                <div class="form-group">
+                    <label style="font-weight: 600; margin-bottom: 10px; display: block;">Time:</label>
+                    <div style="display: flex; gap: 15px; align-items: center;">
+                        <div style="flex: 1; position: relative;">
+                            <label style="font-size: 14px; color: #666; margin-bottom: 5px; display: block;">Start:</label>
+                            <input type="time" id="defaultStartTime" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;" />
+                        </div>
+                        <div style="flex: 1; position: relative;">
+                            <label style="font-size: 14px; color: #666; margin-bottom: 5px; display: block;">End:</label>
+                            <input type="time" id="defaultEndTime" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;" />
+                        </div>
+                    </div>
+                    <p style="font-size: 12px; color: #666; margin: 8px 0 0 0;">💡 Tip: Click input to pick OR type directly (e.g., 09:00)</p>
+                </div>
+
+                <!-- Title -->
+                <div class="form-group">
+                    <label for="defaultTitle" style="font-weight: 600;">Title:</label>
+                    <input type="text" id="defaultTitle" placeholder="e.g., 💼 Work" required style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;" />
+                </div>
+
+                <!-- Tasks -->
+                <div class="form-group">
+                    <label for="defaultTasks" style="font-weight: 600;">Tasks (optional, one per line):</label>
+                    <textarea id="defaultTasks" placeholder="Meetings&#10;Emails&#10;Projects" style="width: 100%; min-height: 80px; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; resize: vertical;"></textarea>
+                </div>
+
+                <input type="hidden" id="defaultBlockIndex" value="-1" />
+
+                <div class="modal-buttons">
+                    <button type="submit" class="btn btn-primary">💾 Save Default</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeAddEditDefaultModal()">Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Day/Week Modal -->
+    <div class="modal" id="addDayModal">
+        <div class="modal-content">
+            <h2>Add Day or Week</h2>
+            <form id="addDayForm">
+                <!-- Combined AI Section - Compact -->
+                <div style="margin-bottom: 20px; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px;">
+                    <div style="text-align: center; margin-bottom: 15px;">
+                        <h3 style="margin: 0 0 8px 0; color: white; font-size: 20px;">📝 Quick Week Planner</h3>
+                        <p style="margin: 0; color: rgba(255,255,255,0.95); font-size: 14px;">Fill form → Get prompts → Use any AI → Import back</p>
+                    </div>
+                    
+                    <button type="button" onclick="openPromptGenerator()" style="width: 100%; padding: 16px; background: white; color: #667eea; border: none; border-radius: 10px; font-size: 17px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: all 0.3s ease; margin-bottom: 12px;">
+                        📝 Generate Prompts (Schedule + Shopping + Recipes)
+                    </button>
+                    
+                    <div style="display: grid; gap: 8px; margin-bottom: 12px;">
+                        <button type="button" onclick="openImportSchedule()" style="width: 100%; padding: 12px; background: rgba(255,255,255,0.95); color: #667eea; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: all 0.3s ease;">
+                            📥 Import AI Output (Schedule + Recipe IDs)
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Manual Day/Week Addition Section -->
+                <div style="padding: 20px; background: white; border-radius: 8px; border: 2px solid #e0e0e0;">
+                    <p style="margin: 0 0 15px 0; font-size: 15px; color: #666; font-weight: 500; display: flex; align-items: center; gap: 8px;">
+                        <span style="font-size: 18px;">⚙️</span> Or add manually:
+                    </p>
+                    
+                    <!-- Single Day / Whole Week Buttons -->
+                    <div style="display: flex; gap: 15px; margin-bottom: 20px;">
+                        <button type="button" id="singleDayBtn" onclick="switchAddType('day')" style="flex: 1; padding: 12px 20px; background: #4A90E2; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s;">
+                            Single Day
+                        </button>
+                        <button type="button" id="wholeWeekBtn" onclick="switchAddType('week')" style="flex: 1; padding: 12px 20px; background: #F5D76E; color: #333; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s;">
+                            Whole Week
+                        </button>
+                    </div>
+                    
+                    <!-- Hidden radio inputs for compatibility -->
+                    <input type="radio" name="addType" value="day" checked style="display: none;" id="dayTypeRadio" />
+                    <input type="radio" name="addType" value="week" style="display: none;" id="weekTypeRadio" />
+                    
+                    <!-- Single Day Date Input - Shows only for Single Day -->
+                    <div id="singleDayDateSection" style="margin-bottom: 20px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <label style="font-weight: 600; color: #333; white-space: nowrap;">Date:</label>
+                            <input type="date" id="singleDayDateInput" style="flex: 0 0 150px; padding: 8px 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;" />
+                        </div>
+                    </div>
+                    
+                    <!-- Week Start Date - Only shown for Whole Week -->
+                    <div id="weekStartDateSection" style="display: none; margin-bottom: 20px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <label style="font-weight: 600; color: #333; white-space: nowrap;">Week Start Date:</label>
+                            <input type="date" id="weekStartDateInput" style="flex: 0 0 150px; padding: 8px 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;" />
+                        </div>
+                    </div>
+                    
+                    <!-- Work Schedule Checkbox - Only shown for Whole Week -->
+                    <div id="workScheduleCheckboxSection" style="display: none; margin-bottom: 15px;">
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                            <input type="checkbox" id="addWorkScheduleNew" style="width: 18px; height: 18px; cursor: pointer;" />
+                            <span style="font-weight: 500; color: #333;">Add work schedule to specific days</span>
+                        </label>
+                    </div>
+                    
+                    <!-- Work Days Selection - Only shown when checkbox is ticked -->
+                    <div id="workDaysSection" style="display: none; margin-bottom: 20px;">
+                        <p style="margin: 0 0 12px 0; font-size: 14px; color: #666;">Select days and set work times for each:</p>
+                        
+                        <div style="display: grid; gap: 10px;">
+                            <div style="display: grid; grid-template-columns: 100px auto; align-items: center; gap: 10px;">
+                                <span style="font-weight: 500; color: #333;">Monday</span>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <input type="time" class="day-work-start" data-day="monday" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" />
+                                    <span>to</span>
+                                    <input type="time" class="day-work-end" data-day="monday" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" />
+                                </div>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: 100px auto; align-items: center; gap: 10px;">
+                                <span style="font-weight: 500; color: #333;">Tuesday</span>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <input type="time" class="day-work-start" data-day="tuesday" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" />
+                                    <span>to</span>
+                                    <input type="time" class="day-work-end" data-day="tuesday" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" />
+                                </div>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: 100px auto; align-items: center; gap: 10px;">
+                                <span style="font-weight: 500; color: #333;">Wednesday</span>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <input type="time" class="day-work-start" data-day="wednesday" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" />
+                                    <span>to</span>
+                                    <input type="time" class="day-work-end" data-day="wednesday" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" />
+                                </div>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: 100px auto; align-items: center; gap: 10px;">
+                                <span style="font-weight: 500; color: #333;">Thursday</span>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <input type="time" class="day-work-start" data-day="thursday" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" />
+                                    <span>to</span>
+                                    <input type="time" class="day-work-end" data-day="thursday" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" />
+                                </div>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: 100px auto; align-items: center; gap: 10px;">
+                                <span style="font-weight: 500; color: #333;">Friday</span>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <input type="time" class="day-work-start" data-day="friday" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" />
+                                    <span>to</span>
+                                    <input type="time" class="day-work-end" data-day="friday" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" />
+                                </div>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: 100px auto; align-items: center; gap: 10px;">
+                                <span style="font-weight: 500; color: #333;">Saturday</span>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <input type="time" class="day-work-start" data-day="saturday" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" />
+                                    <span>to</span>
+                                    <input type="time" class="day-work-end" data-day="saturday" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" />
+                                </div>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: 100px auto; align-items: center; gap: 10px;">
+                                <span style="font-weight: 500; color: #333;">Sunday</span>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <input type="time" class="day-work-start" data-day="sunday" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" />
+                                    <span>to</span>
+                                    <input type="time" class="day-work-end" data-day="sunday" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" />
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Commute Blocks - Only shown inside work schedule section -->
+                        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e0e0e0;">
+                            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                                <input type="checkbox" id="addCommuteNew" style="width: 18px; height: 18px; cursor: pointer;" />
+                                <span style="font-weight: 500; color: #333;">🚶 Add commute blocks</span>
+                            </label>
+                            
+                            <div id="commuteSettingsNew" style="display: none; margin-top: 10px; padding-left: 28px;">
+                                <label style="font-size: 14px; color: #666;">
+                                    One-way commute duration: <input type="number" id="commuteDurationNew" value="15" min="1" max="120" style="width: 60px; padding: 6px; border: 1px solid #ddd; border-radius: 4px;" /> minutes
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Add and Cancel Buttons -->
+                    <div style="display: flex; gap: 10px; margin-top: 20px;">
+                        <button type="button" onclick="document.getElementById('addDayModal').classList.remove('active')" style="flex: 1; padding: 12px; background: #e0e0e0; color: #333; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;">
+                            Cancel
+                        </button>
+                        <button type="submit" style="flex: 1; padding: 12px; background: #4A90E2; color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer;">
+                            Add
+                        </button>
+                    </div>
+                    
+                    <!-- Keep old structure hidden for compatibility -->
+                    <div style="display: none;">
+                        <div class="form-group" id="dayDateGroup">
+                            <input type="text" id="dayDate" />
+                        </div>
+                        <div class="form-group" id="weekDateGroup">
+                            <input type="text" id="weekStartDate" />
+                        </div>
+                        <div class="form-group" id="workScheduleGroup">
+                            <input type="checkbox" id="addWorkSchedule" />
+                            <div id="workScheduleDetails"></div>
+                        </div>
+                        <input type="checkbox" id="addCommute" />
+                        <div id="commuteSettings">
+                            <input type="number" id="commuteDuration" value="15" />
+                        </div>
+                    </div>
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                </div> <!-- Close manual section -->
+            </form>
+        </div>
+    </div>
+
+    <!-- Prompt Generator Modal -->
+    <div id="promptGeneratorModal" class="modal">
+        <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px; border-radius: 12px 12px 0 0; margin: -20px -20px 20px -20px; position: sticky; top: -20px; z-index: 10;">
+                <h2 style="margin: 0; color: white; display: flex; align-items: center; gap: 12px; font-size: 26px;">
+                    📋 Weekly Schedule Form
+                    <button onclick="closePromptGenerator()" style="margin-left: auto; background: rgba(255,255,255,0.2); border: none; color: white; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 500;">✕ Close</button>
+                </h2>
+                <p style="margin: 12px 0 0 0; color: rgba(255,255,255,0.95); font-size: 15px;">Fill in your details to get a custom schedule prompt!</p>
+            </div>
+            
+            <form id="promptGeneratorForm" style="padding: 25px;">
+                
+                <!-- Week Start Date -->
+                <div style="background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); padding: 20px; border-radius: 12px; margin-bottom: 25px;">
+                    <h3 style="margin: 0 0 15px 0; color: #2c3e50; font-size: 20px;">📅 Week Information</h3>
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #34495e;">Week start date:</label>
+                        <input type="date" id="promptWeekDate" style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 15px;" />
+                    </div>
+                </div>
+                
+                <!-- Work Schedule -->
+                <div style="background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%); padding: 20px; border-radius: 12px; margin-bottom: 25px;">
+                    <h3 style="margin: 0 0 15px 0; color: #2c3e50; font-size: 20px;">💼 Work Schedule</h3>
+                    
+                    <div id="workDaysContainer">
+                        <!-- Will be populated by JavaScript -->
+                    </div>
+                    
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 2px solid rgba(0,0,0,0.1);">
+                        <label style="display: flex; align-items: center; gap: 10px; font-weight: 500;">
+                            <input type="checkbox" id="promptAddCommute" style="width: 18px; height: 18px;" />
+                            <span>Add commute blocks (</span>
+                            <input type="number" id="promptCommuteDuration" value="15" min="1" max="120" style="width: 70px; padding: 8px; border: 2px solid #ddd; border-radius: 6px;" />
+                            <span>minutes)</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Study -->
+                <div style="background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%); padding: 20px; border-radius: 12px; margin-bottom: 25px; color: white;">
+                    <h3 style="margin: 0 0 15px 0; font-size: 20px;">📚 Study Information</h3>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">What are you studying?</label>
+                        <input type="text" id="promptStudySubjects" placeholder="e.g., Functional Skills English Level 1, Math Level 1" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Exam dates (if any):</label>
+                        <input type="text" id="promptExamDates" placeholder="e.g., English: Dec 11, Math: Dec 16" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Study hours per day:</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="number" id="promptStudyHours" value="2" min="0" max="8" step="0.5" style="width: 100px; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
+                            <label style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.2); padding: 10px 15px; border-radius: 8px;">
+                                <input type="checkbox" id="promptStudyAIDecide" style="width: 16px; height: 16px;" />
+                                <span style="font-size: 14px;">Let AI decide</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 0;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Topics to focus on:</label>
+                        <textarea id="promptStudyTopics" placeholder="e.g., Math: fractions, percentages&#10;English: reading comprehension, grammar" rows="3" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;"></textarea>
+                    </div>
+                </div>
+                
+                <!-- Meals & Pantry -->
+                <div style="background: linear-gradient(135deg, #55efc4 0%, #00b894 100%); padding: 20px; border-radius: 12px; margin-bottom: 25px; color: white;">
+                    <h3 style="margin: 0 0 15px 0; font-size: 20px;">🍳 Meals & Shopping</h3>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Food preferences:</label>
+                        <input type="text" id="promptFoodPrefs" placeholder="e.g., simple, quick, vegetarian" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
+                    </div>
+
+                    <div style="margin-bottom: 15px; display: grid; gap: 10px; background: rgba(255,255,255,0.15); padding: 12px; border-radius: 8px;">
+                        <div style="font-weight: 600;">🍲 Batch cook duration:</div>
+                        <label style="display: flex; align-items: center; gap: 10px;">
+                            <input type="radio" name="batchDuration" value="1" checked style="width: 18px; height: 18px;" />
+                            <span style="font-weight: 500;">1 day (lunch + dinner)</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 10px;">
+                            <input type="radio" name="batchDuration" value="2" style="width: 18px; height: 18px;" />
+                            <span style="font-weight: 500;">2 days (4 meals)</span>
+                        </label>
+                    </div>
+
+                    <div style="margin-bottom: 15px;">
+                        <div style="font-weight: 600; margin-bottom: 8px;">🥗 Dietary preferences (filters recipes):</div>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 8px;">
+                            <label style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.15); padding: 10px; border-radius: 8px;">
+                                <input type="checkbox" id="dietVegetarian" style="width: 18px; height: 18px;" />
+                                <span style="font-weight: 500;">🥬 Vegetarian</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.15); padding: 10px; border-radius: 8px;">
+                                <input type="checkbox" id="dietVegan" style="width: 18px; height: 18px;" />
+                                <span style="font-weight: 500;">🌱 Vegan</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.15); padding: 10px; border-radius: 8px;">
+                                <input type="checkbox" id="dietNutFree" style="width: 18px; height: 18px;" />
+                                <span style="font-weight: 500;">🥜 Nut allergy</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.15); padding: 10px; border-radius: 8px;">
+                                <input type="checkbox" id="dietDairyFree" style="width: 18px; height: 18px;" />
+                                <span style="font-weight: 500;">🥛 Dairy-free</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.15); padding: 10px; border-radius: 8px;">
+                                <input type="checkbox" id="dietGlutenFree" style="width: 18px; height: 18px;" />
+                                <span style="font-weight: 500;">🌾 Gluten-free</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 15px; padding: 15px; background: rgba(255,255,255,0.15); border-radius: 8px;">
+                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                            <input type="checkbox" id="promptFreeMeals" style="width: 20px; height: 20px;" />
+                            <span style="font-weight: 600; font-size: 15px;">🍽️ I get free meals at work</span>
+                        </label>
+                        <p style="margin: 8px 0 0 0; font-size: 13px; opacity: 0.9; padding-left: 30px;">
+                            If checked, AI will reduce shopping list and plan meals accordingly
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- Hobbies -->
+                <div style="background: linear-gradient(135deg, #fab1a0 0%, #e17055 100%); padding: 20px; border-radius: 12px; margin-bottom: 25px; color: white;">
+                    <h3 style="margin: 0 0 15px 0; font-size: 20px;">🎯 Hobbies & Interests</h3>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Hobbies you want time for:</label>
+                        <input type="text" id="promptHobbies" placeholder="e.g., Hindi learning, coding projects, guitar" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
+                    </div>
+                    
+                    <div style="margin-bottom: 0;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Hobby time per day:</label>
+                        <div style="display: flex; gap: 10px; align-items: center;">
+                            <input type="number" id="promptHobbyHours" value="1" min="0" max="5" step="0.5" style="width: 100px; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
+                            <label style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.2); padding: 10px 15px; border-radius: 8px;">
+                                <input type="checkbox" id="promptHobbyAIDecide" style="width: 16px; height: 16px;" />
+                                <span style="font-size: 14px;">Let AI decide</span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- One-Off Tasks -->
+                <div style="background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%); padding: 20px; border-radius: 12px; margin-bottom: 25px; color: white;">
+                    <h3 style="margin: 0 0 15px 0; font-size: 20px;">✅ One-Off Tasks & Errands</h3>
+                    <div style="margin-bottom: 0;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Important things to fit in this week:</label>
+                        <textarea id="promptOneOffTasks" placeholder="e.g.,&#10;- Clean the room&#10;- Repair the bike&#10;- Order new bike tyre&#10;- Call doctor" rows="5" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;"></textarea>
+                        <p style="margin: 8px 0 0 0; font-size: 13px; opacity: 0.9;">📌 AI will find perfect time slots for these tasks!</p>
+                    </div>
+                </div>
+                
+                <!-- Sleep & Rest -->
+                <div style="background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%); padding: 20px; border-radius: 12px; margin-bottom: 25px; color: white;">
+                    <h3 style="margin: 0 0 15px 0; font-size: 20px;">😴 Sleep & Rest</h3>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Preferred sleep schedule:</label>
+                        <input type="text" id="promptSleep" value="23:00-07:00" placeholder="e.g., 23:00-07:00" style="width: 200px; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
+                    </div>
+                    
+                    <div style="margin-bottom: 0;">
+                        <label style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.2); padding: 12px; border-radius: 8px;">
+                            <input type="checkbox" id="promptRelax" checked style="width: 18px; height: 18px;" />
+                            <span style="font-weight: 500;">Include relaxation/free time blocks</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <button type="button" onclick="generatePrompt()" style="width: 100%; padding: 18px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); transition: all 0.3s ease;">
+                    🚀 Generate AI Prompt
+                </button>
+            </form>
+            
+            <div id="generatedPromptSection" style="display: none; padding: 25px; background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); border-radius: 12px; margin-top: 20px;">
+                <h3 style="margin: 0 0 12px 0; color: #2e7d32; font-size: 22px;">✅ Your AI Prompt is Ready!</h3>
+                <p style="margin: 0 0 15px 0; font-size: 15px; color: #388e3c;">Copy this and paste into ChatGPT, Claude, or any AI:</p>
+                <textarea id="generatedPromptText" readonly style="width: 100%; height: 300px; padding: 15px; border: 3px solid #4caf50; border-radius: 10px; font-family: 'Courier New', monospace; font-size: 13px; resize: vertical; background: white;"></textarea>
+                <button onclick="copyPrompt()" style="width: 100%; padding: 15px; background: #4caf50; color: white; border: none; border-radius: 10px; font-size: 17px; font-weight: bold; cursor: pointer; margin-top: 12px; box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);">
+                    📋 Copy Prompt to Clipboard
+                </button>
+                <div style="margin-top: 20px; padding: 15px; background: white; border-left: 4px solid #ff9800; border-radius: 8px;">
+                    <p style="margin: 0 0 8px 0; font-size: 15px; color: #e65100; font-weight: 600;">📌 Next Steps:</p>
+                    <ol style="margin: 8px 0 0 20px; padding: 0; color: #5d4037; line-height: 1.8;">
+                        <li>Click "Copy Prompt" above</li>
+                        <li>Go to ChatGPT.com or Claude.ai</li>
+                        <li>Paste and send the prompt</li>
+                        <li>AI will give you: Schedule + recipe IDs on one line</li>
+                        <li>Use the single import button below to paste it back</li>
+                    </ol>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Unified Import Modal -->
+    <div id="importScheduleModal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 20px; border-radius: 12px 12px 0 0; margin: -20px -20px 20px -20px;">
+                <h2 style="margin: 0; color: white; display: flex; align-items: center; gap: 10px;">
+                    📥 Import AI Output
+                    <button onclick="closeImportSchedule()" style="margin-left: auto; background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">✕ Close</button>
+                </h2>
+                <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">Paste the AI response with 7-day schedule and recipe IDs (last line, comma-separated).</p>
+            </div>
+            
+            <div style="padding: 20px;">
+                <label style="display: block; margin-bottom: 10px; font-weight: 500;">Paste schedule + recipe IDs:</label>
+                <textarea id="scheduleInput" placeholder="=== MONDAY — 22 Dec 2025 ===
+
+07:00-07:30 | Morning Routine | Wake up, shower
+07:30-08:00 | Breakfast | Porridge (R5)
+...more blocks...
+
+R4, CR2, R5, CR7" style="width: 100%; height: 300px; padding: 15px; border: 2px solid #ddd; border-radius: 8px; font-family: monospace; font-size: 12px; resize: vertical;"></textarea>
+                
+                <button onclick="importSchedule()" style="width: 100%; padding: 15px; background: #f5576c; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 15px;">
+                    ✨ Import & Apply
+                </button>
+                
+                <div style="margin-top: 15px; padding: 12px; background: #fff3e0; border-radius: 6px; border-left: 4px solid #ff9800;">
+                    <p style="margin: 0; font-size: 13px; color: #e65100; line-height: 1.5;">
+                        <strong>💡 Format:</strong> Each day starts with === DAY NAME === and blocks are one per line: TIME | TITLE | Tasks
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Shopping List Modal -->
+    <div id="importShoppingModal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 20px; border-radius: 12px 12px 0 0; margin: -20px -20px 20px -20px;">
+                <h2 style="margin: 0; color: white; display: flex; align-items: center; gap: 10px;">
+                    🛒 Import Shopping List
+                    <button onclick="closeImportShopping()" style="margin-left: auto; background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">✕ Close</button>
+                </h2>
+                <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">Paste any shopping list - the app will beautify it!</p>
+            </div>
+            
+            <div style="padding: 20px;">
+                <label style="display: block; margin-bottom: 10px; font-weight: 500;">Paste Shopping List (any format):</label>
+                <textarea id="shoppingInput" placeholder="Just paste your shopping list here!
+
+Examples - all work:
+Potatoes
+Potatoes 2kg
+Potatoes (2-3kg)
+- Onions (1kg)
+• Butter 250g
+1. Bread - 1 loaf
+Eggs (12) organic
+Milk, 2 liters
+
+The app will parse and beautify it automatically!" style="width: 100%; height: 300px; padding: 15px; border: 2px solid #ddd; border-radius: 8px; font-family: monospace; font-size: 12px; resize: vertical;"></textarea>
+                
+                <button onclick="importShopping()" style="width: 100%; padding: 15px; background: #00f2fe; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 15px;">
+                    ✨ Import & Beautify Shopping List!
+                </button>
+                
+                <div style="margin-top: 15px; padding: 12px; background: #e8f5e9; border-radius: 6px; border-left: 4px solid #4caf50;">
+                    <p style="margin: 0; font-size: 13px; color: #2e7d32; line-height: 1.5;">
+                        <strong>💡 Smart Parser:</strong> Paste any format! The app automatically extracts items, quantities, and notes, then displays them beautifully in the Shopping table.
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Recipes Modal -->
+    <div id="importRecipesModal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <div style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%); padding: 20px; border-radius: 12px 12px 0 0; margin: -20px -20px 20px -20px;">
+                <h2 style="margin: 0; color: white; display: flex; align-items: center; gap: 10px;">
+                    👨‍🍳 Import Recipes
+                    <button onclick="closeImportRecipes()" style="margin-left: auto; background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">✕ Close</button>
+                </h2>
+                <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">Paste any recipes - the app will beautify them!</p>
+            </div>
+            
+            <div style="padding: 20px;">
+                <label style="display: block; margin-bottom: 10px; font-weight: 500;">Paste Recipes (any format):</label>
+                <textarea id="recipesInput" placeholder="Just paste your recipes here!
+
+Examples - all work:
+
+🍳 Scrambled Eggs
+Ingredients: 2 eggs, butter, salt
+Instructions: Beat eggs, melt butter, cook, season
+Video: https://youtube.com/watch?v=xxxxx
+
+Simple Pasta
+What you need: pasta, olive oil, garlic
+How to: Boil pasta, fry garlic in oil, mix together
+
+Recipe 3: Fried Rice
+You need: rice, egg, soy sauce
+Cook rice, scramble egg, mix with soy sauce
+Tutorial: https://youtube.com/watch?v=xxxxx
+
+The app will parse and beautify automatically!" style="width: 100%; height: 300px; padding: 15px; border: 2px solid #ddd; border-radius: 8px; font-family: monospace; font-size: 12px; resize: vertical;"></textarea>
+                
+                <button onclick="importRecipes()" style="width: 100%; padding: 15px; background: #38f9d7; color: white; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 15px;">
+                    ✨ Import & Beautify Recipes!
+                </button>
+                
+                <div style="margin-top: 15px; padding: 12px; background: #fff9c4; border-radius: 6px; border-left: 4px solid #fbc02d;">
+                    <p style="margin: 0; font-size: 13px; color: #f57f17; line-height: 1.5;">
+                        <strong>💡 Smart Parser:</strong> Paste any format! The app automatically extracts recipe names, ingredients, instructions, and YouTube links, then displays them beautifully in the Recipes table with clickable video buttons!
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <style>
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .ai-message {
+            padding: 12px 16px;
+            margin-bottom: 12px;
+            border-radius: 12px;
+            max-width: 85%;
+            line-height: 1.5;
+        }
+        
+        .ai-message-assistant {
+            background: white;
+            border: 2px solid #667eea;
+            margin-right: auto;
+        }
+        
+        .ai-message-user {
+            background: #667eea;
+            color: white;
+            margin-left: auto;
+        }
+        
+        .ai-message-system {
+            background: #4caf50;
+            color: white;
+            margin: 0 auto;
+            text-align: center;
+            font-weight: 500;
+        }
+    </style>
+
+    <!-- Quick Add Shopping Modal -->
+    <div id="quickAddModal" class="modal">
+        <div class="modal-content" style="max-width: 1000px; max-height: 90vh; display: flex; flex-direction: column;">
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 20px; border-radius: 12px 12px 0 0; margin: -20px -20px 20px -20px; flex-shrink: 0;">
+                <h2 style="margin: 0; color: white; display: flex; align-items: center; gap: 10px;">
+                    ⚡ Quick Add Shopping
+                    <button id="manageProductsQuickAddBtn" onclick="openProductManagement()" style="background: #fbbf24; border: none; color: #1f2937; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 700; display: none;">➕ Manage Products</button>
+                    <button onclick="closeQuickAdd()" style="margin-left: auto; background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">✕ Close</button>
+                </h2>
+                <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">Select items from common products - quantities and prices are editable!</p>
+            </div>
+            
+            <div id="quickAddModalContent" style="padding: 0; flex: 1; overflow-y: auto;">
+                <!-- Content will be dynamically generated -->
+            </div>
+            
+            <div style="padding: 20px; border-top: 2px solid #e5e7eb; flex-shrink: 0; background: white;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <span id="quickAddSelectedCount" style="font-weight: 600; color: #374151;">Selected: 0 items</span>
+                    <span id="quickAddTotal" style="font-weight: 700; font-size: 18px; color: #10b981;">Total: £0.00</span>
+                </div>
+                <div style="display: flex; gap: 12px;">
+                    <button onclick="closeQuickAdd()" style="flex: 1; padding: 12px; background: #ef4444; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">✕ Cancel</button>
+                    <button onclick="addQuickAddItems()" style="flex: 2; padding: 12px; background: #10b981; color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer;">🛒 Add Items</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Kitchen Stock Modal - Compact Layout -->
+    <div id="kitchenStockModal" class="modal">
+        <div class="modal-content" style="max-width: 1400px; max-height: 95vh; display: flex; flex-direction: column;">
+            <!-- Header -->
+            <div style="background: white; padding: 20px; border-bottom: 2px solid #e5e7eb; flex-shrink: 0;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h2 style="margin: 0; color: #1f2937; font-size: 24px; display: flex; align-items: center; gap: 8px;">
+                        🏠 Kitchen Stock
+                    </h2>
+                    <button onclick="closeKitchenStock()" style="background: #6b7280; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 600; cursor: pointer;">✕ Close</button>
+                </div>
+                <p style="margin: 0; color: #4b5563; line-height: 1.6; font-size: 14px;">
+                    Select items you currently have at home so we only buy what's missing. Quantities are what you have left (eggs, grams, litres) — not how many packs you bought.
+                </p>
+            </div>
+            
+            <!-- Compact Controls - ALL on ONE LINE -->
+            <div style="background: white; padding: 12px 20px; border-bottom: 2px solid #e5e7eb; flex-shrink: 0;">
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <!-- Tab Buttons -->
+                    <button class="kitchen-tab active" data-tab="select" onclick="switchKitchenTab('select')" style="padding: 12px 24px; border: 2px solid #667eea; background: white; cursor: pointer; font-weight: 600; color: #667eea; font-size: 16px; border-radius: 6px; transition: all 0.2s;">
+                        📋 Select
+                    </button>
+                    <button class="kitchen-tab" data-tab="stock" onclick="switchKitchenTab('stock')" style="padding: 12px 24px; border: 2px solid transparent; background: white; cursor: pointer; font-weight: 600; color: #6b7280; font-size: 16px; border-radius: 6px; transition: all 0.2s;">
+                        🏠 Stock
+                    </button>
+                    <button class="kitchen-tab" data-tab="measures" onclick="switchKitchenTab('measures')" style="padding: 12px 24px; border: 2px solid transparent; background: white; cursor: pointer; font-weight: 600; color: #6b7280; font-size: 16px; border-radius: 6px; transition: all 0.2s;">
+                        📏 Measures
+                    </button>
+                    
+                    <!-- Shop Selector (only visible in Select tab) -->
+                    <select id="kitchenStockShopSelect" onchange="changeKitchenShop()" style="padding: 8px 12px; border: 2px solid #d1d5db; border-radius: 6px; font-weight: 600; font-size: 13px; min-width: 120px;">
+                        <option value="Tesco">Tesco</option>
+                        <option value="Lidl">Lidl</option>
+                    </select>
+                    
+                    <!-- Divider (only visible in Select tab) -->
+                    <div id="kitchenShopDivider" style="width: 1px; height: 30px; background: #e5e7eb;"></div>
+                    
+                    <!-- Counter -->
+                    <div style="flex: 1; min-width: 150px;">
+                        <span id="kitchenStockSelectedCount" style="font-weight: 600; color: #1f2937; font-size: 14px;">Selected: 0 items</span>
+                        <span id="kitchenStockItemCount" style="font-weight: 600; color: #1f2937; font-size: 14px; display: none;">Items in Stock: 0</span>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <button id="saveToStockBtn" onclick="saveKitchenStockSelections()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 8px 20px; border-radius: 6px; font-weight: 700; cursor: pointer; font-size: 13px;">
+                        💾 Save to Stock
+                    </button>
+                    <button id="clearStockBtn" onclick="clearAllKitchenStock()" style="background: #ef4444; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px; display: none;">
+                        🗑️ Clear all
+                    </button>
+                    <button id="resetMeasuresBtn" onclick="resetAllMeasurements()" style="background: #f59e0b; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 13px; display: none;">
+                        ↺ Reset All
+                    </button>
+                </div>
+            </div>
+            
+            <!-- SELECT TAB -->
+            <div id="kitchenSelectTab" class="kitchen-tab-content" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 600px;">
+                <!-- Grid Container -->
+                <div id="kitchenStockGridContainer" style="flex: 1; overflow-y: auto; padding: 20px; background: #f9fafb;">
+                    <!-- Grid will be rendered here -->
+                </div>
+            </div>
+            
+            <!-- STOCK TAB -->
+            <div id="kitchenStockTab" class="kitchen-tab-content" style="flex: 1; overflow-y: auto; display: none; flex-direction: column; min-height: 600px;">
+                <!-- Stock Display - Full Height -->
+                <div id="kitchenStockDisplay" style="flex: 1; overflow-y: auto; padding: 20px; background: #f9fafb; min-height: 500px;">
+                    <!-- Stock items will be rendered here -->
+                </div>
+            </div>
+            
+            <!-- MEASURES TAB -->
+            <div id="kitchenMeasuresTab" class="kitchen-tab-content" style="flex: 1; overflow-y: auto; display: none; flex-direction: column; min-height: 600px;">
+                <!-- Measures Display - Full Height -->
+                <div id="kitchenMeasuresDisplay" style="flex: 1; overflow-y: auto; padding: 20px; background: #f9fafb; min-height: 500px;">
+                    <!-- Measurements will be rendered here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+        <!-- V2.1.0 New Systems (Load in order) -->
+    <script src="product-catalog.js" defer></script>
+    <script src="kitchen-stock.js" defer></script>
+    <script src="smart-shopping.js" defer></script>
+    <script src="cooking-integration.js" defer></script>
+    
+    <!-- Product Management Modal -->
+    <div id="productManagementModal" class="modal">
+        <div class="modal-content" style="max-width: 900px; max-height: 90vh; display: flex; flex-direction: column;">
+            <!-- Header -->
+            <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 20px; border-radius: 12px 12px 0 0; margin: -20px -20px 20px -20px; flex-shrink: 0;">
+                <h2 style="margin: 0; color: white; display: flex; align-items: center; gap: 10px;">
+                    ➕ Manage Products
+                    <button onclick="closeProductManagement()" style="margin-left: auto; background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">✕ Close</button>
+                </h2>
+                <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">Add new items, create shops, and organize categories</p>
+            </div>
+            
+            <!-- Tabs -->
+            <div style="display: flex; gap: 8px; border-bottom: 2px solid #e5e7eb; padding-bottom: 0; flex-shrink: 0;">
+                <button id="addItemTab" class="product-mgmt-tab active" onclick="switchProductTab('addItem')" style="flex: 1; padding: 12px; border: none; background: transparent; cursor: pointer; font-weight: 600; border-bottom: 3px solid #f59e0b; color: #f59e0b;">
+                    🛍️ Add Item
+                </button>
+                <button id="newShopTab" class="product-mgmt-tab" onclick="switchProductTab('newShop')" style="flex: 1; padding: 12px; border: none; background: transparent; cursor: pointer; font-weight: 600; border-bottom: 3px solid transparent; color: #6b7280;">
+                    🏪 New Shop
+                </button>
+                <button id="newCategoryTab" class="product-mgmt-tab" onclick="switchProductTab('newCategory')" style="flex: 1; padding: 12px; border: none; background: transparent; cursor: pointer; font-weight: 600; border-bottom: 3px solid transparent; color: #6b7280;">
+                    📦 New Category
+                </button>
+            </div>
+            
+            <!-- Tab Content -->
+            <div style="flex: 1; overflow-y: auto; padding: 20px;">
+                <!-- Add Item Tab -->
+                <div id="addItemTabContent" class="product-tab-content">
+                    <form id="addItemForm" onsubmit="addNewItem(event)">
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Select Shop</label>
+                            <select id="addItemShop" required style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                <option value="">Choose a shop...</option>
+                            </select>
+                        </div>
+                        
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Select Category</label>
+                            <select id="addItemCategory" required style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                <option value="">Choose a category...</option>
+                            </select>
+                        </div>
+                        
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Product Name</label>
+                            <input type="text" id="addItemName" required placeholder="e.g., Organic Bananas" style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+                            <div>
+                                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Pack Quantity</label>
+                                <input type="number" id="addItemPackQty" required min="0.1" step="0.1" placeholder="1" style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Unit</label>
+                                <select id="addItemPackUnit" required style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                                    <option value="kg">kg</option>
+                                    <option value="g">g</option>
+                                    <option value="L">L</option>
+                                    <option value="ml">ml</option>
+                                    <option value="count">count (pieces)</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
+                            <div>
+                                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Price (£)</label>
+                                <input type="number" id="addItemPrice" required min="0" step="0.01" placeholder="2.50" style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Default Qty</label>
+                                <input type="number" id="addItemDefaultQty" required min="0.1" step="0.1" value="1" placeholder="1" style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                            </div>
+                        </div>
+                        
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="addItemLoose" style="width: 20px; height: 20px; cursor: pointer;">
+                                <span style="font-weight: 600; color: #374151;">Sold Loose (by weight/volume)</span>
+                                <span style="color: #6b7280; font-size: 12px;">- Only for kg/L units</span>
+                            </label>
+                        </div>
+                        
+                        <button type="submit" style="width: 100%; padding: 14px; background: #f59e0b; color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 16px;">✅ Add Product</button>
+                    </form>
+                    
+                    <!-- My Products Section -->
+                    <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+                        <h3 style="margin: 0 0 15px 0; color: #374151;">My Custom Products</h3>
+                        <div id="customProductsList" style="display: flex; flex-direction: column; gap: 8px;">
+                            <!-- Will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- New Shop Tab -->
+                <div id="newShopTabContent" class="product-tab-content" style="display: none;">
+                    <form id="newShopForm" onsubmit="addNewShop(event)">
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Shop Name</label>
+                            <input type="text" id="newShopName" required placeholder="e.g., Asda, Morrisons" style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                        </div>
+                        
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Brand Color (Header)</label>
+                            <input type="color" id="newShopColor" value="#0055a5" style="width: 100%; height: 50px; border: 2px solid #e5e7eb; border-radius: 8px; cursor: pointer;">
+                        </div>
+                        
+                        <button type="submit" style="width: 100%; padding: 14px; background: #10b981; color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 16px;">🏪 Create Shop</button>
+                    </form>
+                    
+                    <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+                        <h3 style="margin: 0 0 15px 0; color: #374151;">Existing Shops</h3>
+                        <div id="existingShopsList" style="display: flex; flex-direction: column; gap: 8px;">
+                            <!-- Will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- New Category Tab -->
+                <div id="newCategoryTabContent" class="product-tab-content" style="display: none;">
+                    <form id="newCategoryForm" onsubmit="addNewCategory(event)">
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Category Name</label>
+                            <input type="text" id="newCategoryName" required placeholder="e.g., Snacks, Beverages" style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 14px;">
+                        </div>
+                        
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #374151;">Category Icon (Emoji)</label>
+                            <input type="text" id="newCategoryIcon" placeholder="🍕" maxlength="2" style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 24px; text-align: center;">
+                            <p style="margin: 8px 0 0 0; color: #6b7280; font-size: 12px;">Optional: Enter an emoji like 🍕 🥤 🍪</p>
+                        </div>
+                        
+                        <button type="submit" style="width: 100%; padding: 14px; background: #8b5cf6; color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer; font-size: 16px;">📦 Create Category</button>
+                    </form>
+                    
+                    <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e5e7eb;">
+                        <h3 style="margin: 0 0 15px 0; color: #374151;">Existing Categories</h3>
+                        <div id="existingCategoriesList" style="display: flex; flex-wrap: wrap; gap: 8px;">
+                            <!-- Will be populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+        <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
+            <span class="close" onclick="closeSettings()" style="font-size: 28px; cursor: pointer; float: right;">&times;</span>
+            
+            <h2 style="margin-top: 0; color: #1f2937;">⚙️ Settings & History <span style="font-size: 14px; background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%); color: white; padding: 4px 12px; border-radius: 12px; font-weight: 600; margin-left: 8px;">V2.1.0</span></h2>
+            
+            <!-- Quick Actions -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px;">
+                <button onclick="openEventModal(); closeSettings();" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 14px 20px; border: none; border-radius: 10px; cursor: pointer; font-size: 15px; font-weight: 700; box-shadow: 0 4px 12px rgba(16,185,129,0.3);">
+                    ➕ Add Event
+                </button>
+                <button onclick="openDefaultsModal(); closeSettings();" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; padding: 14px 20px; border: none; border-radius: 10px; cursor: pointer; font-size: 15px; font-weight: 700; box-shadow: 0 4px 12px rgba(245,158,11,0.3);">
+                    ⚙️ Manage Defaults
+                </button>
+            </div>
+            
+            <!-- Statistics Section -->
+            <div style="background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%); padding: 20px; border-radius: 12px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                <h3 style="margin: 0 0 16px 0; color: #1f2937; font-size: 18px;">📊 Usage Statistics</h3>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+                    <div style="background: white; padding: 16px; border-radius: 8px;">
+                        <div style="color: #6b7280; font-size: 13px; margin-bottom: 4px;">AI Generations</div>
+                        <div style="color: #1f2937; font-size: 28px; font-weight: 700;" id="statsGenerationCount">0</div>
+                    </div>
+                    
+                    <div style="background: white; padding: 16px; border-radius: 8px;">
+                        <div style="color: #6b7280; font-size: 13px; margin-bottom: 4px;">Recipes Cooked</div>
+                        <div style="color: #1f2937; font-size: 28px; font-weight: 700;">
+                            <span id="statsRecipesTried">0</span> <span style="color: #9ca3af; font-size: 16px;">/ 53</span>
+                        </div>
+                    </div>
+                    
+                    <div style="background: white; padding: 16px; border-radius: 8px;">
+                        <div style="color: #6b7280; font-size: 13px; margin-bottom: 4px;">First Generated</div>
+                        <div style="color: #1f2937; font-size: 16px; font-weight: 600;" id="statsFirstGenerated">Never</div>
+                    </div>
+                    
+                    <div style="background: white; padding: 16px; border-radius: 8px;">
+                        <div style="color: #6b7280; font-size: 13px; margin-bottom: 4px;">Last Generated</div>
+                        <div style="color: #1f2937; font-size: 16px; font-weight: 600;" id="statsLastGenerated">Never</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Schedule History Section -->
+            <div style="margin-bottom: 24px;">
+                <h3 style="margin: 0 0 12px 0; color: #1f2937; font-size: 18px;">📅 Schedule History (Last 14 Days)</h3>
+                <div id="scheduleHistoryList" style="max-height: 300px; overflow-y: auto;">
+                    <!-- Populated by JavaScript -->
+                </div>
+            </div>
+            
+            <!-- Reset Options Section -->
+            <div style="background: #fef2f2; padding: 20px; border-radius: 12px; border: 2px solid #fecaca;">
+                <h3 style="margin: 0 0 12px 0; color: #991b1b; font-size: 18px;">🗑️ Reset Data</h3>
+                <p style="color: #991b1b; font-size: 14px; margin: 0 0 16px 0;">
+                    ⚠️ Warning: These actions cannot be undone.
+                </p>
+                
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <button onclick="resetRecipeHistory()" style="background: #ef4444; color: white; padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: background 0.2s;">
+                        Reset Recipe Usage History
+                    </button>
+                    
+                    <button onclick="resetScheduleHistory()" style="background: #f97316; color: white; padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: background 0.2s;">
+                        Clear Schedule History
+                    </button>
+                    
+                    <button onclick="resetAllData()" style="background: #dc2626; color: white; padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: 600; transition: background 0.2s;">
+                        ⚠️ RESET EVERYTHING
+                    </button>
+                </div>
+                
+                <p style="color: #6b7280; font-size: 12px; margin: 12px 0 0 0;">
+                    "Reset Everything" will delete: Custom recipes, Kitchen Stock, recipe history, schedule history, and all settings. Only PWA essentials will be kept.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Core Scripts -->
+    <script src="script.js" defer></script>
+    <script src="shopping-quick-add.js" defer></script>
+    <script src="product-management.js" defer></script>
+</body>
+</html>
