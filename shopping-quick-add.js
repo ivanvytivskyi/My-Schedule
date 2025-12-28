@@ -19,6 +19,18 @@ function getCurrencySymbol() {
 
 // Get category icon
 function getCategoryIcon(category) {
+    const customIcon = (() => {
+        if (typeof customCategories === 'undefined' || !Array.isArray(customCategories)) return null;
+        const match = customCategories.find(cat => {
+            if (!cat) return false;
+            if (typeof cat === 'string') return cat === category;
+            return cat.name === category;
+        });
+        if (!match) return null;
+        return typeof match === 'string' ? null : (match.icon || '📦');
+    })();
+    if (customIcon) return customIcon;
+    
     const icons = {
         'Dairy & Eggs': '🥛',
         'Fruit': '🍎',

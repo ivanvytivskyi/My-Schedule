@@ -72,11 +72,46 @@ const DEFAULT_MEASUREMENTS = {
 
 // Get measurement value (will be overridden by kitchen-stock.js if customMeasurements exist)
 function getMeasurementValue(measureKey) {
-    // Check if custom measurements exist (from kitchen-stock.js)
-    if (typeof customMeasurements !== 'undefined' && customMeasurements[measureKey]) {
-        return customMeasurements[measureKey];
+    const definition = getMeasurementDefinition(measureKey);
+    return definition ? definition.value : null;
+}
+
+// Get measurement unit (will be overridden by kitchen-stock.js if customMeasurements exist)
+function getMeasurementUnit(measureKey) {
+    const definition = getMeasurementDefinition(measureKey);
+    return definition ? definition.unit : 'g';
+}
+
+// Resolve measurement definition (default + custom support)
+function getMeasurementDefinition(measureKey) {
+    if (!measureKey) return null;
+    
+    const key = String(measureKey).toLowerCase();
+    const defaultDef = DEFAULT_MEASUREMENTS[key];
+    let customDef = null;
+    
+    if (typeof customMeasurements !== 'undefined' && customMeasurements[key]) {
+        const entry = customMeasurements[key];
+        if (typeof entry === 'number') {
+            customDef = { value: entry, unit: defaultDef?.unit || 'g', label: defaultDef?.label || key };
+        } else if (typeof entry === 'object') {
+            customDef = {
+                value: typeof entry.value === 'number' ? entry.value : parseFloat(entry.value),
+                unit: entry.unit || defaultDef?.unit || 'g',
+                label: entry.label || defaultDef?.label || key
+            };
+        }
     }
-    return DEFAULT_MEASUREMENTS[measureKey]?.value || null;
+    
+    if (customDef && !isNaN(customDef.value) && customDef.value > 0) {
+        return customDef;
+    }
+    
+    if (defaultDef) {
+        return { value: defaultDef.value, unit: defaultDef.unit, label: defaultDef.label };
+    }
+    
+    return null;
 }
 
 // Canonical Products - the single source of truth
@@ -803,9 +838,9 @@ function convertToBase(qty, unit, canonicalKey) {
     
     // Handle other cooking measurements
     const measureKey = unitLower.replace(/s$/, ''); // Remove plural 's'
-    if (DEFAULT_MEASUREMENTS[measureKey]) {
-        const measureValue = getMeasurementValue(measureKey);
-        if (measureValue) return qty * measureValue;
+    const measurementDefinition = getMeasurementDefinition(measureKey);
+    if (measurementDefinition && measurementDefinition.value) {
+        return qty * measurementDefinition.value;
     }
     
     // Count type
