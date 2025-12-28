@@ -14,12 +14,15 @@ const DEFAULT_CATEGORY_ICONS = {
     'Fruit': '🍎',
     'Vegetables': '🥕',
     'Meat & Fish': '🥩',
-    'Bakery': '🥖',
     'Bread & Bakery': '🥖',
-    'Pantry': '🌾',
+    'Grains & Pulses': '🌾',
+    'Pantry & Dry Goods': '🧂',
     'Frozen': '❄️',
     'Drinks': '🥤',
+    'Snacks': '🍿',
     'Sweets & Spreads': '🍫',
+    'Household': '🧽',
+    'Personal Care': '🧴',
     'Other': '📦'
 };
 
