@@ -792,11 +792,24 @@ const CANONICAL_PRODUCTS = {
 
 // Helper function: Convert any unit to base unit
 function convertToBase(qty, unit, canonicalKey) {
+    const unitLower = (unit || "").toLowerCase();
     const product = CANONICAL_PRODUCTS[canonicalKey];
-    if (!product) return qty;
+    
+    // If product is unknown, still try to normalize common units and measurements
+    if (!product) {
+        const measureKey = unitLower.replace(/s$/, '');
+        const measurementDefinition = getMeasurementDefinition(measureKey);
+        if (measurementDefinition && measurementDefinition.value) {
+            return qty * measurementDefinition.value;
+        }
+        
+        if (unitLower === "kg" || unitLower === "l") return qty * 1000;
+        if (unitLower === "g" || unitLower === "ml" || unitLower === "count" || unitLower === "") return qty;
+        
+        return qty;
+    }
     
     const targetUnit = product.unitType;
-    const unitLower = (unit || "").toLowerCase();
     
     // Check for cooking measurements first
     // Handle specific cooking measurements

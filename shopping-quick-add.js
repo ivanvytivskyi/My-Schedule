@@ -81,6 +81,7 @@ let quickAddProducts = {};
 
 // Selected items
 let selectedShoppingItems = {};
+let quickAddSearchTerm = '';
 
 // Auto-populate from CANONICAL_PRODUCTS
 function populateQuickAddFromCatalog() {
@@ -192,6 +193,11 @@ function closeQuickAdd() {
     document.getElementById('quickAddModal').classList.remove('active');
 }
 
+function handleQuickAddSearch(value) {
+    quickAddSearchTerm = value || '';
+    renderQuickAddModal();
+}
+
 // Render modal
 function renderQuickAddModal() {
     const modal = document.getElementById('quickAddModalContent');
@@ -215,10 +221,22 @@ function renderQuickAddModal() {
         return;
     }
     
-    let html = '';
+    const searchTerm = quickAddSearchTerm.trim().toLowerCase();
+    const safeSearch = quickAddSearchTerm.replace(/"/g, '&quot;');
+    
+    let html = `
+        <div style="padding: 16px 20px; background: #ffffff; border-bottom: 1px solid #e5e7eb; position: sticky; top: 0; z-index: 5;">
+            <label style="display: block; font-weight: 700; color: #1f2937; margin-bottom: 6px;">🔎 Quick search</label>
+            <input type="text" value="${safeSearch}" placeholder="Search items across all shops..." 
+                   oninput="handleQuickAddSearch(this.value)"
+                   style="width: 100%; padding: 12px; border: 2px solid #d1d5db; border-radius: 10px; font-size: 14px;">
+            <p style="margin: 8px 0 0 0; color: #6b7280; font-size: 12px;">Start typing to instantly filter the list below.</p>
+        </div>
+    `;
     
     shops.forEach(shop => {
         const brandStyle = getShopBrandStyle(shop);
+        let shopHasResults = false;
         html += `
             <div style="margin-bottom: 30px; border: 2px solid #ddd; border-radius: 12px; overflow: hidden;">
                 <div style="${brandStyle.header}">
@@ -229,6 +247,9 @@ function renderQuickAddModal() {
         const categories = Object.keys(quickAddProducts[shop]);
         categories.forEach(category => {
             const items = quickAddProducts[shop][category];
+            const filteredItems = searchTerm ? items.filter(prod => prod.name.toLowerCase().includes(searchTerm)) : items;
+            if (filteredItems.length === 0) return;
+            shopHasResults = true;
             const categoryIcon = getCategoryIcon(category);
             
             html += `
@@ -237,8 +258,9 @@ function renderQuickAddModal() {
                     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px;">
             `;
             
-            items.forEach((product, idx) => {
-                const itemKey = `${shop}|${category}|${idx}`;
+            filteredItems.forEach((product, idx) => {
+                const originalIndex = items.indexOf(product);
+                const itemKey = `${shop}|${category}|${originalIndex}`;
                 const isSelected = selectedShoppingItems[itemKey];
                 
                 // Escape single quotes for onclick handlers
@@ -246,7 +268,7 @@ function renderQuickAddModal() {
                 const escapedCategory = category.replace(/'/g, "\\'");
                 
                 html += `
-                    <div onclick="toggleQuickItem('${escapedShop}', '${escapedCategory}', ${idx})" 
+                    <div onclick="toggleQuickItem('${escapedShop}', '${escapedCategory}', ${originalIndex})" 
                          style="padding: 12px; background: white; border: 2px solid ${isSelected ? '#4CAF50' : '#ddd'}; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <div style="width: 20px; height: 20px; border: 2px solid ${isSelected ? '#4CAF50' : '#999'}; border-radius: 4px; background: ${isSelected ? '#4CAF50' : 'white'}; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
@@ -264,7 +286,7 @@ function renderQuickAddModal() {
                                        min="${product.loose ? '0.1' : '1'}" 
                                        step="${product.loose ? '0.1' : '1'}"
                                        onclick="event.stopPropagation()"
-                                       onchange="updateQuickItemQty('${escapedShop}', '${escapedCategory}', ${idx}, this.value)"
+                                       onchange="updateQuickItemQty('${escapedShop}', '${escapedCategory}', ${originalIndex}, this.value)"
                                        style="width: 70px; padding: 4px; border: 1px solid #ddd; border-radius: 4px;">
                             </div>
                         ` : ''}
@@ -277,6 +299,14 @@ function renderQuickAddModal() {
                 </div>
             `;
         });
+        
+        if (!shopHasResults && searchTerm) {
+            html += `
+                <div style="padding: 16px; background: #fff7ed; color: #c2410c; border-top: 1px solid #fde68a;">
+                    No matches in ${shop}.
+                </div>
+            `;
+        }
         
         html += `</div>`;
     });
