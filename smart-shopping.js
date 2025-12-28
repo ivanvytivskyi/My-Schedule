@@ -132,7 +132,7 @@ function formatQuantityDisplay(quantity, packSize) {
 
 // Aggregate recipe needs
 function aggregateRecipeNeeds(recipeIds) {
-    const needs = {}; // { canonicalKey: qtyBase }
+    const needs = {}; // { canonicalKey: { qtyBase, display } }
     
     recipeIds.forEach(recipeId => {
         const recipe = getRecipe(recipeId);
@@ -141,11 +141,13 @@ function aggregateRecipeNeeds(recipeIds) {
         recipe.ingredients.forEach(ing => {
             const key = ing.canonicalKey;
             const qtyBase = convertToBase(ing.qty, ing.unit, key);
+            const productName = CANONICAL_PRODUCTS[key]?.name;
+            const display = productName || ing.name || (ing.display || '').replace(/^\\s*[-\\d.,]+\\s*/,'').trim() || key;
             
             if (!needs[key]) {
-                needs[key] = 0;
+                needs[key] = { qtyBase: 0, display };
             }
-            needs[key] += qtyBase;
+            needs[key].qtyBase += qtyBase;
         });
     });
     
@@ -163,12 +165,12 @@ function subtractKitchenStock(needs) {
     }
     
     Object.keys(needs).forEach(key => {
-        const needed = needs[key];
+        const needed = needs[key].qtyBase;
         const have = getKitchenStockQty(key);
         const stillNeed = needed - have;
         
         if (stillNeed > 0.001) { // Need more
-            remaining[key] = stillNeed;
+            remaining[key] = { ...needs[key], qtyBase: stillNeed };
         }
     });
     
@@ -181,16 +183,25 @@ function choosePacksForShop(needs, shop) {
     const missingItems = [];
     
     Object.keys(needs).forEach(canonicalKey => {
-        const neededQty = needs[canonicalKey];
+        const need = needs[canonicalKey];
+        const neededQty = need.qtyBase;
         const product = CANONICAL_PRODUCTS[canonicalKey];
         
-        if (!product) return;
+        if (!product) {
+            missingItems.push({
+                canonicalKey,
+                productName: need.display || canonicalKey,
+                neededQty,
+                prettyQty: prettyQty(canonicalKey, neededQty)
+            });
+            return;
+        }
         
         // Check if shop has this product
         if (!product.shops || !product.shops[shop]) {
             missingItems.push({
                 canonicalKey,
-                productName: product.name,
+                productName: product.name || need.display || canonicalKey,
                 neededQty,
                 prettyQty: prettyQty(canonicalKey, neededQty)
             });

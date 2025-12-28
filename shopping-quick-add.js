@@ -19,6 +19,18 @@ function getCurrencySymbol() {
 
 // Get category icon
 function getCategoryIcon(category) {
+    const customIcon = (() => {
+        if (typeof customCategories === 'undefined' || !Array.isArray(customCategories)) return null;
+        const match = customCategories.find(cat => {
+            if (!cat) return false;
+            if (typeof cat === 'string') return cat === category;
+            return cat.name === category;
+        });
+        if (!match) return null;
+        return typeof match === 'string' ? null : (match.icon || '📦');
+    })();
+    if (customIcon) return customIcon;
+    
     const icons = {
         'Dairy & Eggs': '🥛',
         'Fruit': '🍎',
@@ -203,10 +215,17 @@ function renderQuickAddModal() {
         return;
     }
     
-    let html = '';
+    let html = `
+        <div style="padding: 16px; border-bottom: 1px solid #e5e7eb; background: #f9fafb; position: sticky; top: 0; z-index: 2;">
+            <input type="search" id="quickAddSearchInput" placeholder="Search products..." value="${quickAddSearchQuery}" 
+                   oninput="updateQuickAddSearch(this.value)"
+                   style="width: 100%; padding: 12px 14px; border: 2px solid #d1d5db; border-radius: 10px; font-size: 14px; font-weight: 600; color: #1f2937;">
+        </div>
+    `;
     
     shops.forEach(shop => {
         const brandStyle = getShopBrandStyle(shop);
+        let shopHasItems = false;
         html += `
             <div style="margin-bottom: 30px; border: 2px solid #ddd; border-radius: 12px; overflow: hidden;">
                 <div style="${brandStyle.header}">
@@ -217,16 +236,26 @@ function renderQuickAddModal() {
         const categories = Object.keys(quickAddProducts[shop]);
         categories.forEach(category => {
             const items = quickAddProducts[shop][category];
+            const filteredItems = items.filter(product => {
+                if (!quickAddSearchQuery) return true;
+                const haystack = `${product.name} ${product.canonicalKey || ''}`.toLowerCase();
+                return haystack.includes(quickAddSearchQuery.toLowerCase());
+            });
+            
+            if (filteredItems.length === 0) return;
+            shopHasItems = true;
             const categoryIcon = getCategoryIcon(category);
             
             html += `
                 <div style="padding: 20px; background: #f9f9f9;">
                     <h4 style="margin: 0 0 15px 0; color: #333; font-size: 18px;">${categoryIcon} ${category}</h4>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px;">
+                    <div style="max-height: 360px; overflow-y: auto; padding-right: 4px;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px;">
             `;
             
-            items.forEach((product, idx) => {
-                const itemKey = `${shop}|${category}|${idx}`;
+            filteredItems.forEach((product) => {
+                const originalIndex = items.indexOf(product);
+                const itemKey = `${shop}|${category}|${originalIndex}`;
                 const isSelected = selectedShoppingItems[itemKey];
                 
                 // Escape single quotes for onclick handlers
@@ -252,7 +281,7 @@ function renderQuickAddModal() {
                                        min="${product.loose ? '0.1' : '1'}" 
                                        step="${product.loose ? '0.1' : '1'}"
                                        onclick="event.stopPropagation()"
-                                       onchange="updateQuickItemQty('${escapedShop}', '${escapedCategory}', ${idx}, this.value)"
+                                       onchange="updateQuickItemQty('${escapedShop}', '${escapedCategory}', ${originalIndex}, this.value)"
                                        style="width: 70px; padding: 4px; border: 1px solid #ddd; border-radius: 4px;">
                             </div>
                         ` : ''}
@@ -261,16 +290,26 @@ function renderQuickAddModal() {
             });
             
             html += `
+                        </div>
                     </div>
                 </div>
             `;
         });
+        
+        if (!shopHasItems && quickAddSearchQuery) {
+            html += `<div style="padding: 16px; color: #6b7280; background: #f9fafb;">No results in ${shop}</div>`;
+        }
         
         html += `</div>`;
     });
     
     modal.innerHTML = html;
     updateQuickAddTotal();
+}
+
+function updateQuickAddSearch(query) {
+    quickAddSearchQuery = (query || '').trim();
+    renderQuickAddModal();
 }
 
 // Toggle item selection

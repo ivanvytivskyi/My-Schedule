@@ -7,7 +7,21 @@
 // Custom products stored in localStorage
 let customProducts = JSON.parse(localStorage.getItem('customProducts')) || {};
 let customShops = JSON.parse(localStorage.getItem('customShops')) || {};
-let customCategories = JSON.parse(localStorage.getItem('customCategories')) || [];
+let customCategories = normalizeCustomCategories(JSON.parse(localStorage.getItem('customCategories')) || []);
+
+const DEFAULT_CATEGORY_ICONS = {
+    'Dairy & Eggs': '🥛',
+    'Fruit': '🍎',
+    'Vegetables': '🥕',
+    'Meat & Fish': '🥩',
+    'Bakery': '🥖',
+    'Bread & Bakery': '🥖',
+    'Pantry': '🌾',
+    'Frozen': '❄️',
+    'Drinks': '🥤',
+    'Sweets & Spreads': '🍫',
+    'Other': '📦'
+};
 
 // Open Product Management Modal
 function openProductManagement() {
@@ -99,26 +113,17 @@ function populateCategoryDropdown() {
     const select = document.getElementById('addItemCategory');
     if (!select) return;
     
-    // Default categories
-    const defaultCategories = [
-        'Dairy & Eggs',
-        'Fruit',
-        'Vegetables',
-        'Meat & Fish',
-        'Bakery',
-        'Pantry',
-        'Frozen',
-        'Drinks',
-        'Sweets & Spreads',
-        'Other'
-    ];
+    const defaultCategories = Object.keys(DEFAULT_CATEGORY_ICONS);
+    const customCategoryNames = customCategories.map(cat => cat.name);
     
-    // Merge with custom categories
-    const allCategories = [...new Set([...defaultCategories, ...customCategories])].sort();
+    const allCategories = [...new Set([...defaultCategories, ...customCategoryNames])]
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b));
     
     select.innerHTML = '<option value="">Choose a category...</option>';
     allCategories.forEach(category => {
-        select.innerHTML += `<option value="${category}">${category}</option>`;
+        const icon = getCategoryIconForName(category);
+        select.innerHTML += `<option value="${category}">${icon ? icon + ' ' : ''}${category}</option>`;
     });
 }
 
@@ -250,18 +255,8 @@ function addNewItem(event) {
     // Merge with CANONICAL_PRODUCTS
     mergeCustomProducts();
     
-    // Refresh Quick Add
-    if (typeof populateQuickAddFromCatalog === 'function') {
-        populateQuickAddFromCatalog();
-        
-        // Re-render Quick Add modal if it's open
-        const quickAddModal = document.getElementById('quickAddModal');
-        if (quickAddModal && quickAddModal.classList.contains('active')) {
-            if (typeof renderQuickAddModal === 'function') {
-                renderQuickAddModal();
-            }
-        }
-    }
+    // Refresh dependent UIs
+    notifyCatalogConsumers();
     
     // Refresh custom products list
     renderCustomProducts();
@@ -330,27 +325,16 @@ function addNewCategory(event) {
     }
     
     // Check if category already exists
-    const defaultCategories = [
-        'Dairy & Eggs',
-        'Fruit',
-        'Vegetables',
-        'Meat & Fish',
-        'Bakery',
-        'Pantry',
-        'Frozen',
-        'Drinks',
-        'Sweets & Spreads',
-        'Other'
-    ];
-    
-    const allCategories = [...defaultCategories, ...customCategories];
-    if (allCategories.some(cat => cat.toLowerCase() === categoryName.toLowerCase())) {
+    if (categoryExists(categoryName)) {
         alert(`⚠️ Category "${categoryName}" already exists`);
         return;
     }
     
     // Add to custom categories
-    customCategories.push(categoryName);
+    customCategories.push({
+        name: categoryName,
+        icon: categoryIcon || getCategoryIconForName(categoryName)
+    });
     
     // Save to localStorage
     saveCustomCategories();
@@ -358,6 +342,7 @@ function addNewCategory(event) {
     // Refresh UI
     populateCategoryDropdown();
     renderExistingCategories();
+    notifyCatalogConsumers();
     
     // Show success message
     showToast(`📦 Created category: ${categoryName}!`);
@@ -408,33 +393,89 @@ function renderExistingCategories() {
     const container = document.getElementById('existingCategoriesList');
     if (!container) return;
     
-    const defaultCategories = [
-        'Dairy & Eggs',
-        'Fruit',
-        'Vegetables',
-        'Meat & Fish',
-        'Bakery',
-        'Pantry',
-        'Frozen',
-        'Drinks',
-        'Sweets & Spreads',
-        'Other'
-    ];
+    const defaultCategories = Object.keys(DEFAULT_CATEGORY_ICONS).map(name => ({
+        name,
+        icon: DEFAULT_CATEGORY_ICONS[name],
+        custom: false
+    }));
     
-    const allCategories = [...new Set([...defaultCategories, ...customCategories])].sort();
+    const customCategoryCards = customCategories.map(cat => ({
+        name: cat.name,
+        icon: cat.icon || '📦',
+        custom: true
+    }));
+    
+    const allCategories = [...defaultCategories, ...customCategoryCards].sort((a, b) => a.name.localeCompare(b.name));
     
     container.innerHTML = '';
     allCategories.forEach(category => {
-        const isCustom = customCategories.includes(category);
-        const escapedCategory = category.replace(/'/g, "\\'");
+        const escapedCategory = category.name.replace(/'/g, "\\'");
         
         container.innerHTML += `
-            <div style="display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: ${isCustom ? '#fbbf24' : '#e5e7eb'}; color: ${isCustom ? 'white' : '#374151'}; border-radius: 8px; font-weight: 600; font-size: 14px;">
-                <span>${category}</span>
-                ${isCustom ? `<button onclick="deleteCustomCategory('${escapedCategory}')" style="background: #dc2626; color: white; border: none; padding: 2px 6px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 4px;">🗑️</button>` : ''}
+            <div style="display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: ${category.custom ? '#fbbf24' : '#e5e7eb'}; color: ${category.custom ? 'white' : '#374151'}; border-radius: 8px; font-weight: 600; font-size: 14px;">
+                <span>${category.icon}</span>
+                <span style="flex: 1;">${category.name}</span>
+                ${category.custom ? `<button onclick="editCustomCategory('${escapedCategory}')" style="background: #2563eb; color: white; border: none; padding: 2px 6px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 4px;">✏️</button>` : ''}
+                ${category.custom ? `<button onclick="deleteCustomCategory('${escapedCategory}')" style="background: #dc2626; color: white; border: none; padding: 2px 6px; border-radius: 4px; cursor: pointer; font-size: 12px; margin-left: 4px;">🗑️</button>` : ''}
             </div>
         `;
     });
+}
+
+function normalizeCustomCategories(raw) {
+    if (!Array.isArray(raw)) return [];
+    return raw.map(entry => {
+        if (!entry) return null;
+        if (typeof entry === 'string') return { name: entry, icon: '' };
+        if (typeof entry === 'object') {
+            return { name: entry.name, icon: entry.icon || '' };
+        }
+        return null;
+    }).filter(Boolean);
+}
+
+function categoryExists(categoryName) {
+    if (!categoryName) return false;
+    const nameLower = categoryName.toLowerCase();
+    const defaults = Object.keys(DEFAULT_CATEGORY_ICONS);
+    if (defaults.some(cat => cat.toLowerCase() === nameLower)) return true;
+    return customCategories.some(cat => cat.name.toLowerCase() === nameLower);
+}
+
+function getCategoryIconForName(name) {
+    if (!name) return '📦';
+    const custom = customCategories.find(cat => cat.name === name);
+    if (custom) return custom.icon || '📦';
+    return DEFAULT_CATEGORY_ICONS[name] || '📦';
+}
+
+function editCustomCategory(categoryName) {
+    const category = customCategories.find(cat => cat.name === categoryName);
+    if (!category) {
+        alert('⚠️ Category not found');
+        return;
+    }
+    
+    const newName = prompt('Edit category name', category.name)?.trim();
+    if (!newName) return;
+    
+    const newIcon = prompt('Choose an emoji for this category', category.icon || '📦')?.trim() || getCategoryIconForName(newName);
+    
+    if (categoryExists(newName) && newName.toLowerCase() !== category.name.toLowerCase()) {
+        alert(`⚠️ Category "${newName}" already exists`);
+        return;
+    }
+    
+    const oldName = category.name;
+    category.name = newName;
+    category.icon = newIcon;
+    
+    updateProductsCategoryName(oldName, newName);
+    saveCustomCategories();
+    populateCategoryDropdown();
+    renderExistingCategories();
+    notifyCatalogConsumers();
+    showToast(`✏️ Updated category: ${newName}`);
 }
 
 // Save custom products to localStorage
@@ -450,6 +491,37 @@ function saveCustomShops() {
 // Save custom categories to localStorage
 function saveCustomCategories() {
     localStorage.setItem('customCategories', JSON.stringify(customCategories));
+}
+
+function updateProductsCategoryName(oldName, newName) {
+    const oldLower = oldName.toLowerCase();
+    Object.keys(customProducts).forEach(key => {
+        const product = customProducts[key];
+        if (product.category && product.category.toLowerCase() === oldLower) {
+            product.category = newName;
+        }
+    });
+    saveCustomProducts();
+    mergeCustomProducts();
+    
+    if (typeof renderCustomProducts === 'function') {
+        renderCustomProducts();
+    }
+}
+
+function notifyCatalogConsumers() {
+    if (typeof populateQuickAddFromCatalog === 'function') {
+        populateQuickAddFromCatalog();
+        
+        const quickAddModal = document.getElementById('quickAddModal');
+        if (quickAddModal && quickAddModal.classList.contains('active') && typeof renderQuickAddModal === 'function') {
+            renderQuickAddModal();
+        }
+    }
+    
+    if (typeof refreshKitchenStockCatalog === 'function') {
+        refreshKitchenStockCatalog();
+    }
 }
 
 // Merge custom products with CANONICAL_PRODUCTS
@@ -598,17 +670,7 @@ function deleteCustomProduct(canonicalKey, shop, skuIndex) {
     saveCustomProducts();
     mergeCustomProducts();
     
-    if (typeof populateQuickAddFromCatalog === 'function') {
-        populateQuickAddFromCatalog();
-        
-        // Re-render Quick Add modal if it's open
-        const quickAddModal = document.getElementById('quickAddModal');
-        if (quickAddModal && quickAddModal.classList.contains('active')) {
-            if (typeof renderQuickAddModal === 'function') {
-                renderQuickAddModal();
-            }
-        }
-    }
+    notifyCatalogConsumers();
     
     renderCustomProducts();
     showToast('🗑️ Product deleted');
@@ -649,7 +711,7 @@ function deleteCustomCategory(categoryName) {
     const productsUsingCategory = [];
     Object.keys(customProducts).forEach(canonicalKey => {
         const product = customProducts[canonicalKey];
-        if (product.category === categoryName) {
+        if (product.category && product.category.toLowerCase() === categoryName.toLowerCase()) {
             productsUsingCategory.push(product.name);
         }
     });
@@ -662,15 +724,14 @@ function deleteCustomCategory(categoryName) {
     if (!confirm(`Delete custom category "${categoryName}"?`)) return;
     
     // Remove from custom categories
-    const index = customCategories.indexOf(categoryName);
-    if (index > -1) {
-        customCategories.splice(index, 1);
-    }
+    const index = customCategories.findIndex(cat => cat.name === categoryName);
+    if (index > -1) customCategories.splice(index, 1);
     
     // Save and refresh
     saveCustomCategories();
     renderExistingCategories();
     populateCategoryDropdown();
+    notifyCatalogConsumers();
     
     showToast(`🗑️ Deleted category: ${categoryName}`);
 }

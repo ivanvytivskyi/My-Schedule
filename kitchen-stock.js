@@ -10,6 +10,7 @@ let kitchenStock = JSON.parse(localStorage.getItem('kitchenStock_v2')) || {};
 // UI State
 let selectedKitchenShop = localStorage.getItem('kitchenStockShop') || 'Tesco';
 let kitchenStockSelections = {}; // Temporary selections before saving
+let kitchenStockSearchQuery = '';
 
 // ================================================
 // COOKING MEASUREMENTS SYSTEM
@@ -18,43 +19,82 @@ let kitchenStockSelections = {}; // Temporary selections before saving
 // This file only manages custom user adjustments
 
 // Custom measurements (user adjustments)
-let customMeasurements = JSON.parse(localStorage.getItem('customMeasurements')) || {};
+let customMeasurements = normalizeCustomMeasurements(JSON.parse(localStorage.getItem('customMeasurements')) || {});
+
+// Normalize stored measurement entries (supports legacy number-only storage)
+function normalizeCustomMeasurements(raw) {
+    const normalized = {};
+    if (!raw || typeof raw !== 'object') return normalized;
+    
+    Object.keys(raw).forEach(key => {
+        const entry = raw[key];
+        const defaultUnit = DEFAULT_MEASUREMENTS[key]?.unit || 'g';
+        const defaultLabel = DEFAULT_MEASUREMENTS[key]?.label || prettifyMeasurementLabel(key);
+        
+        if (typeof entry === 'number') {
+            normalized[key] = { value: entry, unit: defaultUnit, label: defaultLabel };
+        } else if (entry && typeof entry === 'object') {
+            const value = typeof entry.value === 'number' ? entry.value : parseFloat(entry.value);
+            if (isNaN(value) || value <= 0) return;
+            
+            normalized[key] = {
+                value,
+                unit: entry.unit || defaultUnit,
+                label: entry.label || defaultLabel
+            };
+        }
+    });
+    
+    return normalized;
+}
+
+function prettifyMeasurementLabel(key) {
+    return key
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, char => char.toUpperCase());
+}
+
+function saveCustomMeasurements() {
+    localStorage.setItem('customMeasurements', JSON.stringify(customMeasurements));
+}
 
 // Get measurement value (custom or default) - overrides version in product-catalog.js
 function getMeasurementValue(measureKey) {
-    if (customMeasurements[measureKey]) {
-        return customMeasurements[measureKey];
-    }
-    return DEFAULT_MEASUREMENTS[measureKey]?.value || null;
+    const definition = getMeasurementDefinition(measureKey);
+    return definition ? definition.value : null;
 }
 
 // Get measurement unit (custom or default)
 function getMeasurementUnit(measureKey) {
-    if (customMeasurements[measureKey]) {
-        return DEFAULT_MEASUREMENTS[measureKey]?.unit || 'g';
-    }
-    return DEFAULT_MEASUREMENTS[measureKey]?.unit || 'g';
+    const definition = getMeasurementDefinition(measureKey);
+    return definition ? definition.unit : 'g';
 }
 
 // Update custom measurement
 function updateCustomMeasurement(measureKey, newValue) {
-    if (!DEFAULT_MEASUREMENTS[measureKey]) return;
-    
+    const key = String(measureKey).toLowerCase();
+    const baseDefinition = getMeasurementDefinition(key);
     const value = parseFloat(newValue);
+    
     if (isNaN(value) || value <= 0) {
-        // Invalid value - revert to default
-        delete customMeasurements[measureKey];
-    } else {
-        customMeasurements[measureKey] = value;
+        delete customMeasurements[key];
+        saveCustomMeasurements();
+        renderMeasuresTab();
+        return;
     }
     
-    localStorage.setItem('customMeasurements', JSON.stringify(customMeasurements));
+    const unit = baseDefinition?.unit || DEFAULT_MEASUREMENTS[key]?.unit || 'g';
+    const label = baseDefinition?.label || DEFAULT_MEASUREMENTS[key]?.label || prettifyMeasurementLabel(key);
+    
+    customMeasurements[key] = { value, unit, label };
+    saveCustomMeasurements();
 }
 
 // Reset measurement to default
 function resetMeasurement(measureKey) {
-    delete customMeasurements[measureKey];
-    localStorage.setItem('customMeasurements', JSON.stringify(customMeasurements));
+    const key = String(measureKey).toLowerCase();
+    delete customMeasurements[key];
+    saveCustomMeasurements();
     renderMeasuresTab();
 }
 
@@ -62,7 +102,7 @@ function resetMeasurement(measureKey) {
 function resetAllMeasurements() {
     if (!confirm('Reset all measurements to defaults?')) return;
     customMeasurements = {};
-    localStorage.setItem('customMeasurements', JSON.stringify(customMeasurements));
+    saveCustomMeasurements();
     renderMeasuresTab();
     showToast('✅ All measurements reset to defaults');
 }
@@ -274,11 +314,7 @@ function switchKitchenTab(tabName) {
 function openKitchenStock() {
     document.getElementById('kitchenStockModal').classList.add('active');
     
-    // Set shop selector
-    const shopSelect = document.getElementById('kitchenStockShopSelect');
-    if (shopSelect) {
-        shopSelect.value = selectedKitchenShop;
-    }
+    populateKitchenShopOptions();
     
     // Clear selections to start fresh
     kitchenStockSelections = {};
@@ -440,15 +476,51 @@ function getUnitOptions(unitType, selectedUnit, canonicalKey) {
             options += `<option value="${custom.unit}" ${selectedUnit === custom.unit ? 'selected' : ''}>${custom.unit}</option>`;
         }
         
+        getMeasurementOptionsForUnit('g').forEach(option => {
+            options += `<option value="${option.key}" ${selectedUnit === option.key ? 'selected' : ''}>${option.label}</option>`;
+        });
+        
         return options;
     } else if (unitType === 'ml') {
-        return `
+        let options = `
             <option value="ml" ${selectedUnit === 'ml' ? 'selected' : ''}>ml</option>
             <option value="L" ${selectedUnit === 'L' ? 'selected' : ''}>L</option>
         `;
+        
+        getMeasurementOptionsForUnit('ml').forEach(option => {
+            options += `<option value="${option.key}" ${selectedUnit === option.key ? 'selected' : ''}>${option.label}</option>`;
+        });
+        
+        return options;
     } else {
-        return `<option value="count" selected>count</option>`;
+        let options = `<option value="count" ${selectedUnit === 'count' ? 'selected' : ''}>count</option>`;
+        
+        getMeasurementOptionsForUnit('count').forEach(option => {
+            options += `<option value="${option.key}" ${selectedUnit === option.key ? 'selected' : ''}>${option.label}</option>`;
+        });
+        
+        return options;
     }
+}
+
+function getMeasurementOptionsForUnit(unitType) {
+    const matches = [];
+    const allKeys = new Set([
+        ...Object.keys(DEFAULT_MEASUREMENTS),
+        ...Object.keys(customMeasurements)
+    ]);
+    
+    allKeys.forEach(key => {
+        const def = getMeasurementDefinition(key);
+        if (!def) return;
+        if ((unitType === 'g' && def.unit === 'g') ||
+            (unitType === 'ml' && def.unit === 'ml') ||
+            (unitType === 'count' && def.unit === 'count')) {
+            matches.push({ key, label: `${def.label} (${def.unit})` });
+        }
+    });
+    
+    return matches.sort((a, b) => a.label.localeCompare(b.label));
 }
 
 // Convert custom units to base units (g, ml, count)
@@ -461,6 +533,11 @@ function convertCustomUnitToBase(quantity, unit, canonicalKey) {
     
     if (customUnits[canonicalKey] && unit === customUnits[canonicalKey].unit) {
         return quantity * customUnits[canonicalKey].weight; // Convert to grams
+    }
+    
+    const measurementDefinition = getMeasurementDefinition(String(unit).toLowerCase().replace(/s$/, ''));
+    if (measurementDefinition && measurementDefinition.value) {
+        return quantity * measurementDefinition.value;
     }
     
     // Standard conversions
@@ -481,7 +558,7 @@ function organizeProductsByCategory(shop) {
         if (!shopData || !shopData[0]) return;
         
         const sku = shopData[0];
-        const category = getCategoryFromKey(canonicalKey);
+        const category = product.category || getCategoryFromKey(canonicalKey);
         
         if (!byCategory[category]) {
             byCategory[category] = [];
@@ -527,6 +604,9 @@ function getCategoryFromKey(key) {
 
 // Get category icon
 function getCategoryIcon(category) {
+    const customIcon = findCustomCategoryIcon(category);
+    if (customIcon) return customIcon;
+    
     const icons = {
         'Dairy & Eggs': '🥛',
         'Fruit': '🍎',
@@ -541,6 +621,17 @@ function getCategoryIcon(category) {
         'Other': '📦'
     };
     return icons[category] || '📦';
+}
+
+function findCustomCategoryIcon(category) {
+    if (typeof customCategories === 'undefined' || !Array.isArray(customCategories)) return null;
+    const match = customCategories.find(cat => {
+        if (!cat) return false;
+        if (typeof cat === 'string') return cat === category;
+        return cat.name === category;
+    });
+    if (!match) return null;
+    return typeof match === 'string' ? null : (match.icon || '📦');
 }
 
 // Toggle item selection
@@ -624,6 +715,38 @@ function changeKitchenShop() {
     renderKitchenStockGrid();
 }
 
+function populateKitchenShopOptions() {
+    const select = document.getElementById('kitchenStockShopSelect');
+    if (!select) return;
+    
+    const shops = getAllShopNames();
+    if (shops.length === 0) return;
+    
+    select.innerHTML = shops.map(shop => `<option value="${shop}">${shop}</option>`).join('');
+    
+    if (!shops.includes(selectedKitchenShop)) {
+        selectedKitchenShop = shops[0];
+        saveKitchenShopSelection();
+    }
+    
+    select.value = selectedKitchenShop;
+}
+
+function getAllShopNames() {
+    const shopSet = new Set();
+    Object.values(CANONICAL_PRODUCTS).forEach(product => {
+        if (product.shops) {
+            Object.keys(product.shops).forEach(shop => shopSet.add(shop));
+        }
+    });
+    
+    if (typeof customShops !== 'undefined' && customShops && typeof customShops === 'object') {
+        Object.keys(customShops).forEach(shop => shopSet.add(shop));
+    }
+    
+    return Array.from(shopSet).sort();
+}
+
 // Save selections to kitchen stock
 function saveKitchenStockSelections() {
     // Add to existing stock (don't replace)
@@ -681,6 +804,14 @@ function renderStockView() {
         }
         
         const category = getCategoryFromKey(canonicalKey);
+        const matchesSearch = () => {
+            if (!kitchenStockSearchQuery) return true;
+            const haystack = `${product.name} ${canonicalKey}`.toLowerCase();
+            return haystack.includes(kitchenStockSearchQuery);
+        };
+        
+        if (!matchesSearch()) return;
+        
         if (!byCategory[category]) {
             byCategory[category] = [];
         }
@@ -711,7 +842,15 @@ function renderStockView() {
         return;
     }
     
-    let html = '';
+    let html = `
+        <div style="margin-bottom: 16px; display: flex; gap: 10px; align-items: center;">
+            <input type="search" id="kitchenStockSearchInput" placeholder="Search stock..." value="${kitchenStockSearchQuery}" 
+                   oninput="updateKitchenStockSearch(this.value)"
+                   style="flex: 1; padding: 10px 12px; border: 2px solid #d1d5db; border-radius: 10px; font-size: 14px; font-weight: 600; color: #1f2937;">
+            <button onclick="updateKitchenStockSearch(''); document.getElementById('kitchenStockSearchInput').value='';" style="padding: 10px 14px; border: none; background: #e5e7eb; border-radius: 10px; font-weight: 600; cursor: pointer;">Clear</button>
+        </div>
+        <div style="max-height: 360px; overflow-y: auto; padding-right: 6px;">
+    `;
     
     categories.forEach(category => {
         const items = byCategory[category];
@@ -774,8 +913,15 @@ function renderStockView() {
         `;
     });
     
+    html += `</div>`;
+    
     container.innerHTML = html;
     updateStockCounter();
+}
+
+function updateKitchenStockSearch(query) {
+    kitchenStockSearchQuery = (query || '').trim().toLowerCase();
+    renderStockView();
 }
 
 // Update stock counter
@@ -852,7 +998,9 @@ function renderMeasuresTab() {
     const container = document.getElementById('kitchenMeasuresDisplay');
     if (!container) return;
     
-    const measureKeys = Object.keys(DEFAULT_MEASUREMENTS);
+    const defaultKeys = Object.keys(DEFAULT_MEASUREMENTS);
+    const customOnlyKeys = Object.keys(customMeasurements).filter(key => !DEFAULT_MEASUREMENTS[key]);
+    const measureKeys = [...defaultKeys, ...customOnlyKeys.sort((a, b) => a.localeCompare(b))];
     
     let html = `
         <div style="max-width: 900px; margin: 0 auto;">
@@ -864,44 +1012,103 @@ function renderMeasuresTab() {
                 </p>
             </div>
             
+            <div style="background: #fff7ed; border: 2px dashed #fdba74; padding: 16px; border-radius: 12px; margin-bottom: 18px;">
+                <h4 style="margin: 0 0 10px 0; color: #c2410c;">➕ Add a new measurement</h4>
+                <form onsubmit="addNewMeasurement(event)" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; align-items: end;">
+                    <div>
+                        <label style="display: block; font-weight: 600; color: #7c2d12; margin-bottom: 4px;">Keyword (used in recipes)</label>
+                        <input id="newMeasureKey" type="text" required placeholder="e.g., cup_quinoa" style="width: 100%; padding: 10px; border: 2px solid #fdba74; border-radius: 8px; font-size: 14px;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-weight: 600; color: #7c2d12; margin-bottom: 4px;">Label (display)</label>
+                        <input id="newMeasureLabel" type="text" placeholder="Quinoa Cup" style="width: 100%; padding: 10px; border: 2px solid #fdba74; border-radius: 8px; font-size: 14px;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-weight: 600; color: #7c2d12; margin-bottom: 4px;">Value</label>
+                        <input id="newMeasureValue" type="number" step="0.1" min="0.1" required placeholder="180" style="width: 100%; padding: 10px; border: 2px solid #fdba74; border-radius: 8px; font-size: 14px;">
+                    </div>
+                    <div>
+                        <label style="display: block; font-weight: 600; color: #7c2d12; margin-bottom: 4px;">Base unit</label>
+                        <select id="newMeasureUnit" required style="width: 100%; padding: 10px; border: 2px solid #fdba74; border-radius: 8px; font-size: 14px;">
+                            <option value="g">g (mass)</option>
+                            <option value="ml">ml (volume)</option>
+                            <option value="count">count (pieces)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <button type="submit" style="width: 100%; padding: 12px; background: #f97316; color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer;">Add measurement</button>
+                    </div>
+                </form>
+                <p style="margin: 10px 0 0 0; font-size: 12px; color: #9a3412;">Use the keyword in recipe units (e.g., "2 cup_quinoa"). We store values in base units so shopping and smart cooking stay accurate.</p>
+            </div>
+            
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 16px;">
     `;
     
     measureKeys.forEach(key => {
         const defaultData = DEFAULT_MEASUREMENTS[key];
-        const currentValue = getMeasurementValue(key);
+        const definition = getMeasurementDefinition(key);
+        if (!definition) return;
+        
+        const currentValue = definition.value;
         const isCustomized = customMeasurements.hasOwnProperty(key);
+        const isCustomOnly = !defaultData;
+        const unit = definition.unit;
+        
+        const unitControl = isCustomOnly ? `
+            <select onchange="updateCustomMeasurementUnit('${key}', this.value)" style="padding: 10px; border: 2px solid #d1d5db; border-radius: 8px; font-size: 14px; font-weight: 600; color: #1f2937;">
+                <option value="g" ${unit === 'g' ? 'selected' : ''}>g</option>
+                <option value="ml" ${unit === 'ml' ? 'selected' : ''}>ml</option>
+                <option value="count" ${unit === 'count' ? 'selected' : ''}>count</option>
+            </select>
+        ` : `
+            <div style="padding: 10px 16px; background: #f3f4f6; border-radius: 8px; color: #4b5563; font-weight: 600; font-size: 14px; min-width: 50px; text-align: center;">
+                ${unit}
+            </div>
+        `;
+        
+        const actionButton = isCustomOnly ? `
+            <button onclick="deleteCustomMeasurement('${key}')" 
+                    style="background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">
+                🗑️ Delete
+            </button>
+        ` : (isCustomized ? `
+            <button onclick="resetMeasurement('${key}')" 
+                    style="background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">
+                ↺ Reset
+            </button>
+        ` : '');
         
         html += `
             <div style="background: white; padding: 16px; border-radius: 10px; border: 2px solid ${isCustomized ? '#f59e0b' : '#e5e7eb'}; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
                     <div style="font-weight: 600; color: #1f2937; font-size: 15px;">
-                        ${defaultData.label}
+                        ${definition.label}
+                        <div style="color: #6b7280; font-size: 11px; font-weight: 500;">Key: ${key}</div>
                     </div>
-                    ${isCustomized ? `
-                    <button onclick="resetMeasurement('${key}')" 
-                            style="background: #fef3c7; color: #92400e; border: 1px solid #fcd34d; padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">
-                        ↺ Reset
-                    </button>
-                    ` : ''}
+                    ${actionButton}
                 </div>
                 
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <input type="number" 
                            value="${currentValue}" 
-                           step="${defaultData.unit === 'ml' || defaultData.unit === 'g' ? '0.1' : '1'}"
+                           step="${unit === 'ml' || unit === 'g' ? '0.1' : '1'}"
                            min="0.1"
                            oninput="updateCustomMeasurement('${key}', this.value)"
                            style="flex: 1; padding: 10px; border: 2px solid ${isCustomized ? '#f59e0b' : '#d1d5db'}; border-radius: 8px; font-size: 14px; font-weight: 600; color: #1f2937;">
-                    <div style="padding: 10px 16px; background: #f3f4f6; border-radius: 8px; color: #4b5563; font-weight: 600; font-size: 14px; min-width: 50px; text-align: center;">
-                        ${defaultData.unit}
-                    </div>
+                    ${unitControl}
                 </div>
                 
-                ${isCustomized ? `
-                <div style="margin-top: 8px; font-size: 12px; color: #92400e; font-weight: 500;">
-                    Default: ${defaultData.value} ${defaultData.unit}
-                </div>
+                ${!isCustomOnly && isCustomized ? `
+                    <div style="margin-top: 8px; font-size: 12px; color: #92400e; font-weight: 500;">
+                        Default: ${defaultData.value} ${defaultData.unit}
+                    </div>
+                ` : ''}
+                
+                ${isCustomOnly ? `
+                    <div style="margin-top: 8px; font-size: 12px; color: #2563eb; font-weight: 500;">
+                        Custom measurement (stored in ${unit})
+                    </div>
                 ` : ''}
             </div>
         `;
@@ -913,6 +1120,83 @@ function renderMeasuresTab() {
     `;
     
     container.innerHTML = html;
+}
+
+function addNewMeasurement(event) {
+    event.preventDefault();
+    
+    const keyInput = document.getElementById('newMeasureKey');
+    const labelInput = document.getElementById('newMeasureLabel');
+    const valueInput = document.getElementById('newMeasureValue');
+    const unitInput = document.getElementById('newMeasureUnit');
+    
+    if (!keyInput || !valueInput || !unitInput) return;
+    
+    const rawKey = keyInput.value.trim().toLowerCase();
+    const sanitizedKey = rawKey.replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    if (!sanitizedKey) {
+        alert('Please enter a measurement keyword (letters/numbers only)');
+        return;
+    }
+    
+    if (DEFAULT_MEASUREMENTS[sanitizedKey]) {
+        alert('This measurement already exists. Edit it in the list below.');
+        return;
+    }
+    
+    const value = parseFloat(valueInput.value);
+    if (isNaN(value) || value <= 0) {
+        alert('Please enter a valid measurement value');
+        return;
+    }
+    
+    const unit = unitInput.value;
+    const label = labelInput.value.trim() || prettifyMeasurementLabel(sanitizedKey);
+    
+    customMeasurements[sanitizedKey] = { value, unit, label };
+    saveCustomMeasurements();
+    renderMeasuresTab();
+    
+    keyInput.value = '';
+    labelInput.value = '';
+    valueInput.value = '';
+    unitInput.value = 'g';
+    
+    showToast(`✅ Added measurement: ${label}`);
+}
+
+function deleteCustomMeasurement(measureKey) {
+    const key = String(measureKey).toLowerCase();
+    if (DEFAULT_MEASUREMENTS[key]) {
+        resetMeasurement(key);
+        return;
+    }
+    
+    if (!customMeasurements[key]) return;
+    if (!confirm(`Delete measurement "${key}"?`)) return;
+    
+    delete customMeasurements[key];
+    saveCustomMeasurements();
+    renderMeasuresTab();
+}
+
+function updateCustomMeasurementUnit(measureKey, newUnit) {
+    const key = String(measureKey).toLowerCase();
+    if (!customMeasurements[key]) return;
+    customMeasurements[key].unit = newUnit;
+    saveCustomMeasurements();
+}
+
+function refreshKitchenStockCatalog() {
+    populateKitchenShopOptions();
+    
+    const modal = document.getElementById('kitchenStockModal');
+    if (modal && modal.classList.contains('active')) {
+        renderKitchenStockGrid();
+        if (typeof renderStockView === 'function') {
+            renderStockView();
+        }
+    }
 }
 
 console.log('✅ Kitchen Stock System loaded - V2.1.0 Products at Home');
