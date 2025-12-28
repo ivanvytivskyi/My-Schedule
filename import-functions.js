@@ -32,6 +32,7 @@ function closeImportRecipes() {
 // ===================================
 function importSchedule() {
     const input = document.getElementById('scheduleInput').value.trim();
+    const preFilledBlocks = getPreFilledBlocksForImport();
     
     if (!input) {
         alert('⚠️ Please paste schedule first!');
@@ -39,14 +40,19 @@ function importSchedule() {
     }
     
     try {
+        let scheduleText = input;
+        
         // Phase 5: Track schedule generation (recipe usage, history, stats)
         if (typeof handleScheduleGenerated === 'function') {
-            console.log('🔄 Running Phase 5 tracking for imported schedule...');
-            handleScheduleGenerated(input, {});
+            console.log('🔄 Running Phase 5 tracking for imported schedule with defaults...');
+            scheduleText = handleScheduleGenerated(input, preFilledBlocks) || input;
             console.log('✅ Phase 5: Schedule tracking complete');
+        } else if (typeof mergeScheduleWithPreFilled === 'function' && Object.keys(preFilledBlocks).length > 0) {
+            // Fallback merge when history tracker isn't available
+            scheduleText = mergeScheduleWithPreFilled(input, preFilledBlocks);
         }
         
-        const result = parseAndCreateSchedule(input);
+        const result = parseAndCreateSchedule(scheduleText, preFilledBlocks);
         closeImportSchedule();
         document.getElementById('scheduleInput').value = '';
         
@@ -60,6 +66,31 @@ function importSchedule() {
         console.error('Import error:', error);
         alert(`❌ Error: ${error.message}\n\nCheck console (F12) for details.`);
     }
+}
+
+function getPreFilledBlocksForImport() {
+    try {
+        const stored = sessionStorage.getItem('lastPreFilledData');
+        if (stored) {
+            const parsed = JSON.parse(stored);
+            if (parsed?.preFilledBlocks && Object.keys(parsed.preFilledBlocks).length > 0) {
+                console.log('🔄 Loaded pre-filled blocks from session');
+                return parsed.preFilledBlocks;
+            }
+        }
+    } catch (error) {
+        console.warn('⚠️ Unable to load session pre-filled blocks', error);
+    }
+    
+    if (typeof loadDefaultBlocks === 'function') {
+        const defaults = loadDefaultBlocks();
+        if (defaults && Object.keys(defaults).length > 0) {
+            console.log('🔄 Loaded enabled default blocks for import');
+            return defaults;
+        }
+    }
+    
+    return {};
 }
 
 // ===================================

@@ -1169,6 +1169,21 @@ function mergeScheduleWithPreFilled(aiScheduleText, preFilledBlocks) {
         return aiScheduleText;
     }
     
+    // Normalize day names so "MONDAY" or "Monday" both map to the stored defaults
+    const normalizeDayName = (dayName) => {
+        const key = (dayName || '').toLowerCase();
+        const map = {
+            'monday': 'Monday',
+            'tuesday': 'Tuesday',
+            'wednesday': 'Wednesday',
+            'thursday': 'Thursday',
+            'friday': 'Friday',
+            'saturday': 'Saturday',
+            'sunday': 'Sunday'
+        };
+        return map[key] || dayName;
+    };
+    
     const lines = aiScheduleText.split('\n');
     const merged = [];
     let currentDay = null;
@@ -1182,7 +1197,8 @@ function mergeScheduleWithPreFilled(aiScheduleText, preFilledBlocks) {
         if (dayHeaderMatch) {
             // Save previous day's blocks (if any)
             if (currentDay && dayBlocks.length > 0) {
-                const mergedDay = mergeDayBlocks(currentDay, dayBlocks, preFilledBlocks[currentDay]);
+                const normalized = normalizeDayName(currentDay);
+                const mergedDay = mergeDayBlocks(normalized, dayBlocks, preFilledBlocks[normalized]);
                 merged.push(...mergedDay);
             }
             
@@ -1201,7 +1217,8 @@ function mergeScheduleWithPreFilled(aiScheduleText, preFilledBlocks) {
     
     // Don't forget last day
     if (currentDay && dayBlocks.length > 0) {
-        const mergedDay = mergeDayBlocks(currentDay, dayBlocks, preFilledBlocks[currentDay]);
+        const normalized = normalizeDayName(currentDay);
+        const mergedDay = mergeDayBlocks(normalized, dayBlocks, preFilledBlocks[normalized]);
         merged.push(...mergedDay);
     }
     
