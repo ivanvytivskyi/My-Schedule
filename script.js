@@ -3590,8 +3590,6 @@ function generatePrompt() {
     );
     
     // === BUILD KITCHEN STOCK SUMMARY ===
-    const homeInventorySummary = buildHomeInventoryPromptString();
-    
     // === BUILD DIETARY SUMMARY ===
     const dietarySummary = describeDietaryFilters(dietaryFilters);
     
@@ -3616,7 +3614,6 @@ ${formData.studyTopics ? `- Focus topics:\n${formData.studyTopics}` : ''}
 
 🍳 MEALS & FOOD:
 - Preferences: ${formData.foodPrefs || 'No preferences'}
-- Kitchen Stock (auto-loaded): ${homeInventorySummary || 'None'}
 - Batch cook duration: ${formData.batchDuration} day(s) worth of meals per batch recipe
 - Dietary filters: ${dietarySummary}
 ${formData.freeMeals ? '- IMPORTANT: I get FREE meals at work! Reduce shopping accordingly and note this in schedule.' : '- No free meals at work - need to plan all meals myself.'}
@@ -3646,7 +3643,7 @@ FORMAT RULES:
 3) Add the recipe ID next to meal titles, e.g., "🍳 Breakfast | Porridge oats with honey (R5)". Recipe IDs use the R1+ for defaults and CR1+ for custom shown in the database above.
 4) After all 7 days, add one blank line, then a SINGLE LINE with all recipe IDs you used, comma-separated, and NO heading (e.g., R4, CR2, R6).
 5) Do NOT include shopping lists, meal summaries, video links, or extra headings (specifically avoid: "🗓️ WEEKLY SCHEDULE", "🛒 SHOPPING LIST…", "🍽️ MEAL PLAN SUMMARY…", "📌 RECIPES USED", or any "If you want…" variants).
-6) Keep meals simple and quick. Use Kitchen Stock items first: ${homeInventorySummary || 'none'}.
+6) Keep meals simple and quick.
 7) Use the exact time slots provided in the "FILL THESE TIME SLOTS" section above.
 
 Generate the schedule now.
