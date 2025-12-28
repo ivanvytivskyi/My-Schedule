@@ -972,6 +972,7 @@ The app will parse and beautify automatically!" style="width: 100%; height: 300p
                 <h2 style="margin: 0; color: white; display: flex; align-items: center; gap: 10px;">
                     ⚡ Quick Add Shopping
                     <button id="manageProductsQuickAddBtn" onclick="openProductManagement()" style="background: #fbbf24; border: none; color: #1f2937; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 700; display: none;">➕ Manage Products</button>
+                    <input id="quickAddSearchInput" type="text" placeholder="Search..." oninput="handleQuickAddSearch(this.value)" style="max-width: 18ch; width: 18ch; padding: 6px 8px; border-radius: 6px; border: 2px solid rgba(255,255,255,0.6); background: rgba(255,255,255,0.15); color: white; font-weight: 600; font-size: 13px; outline: none;">
                     <button onclick="closeQuickAdd()" style="margin-left: auto; background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">✕ Close</button>
                 </h2>
                 <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">Select items from common products - quantities and prices are editable!</p>
@@ -1029,6 +1030,7 @@ The app will parse and beautify automatically!" style="width: 100%; height: 300p
                         <option value="Tesco">Tesco</option>
                         <option value="Lidl">Lidl</option>
                     </select>
+                    <input id="kitchenStockSearchInput" type="text" placeholder="Search..." oninput="handleKitchenStockSearch(this.value)" style="max-width: 18ch; width: 18ch; padding: 8px 10px; border: 2px solid #d1d5db; border-radius: 6px; font-weight: 600; font-size: 13px;">
                     
                     <!-- Divider (only visible in Select tab) -->
                     <div id="kitchenShopDivider" style="width: 1px; height: 30px; background: #e5e7eb;"></div>
