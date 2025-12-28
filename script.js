@@ -286,6 +286,7 @@ function setupModeButtons() {
     const toggleBtn = document.getElementById('toggleModeBtn');
     const calendarSection = document.getElementById('calendarSection');
     const editSection = document.getElementById('editSection');
+    const manageDefaultsBtn = document.getElementById('manageDefaultsBtn');
     
     if (!toggleBtn) {
         console.error('Toggle button not found!');
@@ -3431,6 +3432,71 @@ function emergencyReset() {
 // PROMPT GENERATOR & RESPONSE IMPORTER
 // ========================================
 
+// Insert saved defaults into already-created schedule days (post-import safety net)
+function applyPreFilledBlocksToSchedule(preFilledBlocks) {
+    if (!preFilledBlocks || Object.keys(preFilledBlocks).length === 0) return;
+    
+    const normalizeTime = (t) => t.replace('–', '-');
+    const normalizeTitle = (title = '') => title.replace(/[^\w\s]/g, '').trim().toLowerCase();
+    const toMinutes = (hhmm) => {
+        const [h, m] = hhmm.split(':').map(Number);
+        return h * 60 + m;
+    };
+    const overlaps = (aStart, aEnd, bStart, bEnd) => {
+        if (!aStart || !aEnd || !bStart || !bEnd) return false;
+        const aS = toMinutes(aStart);
+        const aE = toMinutes(aEnd);
+        const bS = toMinutes(bStart);
+        const bE = toMinutes(bEnd);
+        return aS < bE && bS < aE;
+    };
+    
+    Object.values(scheduleData.days || {}).forEach(day => {
+        const defaultsForDay = preFilledBlocks[day.name];
+        if (!defaultsForDay || defaultsForDay.length === 0) return;
+        
+        day.blocks = day.blocks || [];
+        
+        defaultsForDay.forEach(def => {
+            const defTime = `${def.start}-${def.end}`;
+            const defTitle = normalizeTitle(def.title);
+            const defIsRoutine = defTitle.includes('routine');
+            
+            const exists = day.blocks.some(b => {
+                const blockTime = b.time ? normalizeTime(b.time) : `${b.start || ''}-${b.end || ''}`;
+                const blockTitle = normalizeTitle(b.title);
+                const blockIsRoutine = blockTitle.includes('routine');
+                
+                const sameTime = blockTime === defTime || overlaps(def.start, def.end, (b.start || (b.time || '').split('-')[0]), (b.end || (b.time || '').split('-')[1]));
+                const sameTitle = blockTitle && (blockTitle === defTitle || (defIsRoutine && blockIsRoutine));
+                
+                return sameTime || sameTitle;
+            });
+            
+            if (!exists) {
+                day.blocks.push({
+                    time: defTime,
+                    title: def.title,
+                    tasks: Array.isArray(def.tasks) && def.tasks.length ? def.tasks : ['Activity'],
+                    note: '',
+                    video: '',
+                    recipeID: null,
+                    recipeName: null,
+                    isLeftover: false,
+                    locked: def.locked !== false,
+                    source: def.source || 'defaults'
+                });
+            }
+        });
+        
+        day.blocks.sort((a, b) => {
+            const tA = (a.time || '').split('-')[0];
+            const tB = (b.time || '').split('-')[0];
+            return tA.localeCompare(tB);
+        });
+    });
+}
+
 function openPromptGenerator() {
     document.getElementById('promptGeneratorModal').classList.add('active');
     document.getElementById('generatedPromptSection').style.display = 'none';
@@ -3590,8 +3656,6 @@ function generatePrompt() {
     );
     
     // === BUILD KITCHEN STOCK SUMMARY ===
-    const homeInventorySummary = buildHomeInventoryPromptString();
-    
     // === BUILD DIETARY SUMMARY ===
     const dietarySummary = describeDietaryFilters(dietaryFilters);
     
@@ -3616,7 +3680,6 @@ ${formData.studyTopics ? `- Focus topics:\n${formData.studyTopics}` : ''}
 
 🍳 MEALS & FOOD:
 - Preferences: ${formData.foodPrefs || 'No preferences'}
-- Kitchen Stock (auto-loaded): ${homeInventorySummary || 'None'}
 - Batch cook duration: ${formData.batchDuration} day(s) worth of meals per batch recipe
 - Dietary filters: ${dietarySummary}
 ${formData.freeMeals ? '- IMPORTANT: I get FREE meals at work! Reduce shopping accordingly and note this in schedule.' : '- No free meals at work - need to plan all meals myself.'}
@@ -3646,7 +3709,7 @@ FORMAT RULES:
 3) Add the recipe ID next to meal titles, e.g., "🍳 Breakfast | Porridge oats with honey (R5)". Recipe IDs use the R1+ for defaults and CR1+ for custom shown in the database above.
 4) After all 7 days, add one blank line, then a SINGLE LINE with all recipe IDs you used, comma-separated, and NO heading (e.g., R4, CR2, R6).
 5) Do NOT include shopping lists, meal summaries, video links, or extra headings (specifically avoid: "🗓️ WEEKLY SCHEDULE", "🛒 SHOPPING LIST…", "🍽️ MEAL PLAN SUMMARY…", "📌 RECIPES USED", or any "If you want…" variants).
-6) Keep meals simple and quick. Use Kitchen Stock items first: ${homeInventorySummary || 'none'}.
+6) Keep meals simple and quick.
 7) Use the exact time slots provided in the "FILL THESE TIME SLOTS" section above.
 
 Generate the schedule now.
@@ -3688,7 +3751,7 @@ function copyPrompt() {
     }, 100);
 }
 
-function parseAndCreateSchedule(response) {
+function parseAndCreateSchedule(response, preFilledBlocks = {}) {
     console.log('=== PARSING STARTED ===');
     
     const detectedRecipeIDs = new Set();
@@ -3961,6 +4024,11 @@ function parseAndCreateSchedule(response) {
     // If no days were created, throw error
     if (Object.keys(dayData).length === 0) {
         throw new Error('No days found in response. Make sure the AI response includes day headers like "=== MONDAY — 15 Dec 2025 ==="');
+    }
+    
+    // Inject pre-filled defaults into created days (post-parse merge)
+    if (preFilledBlocks && Object.keys(preFilledBlocks).length > 0) {
+        applyPreFilledBlocksToSchedule(preFilledBlocks);
     }
     
     // Extract and show shopping list
@@ -4725,7 +4793,8 @@ function viewScheduleFromHistory(scheduleId) {
         
         // Parse and import the schedule
         if (typeof parseAndCreateSchedule === 'function') {
-            parseAndCreateSchedule(entry.scheduleText);
+            const defaults = typeof loadDefaultBlocks === 'function' ? loadDefaultBlocks() : {};
+            parseAndCreateSchedule(entry.scheduleText, defaults);
             alert('✅ Schedule imported!');
         } else {
             alert('❌ Import function not available');

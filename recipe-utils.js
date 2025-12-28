@@ -1169,6 +1169,21 @@ function mergeScheduleWithPreFilled(aiScheduleText, preFilledBlocks) {
         return aiScheduleText;
     }
     
+    // Normalize day names so "MONDAY" or "Monday" both map to the stored defaults
+    const normalizeDayName = (dayName) => {
+        const key = (dayName || '').toLowerCase();
+        const map = {
+            'monday': 'Monday',
+            'tuesday': 'Tuesday',
+            'wednesday': 'Wednesday',
+            'thursday': 'Thursday',
+            'friday': 'Friday',
+            'saturday': 'Saturday',
+            'sunday': 'Sunday'
+        };
+        return map[key] || dayName;
+    };
+    
     const lines = aiScheduleText.split('\n');
     const merged = [];
     let currentDay = null;
@@ -1182,7 +1197,8 @@ function mergeScheduleWithPreFilled(aiScheduleText, preFilledBlocks) {
         if (dayHeaderMatch) {
             // Save previous day's blocks (if any)
             if (currentDay && dayBlocks.length > 0) {
-                const mergedDay = mergeDayBlocks(currentDay, dayBlocks, preFilledBlocks[currentDay]);
+                const normalized = normalizeDayName(currentDay);
+                const mergedDay = mergeDayBlocks(normalized, dayBlocks, preFilledBlocks[normalized]);
                 merged.push(...mergedDay);
             }
             
@@ -1201,7 +1217,8 @@ function mergeScheduleWithPreFilled(aiScheduleText, preFilledBlocks) {
     
     // Don't forget last day
     if (currentDay && dayBlocks.length > 0) {
-        const mergedDay = mergeDayBlocks(currentDay, dayBlocks, preFilledBlocks[currentDay]);
+        const normalized = normalizeDayName(currentDay);
+        const mergedDay = mergeDayBlocks(normalized, dayBlocks, preFilledBlocks[normalized]);
         merged.push(...mergedDay);
     }
     
@@ -1213,10 +1230,46 @@ function mergeScheduleWithPreFilled(aiScheduleText, preFilledBlocks) {
  */
 function mergeDayBlocks(dayName, aiBlocks, preFilledBlocks) {
     const allBlocks = [];
+    const normalizeTitle = (title = '') => title.replace(/[^\w\s]/g, '').trim().toLowerCase();
+    const toMinutes = (hhmm) => {
+        const [h, m] = hhmm.split(':').map(Number);
+        return h * 60 + m;
+    };
+    const overlaps = (aStart, aEnd, bStart, bEnd) => {
+        if (!aStart || !aEnd || !bStart || !bEnd) return false;
+        const aS = toMinutes(aStart);
+        const aE = toMinutes(aEnd);
+        const bS = toMinutes(bStart);
+        const bE = toMinutes(bEnd);
+        return aS < bE && bS < aE;
+    };
+    
+    // Pre-compute AI block titles/times for de-duplication
+    const aiBlockMeta = aiBlocks.map(line => {
+        const timeMatch = line.match(/^(\d{2}:\d{2})\s*[–-]\s*(\d{2}:\d{2})/);
+        const parts = line.split('|');
+        const title = parts[1] ? normalizeTitle(parts[1]) : '';
+        return {
+            start: timeMatch ? timeMatch[1] : '',
+            end: timeMatch ? timeMatch[2] : '',
+            title,
+            hasRoutine: title.includes('routine')
+        };
+    });
     
     // Add pre-filled blocks (work, commute, defaults)
     if (preFilledBlocks && preFilledBlocks.length > 0) {
         preFilledBlocks.forEach(block => {
+            const defTitle = normalizeTitle(block.title);
+            const defIsRoutine = defTitle.includes('routine');
+            
+            const conflicts = aiBlockMeta.some(ai => {
+                const titleMatch = ai.title && (ai.title === defTitle || (defIsRoutine && ai.hasRoutine));
+                const timeOverlap = overlaps(block.start, block.end, ai.start, ai.end);
+                return titleMatch || timeOverlap;
+            });
+            if (conflicts) return; // Skip duplicate/similar routines
+            
             const blockLine = `${block.start}–${block.end} | ${block.title}${block.tasks.length > 0 ? ' | ' + block.tasks.join(', ') : ''}`;
             allBlocks.push({ time: block.start, text: blockLine });
         });
