@@ -2,20 +2,8 @@
 // QUICK ADD SHOPPING - V2.1.0 REDESIGNED + FIXED
 // ================================================
 
-// Currency symbols
-const currencySymbols = {
-    'GBP': '£',
-    'USD': '$',
-    'EUR': '€'
-};
-
-// Current currency
-let currentCurrency = localStorage.getItem('currentCurrency') || 'GBP';
-
-// Function to get currency symbol
-function getCurrencySymbol() {
-    return currencySymbols[currentCurrency] || '£';
-}
+// Currency handling simplified to GBP only (UI does not expose currency switching)
+const DISPLAY_CURRENCY = '£';
 
 // Get category icon
 function getCategoryIcon(category) {
@@ -36,12 +24,15 @@ function getCategoryIcon(category) {
         'Fruit': '🍎',
         'Vegetables': '🥕',
         'Meat & Fish': '🥩',
-        'Bakery': '🥖',
         'Bread & Bakery': '🥖',
-        'Pantry': '🌾',
+        'Grains & Pulses': '🌾',
+        'Pantry & Dry Goods': '🧂',
         'Frozen': '❄️',
         'Drinks': '🥤',
+        'Snacks': '🍿',
         'Sweets & Spreads': '🍫',
+        'Household': '🧽',
+        'Personal Care': '🧴',
         'Other': '📦'
     };
     return icons[category] || '📦';
@@ -81,6 +72,7 @@ let quickAddProducts = {};
 
 // Selected items
 let selectedShoppingItems = {};
+let quickAddSearchTerm = '';
 
 // Auto-populate from CANONICAL_PRODUCTS
 function populateQuickAddFromCatalog() {
@@ -116,20 +108,28 @@ function populateQuickAddFromCatalog() {
                 category = 'Dairy & Eggs';
             } else if (keyLower.includes('banana') || keyLower.includes('apple') || keyLower.includes('orange')) {
                 category = 'Fruit';
-            } else if (keyLower.includes('potato') || keyLower.includes('onion') || keyLower.includes('carrot') || keyLower.includes('tomato') || keyLower.includes('pepper') || keyLower.includes('broccoli') || keyLower.includes('cucumber') || keyLower.includes('garlic')) {
+            } else if (keyLower.includes('potato') || keyLower.includes('onion') || keyLower.includes('carrot') || keyLower.includes('tomato') || keyLower.includes('pepper') || keyLower.includes('broccoli') || keyLower.includes('cucumber') || keyLower.includes('garlic') || keyLower.includes('ginger') || keyLower.includes('spinach') || keyLower.includes('lettuce')) {
                 category = 'Vegetables';
-            } else if (keyLower.includes('chicken') || keyLower.includes('beef') || keyLower.includes('pork') || keyLower.includes('bacon') || keyLower.includes('fish')) {
+            } else if (keyLower.includes('chicken') || keyLower.includes('beef') || keyLower.includes('pork') || keyLower.includes('bacon') || keyLower.includes('fish') || keyLower.includes('salmon') || keyLower.includes('cod') || keyLower.includes('lamb')) {
                 category = 'Meat & Fish';
-            } else if (keyLower.includes('bread') || keyLower.includes('croissant') || keyLower.includes('tortilla') || keyLower.includes('roll')) {
-                category = 'Bakery';
-            } else if (keyLower.includes('rice') || keyLower.includes('pasta') || keyLower.includes('flour') || keyLower.includes('sugar') || keyLower.includes('salt') || keyLower.includes('oil') || keyLower.includes('honey') || keyLower.includes('jam') || keyLower.includes('buckwheat') || keyLower.includes('lentil')) {
-                category = 'Pantry';
-            } else if (keyLower.includes('frozen') || keyLower.includes('peas') || keyLower.includes('pizza') || keyLower.includes('ice_cream') || keyLower.includes('mixed_veg')) {
+            } else if ((keyLower.includes('bread') || keyLower.includes('croissant') || keyLower.includes('tortilla') || keyLower.includes('roll') || keyLower.includes('bagel') || keyLower.includes('bap') || keyLower.includes('bun')) && !keyLower.includes('oats')) {
+                category = 'Bread & Bakery';
+            } else if (keyLower.includes('rice') || keyLower.includes('oats') || keyLower.includes('lentil') || keyLower.includes('bean') || keyLower.includes('buckwheat') || keyLower.includes('quinoa') || keyLower.includes('barley') || keyLower.includes('couscous') || keyLower.includes('bulgur') || keyLower.includes('grain') || keyLower.includes('pulse')) {
+                category = 'Grains & Pulses';
+            } else if (keyLower.includes('pasta') || keyLower.includes('flour') || keyLower.includes('sugar') || keyLower.includes('salt') || keyLower.includes('oil') || keyLower.includes('honey') || keyLower.includes('jam') || keyLower.includes('spice') || keyLower.includes('herb') || keyLower.includes('stock') || keyLower.includes('cocoa') || keyLower.includes('vinegar') || keyLower.includes('sauce')) {
+                category = 'Pantry & Dry Goods';
+            } else if (keyLower.includes('frozen') || keyLower.includes('peas_frozen') || keyLower.includes('pizza') || keyLower.includes('ice_cream') || keyLower.includes('mixed_veg')) {
                 category = 'Frozen';
-            } else if (keyLower.includes('juice') || keyLower.includes('cola') || keyLower.includes('water') || keyLower.includes('tea')) {
+            } else if (keyLower.includes('juice') || keyLower.includes('cola') || keyLower.includes('water') || keyLower.includes('tea') || keyLower.includes('coffee')) {
                 category = 'Drinks';
-            } else if (keyLower.includes('chocolate') || keyLower.includes('peanut') || keyLower.includes('sultana')) {
+            } else if (keyLower.includes('crisp') || keyLower.includes('chips') || keyLower.includes('nuts') || keyLower.includes('popcorn') || keyLower.includes('snack') || keyLower.includes('bar')) {
+                category = 'Snacks';
+            } else if (keyLower.includes('chocolate') || keyLower.includes('peanut') || keyLower.includes('sultana') || keyLower.includes('raisins') || keyLower.includes('syrup') || keyLower.includes('spread')) {
                 category = 'Sweets & Spreads';
+            } else if (keyLower.includes('foil') || keyLower.includes('wrap') || keyLower.includes('clean') || keyLower.includes('detergent') || keyLower.includes('paper') || keyLower.includes('towel') || keyLower.includes('bag')) {
+                category = 'Household';
+            } else if (keyLower.includes('soap') || keyLower.includes('shampoo') || keyLower.includes('toothpaste') || keyLower.includes('toothbrush') || keyLower.includes('deodorant') || keyLower.includes('conditioner')) {
+                category = 'Personal Care';
             }
             
             if (!quickAddProducts[shopName][category]) {
@@ -172,6 +172,11 @@ function openQuickAdd() {
         populateQuickAddFromCatalog();
     }
     
+    const searchInput = document.getElementById('quickAddSearchInput');
+    if (searchInput) {
+        searchInput.value = quickAddSearchTerm;
+    }
+    
     document.getElementById('quickAddModal').classList.add('active');
     
     // Show/hide Manage Products button based on Edit Mode
@@ -192,6 +197,11 @@ function closeQuickAdd() {
     document.getElementById('quickAddModal').classList.remove('active');
 }
 
+function handleQuickAddSearch(value) {
+    quickAddSearchTerm = value || '';
+    renderQuickAddModal();
+}
+
 // Render modal
 function renderQuickAddModal() {
     const modal = document.getElementById('quickAddModalContent');
@@ -207,7 +217,6 @@ function renderQuickAddModal() {
         }
     }
     
-    const currencySymbol = getCurrencySymbol();
     const shops = Object.keys(quickAddProducts);
     
     if (shops.length === 0) {
@@ -215,10 +224,13 @@ function renderQuickAddModal() {
         return;
     }
     
+    const searchTerm = quickAddSearchTerm.trim().toLowerCase();
+    
     let html = '';
     
     shops.forEach(shop => {
         const brandStyle = getShopBrandStyle(shop);
+        let shopHasResults = false;
         html += `
             <div style="margin-bottom: 30px; border: 2px solid #ddd; border-radius: 12px; overflow: hidden;">
                 <div style="${brandStyle.header}">
@@ -229,6 +241,9 @@ function renderQuickAddModal() {
         const categories = Object.keys(quickAddProducts[shop]);
         categories.forEach(category => {
             const items = quickAddProducts[shop][category];
+            const filteredItems = searchTerm ? items.filter(prod => prod.name.toLowerCase().includes(searchTerm)) : items;
+            if (filteredItems.length === 0) return;
+            shopHasResults = true;
             const categoryIcon = getCategoryIcon(category);
             
             html += `
@@ -237,8 +252,9 @@ function renderQuickAddModal() {
                     <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px;">
             `;
             
-            items.forEach((product, idx) => {
-                const itemKey = `${shop}|${category}|${idx}`;
+            filteredItems.forEach((product, idx) => {
+                const originalIndex = items.indexOf(product);
+                const itemKey = `${shop}|${category}|${originalIndex}`;
                 const isSelected = selectedShoppingItems[itemKey];
                 
                 // Escape single quotes for onclick handlers
@@ -246,7 +262,7 @@ function renderQuickAddModal() {
                 const escapedCategory = category.replace(/'/g, "\\'");
                 
                 html += `
-                    <div onclick="toggleQuickItem('${escapedShop}', '${escapedCategory}', ${idx})" 
+                    <div onclick="toggleQuickItem('${escapedShop}', '${escapedCategory}', ${originalIndex})" 
                          style="padding: 12px; background: white; border: 2px solid ${isSelected ? '#4CAF50' : '#ddd'}; border-radius: 8px; cursor: pointer; transition: all 0.2s;">
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <div style="width: 20px; height: 20px; border: 2px solid ${isSelected ? '#4CAF50' : '#999'}; border-radius: 4px; background: ${isSelected ? '#4CAF50' : 'white'}; flex-shrink: 0; display: flex; align-items: center; justify-content: center;">
@@ -254,7 +270,7 @@ function renderQuickAddModal() {
                             </div>
                             <div style="flex: 1;">
                                 <div style="font-weight: 600; color: #2c3e50; font-size: 14px;">${product.name}</div>
-                                <div style="color: #7f8c8d; font-size: 12px;">${product.unit} · ${currencySymbol}${product.price.toFixed(2)}</div>
+                                <div style="color: #7f8c8d; font-size: 12px;">${product.unit} · ${DISPLAY_CURRENCY}${product.price.toFixed(2)}</div>
                             </div>
                         </div>
                         ${isSelected ? `
@@ -264,7 +280,7 @@ function renderQuickAddModal() {
                                        min="${product.loose ? '0.1' : '1'}" 
                                        step="${product.loose ? '0.1' : '1'}"
                                        onclick="event.stopPropagation()"
-                                       onchange="updateQuickItemQty('${escapedShop}', '${escapedCategory}', ${idx}, this.value)"
+                                       onchange="updateQuickItemQty('${escapedShop}', '${escapedCategory}', ${originalIndex}, this.value)"
                                        style="width: 70px; padding: 4px; border: 1px solid #ddd; border-radius: 4px;">
                             </div>
                         ` : ''}
@@ -277,6 +293,14 @@ function renderQuickAddModal() {
                 </div>
             `;
         });
+        
+        if (!shopHasResults && searchTerm) {
+            html += `
+                <div style="padding: 16px; background: #fff7ed; color: #c2410c; border-top: 1px solid #fde68a;">
+                    No matches in ${shop}.
+                </div>
+            `;
+        }
         
         html += `</div>`;
     });
@@ -326,7 +350,7 @@ function updateQuickAddTotal() {
     const totalEl = document.getElementById('quickAddTotal');
     
     if (countEl) countEl.textContent = `Selected: ${count} items`;
-    if (totalEl) totalEl.textContent = `Total: ${getCurrencySymbol()}${total.toFixed(2)}`;
+    if (totalEl) totalEl.textContent = `Total: ${DISPLAY_CURRENCY}${total.toFixed(2)}`;
 }
 
 // Add items to shopping list
@@ -372,7 +396,7 @@ function addQuickAddItems() {
 
 // Generate shopping table HTML
 function generateShoppingTableHTML(shop, items, existingTableId = null) {
-    const currencySymbol = getCurrencySymbol();
+    const currencySymbol = DISPLAY_CURRENCY;
     const brandStyle = getShopBrandStyle(shop);
     
     const tableId = existingTableId || `quickadd-${Date.now()}`;
@@ -532,16 +556,14 @@ function updateQuickAddCheckoutButton(tableId) {
     const btn = document.getElementById(`checkout-btn-${tableId}`);
     if (!btn) return;
     
-    const currencySymbol = getCurrencySymbol();
-    
     if (tickedTotal === 0) {
-        btn.textContent = `✅ Checkout ${currencySymbol}0.00`;
+        btn.textContent = `✅ Checkout ${DISPLAY_CURRENCY}0.00`;
         btn.disabled = true;
         btn.style.background = '#d1d5db';
         btn.style.cursor = 'not-allowed';
         btn.style.boxShadow = 'none';
     } else {
-        btn.textContent = `✅ Checkout ${currencySymbol}${tickedTotal.toFixed(2)}`;
+        btn.textContent = `✅ Checkout ${DISPLAY_CURRENCY}${tickedTotal.toFixed(2)}`;
         btn.disabled = false;
         btn.style.background = '#10b981';
         btn.style.cursor = 'pointer';
@@ -644,9 +666,8 @@ function checkoutQuickAddTable(tableId) {
             localStorage.setItem('shoppingListHTML', remainingHTML);
         }
         
-        const currencySymbol = getCurrencySymbol();
         const total = tickedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-        showToast(`✅ Checked out ${tickedItems.length} items (${currencySymbol}${total.toFixed(2)}) - Table deleted`);
+        showToast(`✅ Checked out ${tickedItems.length} items (${DISPLAY_CURRENCY}${total.toFixed(2)}) - Table deleted`);
     } else {
         // Re-render table with remaining items (preserve tableId)
         const shop = table.querySelector('h3').textContent;
@@ -661,9 +682,8 @@ function checkoutQuickAddTable(tableId) {
             localStorage.setItem('shoppingListHTML', remainingHTML);
         }
         
-        const currencySymbol = getCurrencySymbol();
         const total = tickedItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
-        showToast(`✅ Checked out ${tickedItems.length} items (${currencySymbol}${total.toFixed(2)}) - Added to Kitchen Stock!`);
+        showToast(`✅ Checked out ${tickedItems.length} items (${DISPLAY_CURRENCY}${total.toFixed(2)}) - Added to Kitchen Stock!`);
     }
 }
 
@@ -691,8 +711,7 @@ function updateQuickAddTableTotals(tableId) {
     // Update totals row
     const totalsRow = table.querySelector('tbody tr:last-child');
     if (totalsRow) {
-        const currencySymbol = getCurrencySymbol();
-        totalsRow.cells[2].textContent = `${currencySymbol}${totalPrice.toFixed(2)}`;
+        totalsRow.cells[2].textContent = `${DISPLAY_CURRENCY}${totalPrice.toFixed(2)}`;
         totalsRow.cells[3].textContent = totalQuantity.toFixed(1);
     }
 }

@@ -525,8 +525,9 @@ const CANONICAL_PRODUCTS = {
         }
     },
     
-    oats_rolled: {
+    oats: {
         name: "Rolled Oats",
+        category: "Grains & Pulses",
         unitType: UNIT_TYPE.MASS,
         shops: {
             Tesco: [
@@ -790,13 +791,71 @@ const CANONICAL_PRODUCTS = {
     }
 };
 
+// Apply consistent categories to all products (overrides keyword guessing in UI helpers)
+const CATEGORY_OVERRIDES = {
+    oats: "Grains & Pulses"
+};
+
+function determineCategoryFromKey(canonicalKey) {
+    if (!canonicalKey) return "Other";
+    if (CATEGORY_OVERRIDES[canonicalKey]) return CATEGORY_OVERRIDES[canonicalKey];
+    
+    const keyLower = canonicalKey.toLowerCase();
+    
+    const categoryRules = [
+        { category: "Dairy & Eggs", keywords: ["milk", "egg", "butter", "cheese", "yogurt", "cottage"] },
+        { category: "Fruit", keywords: ["banana", "apple", "orange", "strawberry", "blueberry", "lemon", "lime", "grape"] },
+        { category: "Vegetables", keywords: ["potato", "onion", "carrot", "tomato", "pepper", "broccoli", "cucumber", "garlic", "ginger", "spinach", "lettuce", "leek", "celery", "cauliflower", "mushroom"] },
+        { category: "Meat & Fish", keywords: ["chicken", "beef", "pork", "bacon", "fish", "salmon", "cod", "lamb"] },
+        { category: "Bread & Bakery", keywords: ["bread", "croissant", "tortilla", "bun", "bap", "baguette", "pitta", "muffin", "bagel", " roll", "roll_", "_roll", "bread_"] },
+        { category: "Grains & Pulses", keywords: ["rice", "oats", "lentil", "bean", "buckwheat", "quinoa", "barley", "couscous", "bulgur", "grain", "pulse", "peas_dried"] },
+        { category: "Pantry & Dry Goods", keywords: ["pasta", "flour", "sugar", "salt", "oil", "honey", "jam", "spice", "herb", "stock", "cocoa", "vinegar", "sauce", "tuna", "kidney", "tomato_paste", "passata"] },
+        { category: "Frozen", keywords: ["frozen", "ice_cream", "peas_frozen", "mixed_veg", "pizza"] },
+        { category: "Drinks", keywords: ["juice", "cola", "water", "tea", "coffee"] },
+        { category: "Snacks", keywords: ["crisps", "chips", "nuts", "popcorn", "snack", "bar"] },
+        { category: "Sweets & Spreads", keywords: ["chocolate", "peanut", "sultana", "raisins", "syrup", "jam", "spread"] },
+        { category: "Household", keywords: ["foil", "wrap", "clean", "detergent", "paper", "bin", "bag", "towel"] },
+        { category: "Personal Care", keywords: ["soap", "shampoo", "toothpaste", "toothbrush", "deodorant", "conditioner"] }
+    ];
+    
+    for (const rule of categoryRules) {
+        if (rule.keywords.some(keyword => keyLower.includes(keyword))) {
+            // Prevent "roll" matching oats
+            if (rule.category === "Bread & Bakery" && keyLower.includes("oats")) continue;
+            return rule.category;
+        }
+    }
+    
+    return "Other";
+}
+
+Object.keys(CANONICAL_PRODUCTS).forEach(key => {
+    const product = CANONICAL_PRODUCTS[key];
+    if (!product.category) {
+        product.category = determineCategoryFromKey(key);
+    }
+});
+
 // Helper function: Convert any unit to base unit
 function convertToBase(qty, unit, canonicalKey) {
+    const unitLower = (unit || "").toLowerCase();
     const product = CANONICAL_PRODUCTS[canonicalKey];
-    if (!product) return qty;
+    
+    // If product is unknown, still try to normalize common units and measurements
+    if (!product) {
+        const measureKey = unitLower.replace(/s$/, '');
+        const measurementDefinition = getMeasurementDefinition(measureKey);
+        if (measurementDefinition && measurementDefinition.value) {
+            return qty * measurementDefinition.value;
+        }
+        
+        if (unitLower === "kg" || unitLower === "l") return qty * 1000;
+        if (unitLower === "g" || unitLower === "ml" || unitLower === "count" || unitLower === "") return qty;
+        
+        return qty;
+    }
     
     const targetUnit = product.unitType;
-    const unitLower = (unit || "").toLowerCase();
     
     // Check for cooking measurements first
     // Handle specific cooking measurements

@@ -10,6 +10,8 @@ let kitchenStock = JSON.parse(localStorage.getItem('kitchenStock_v2')) || {};
 // UI State
 let selectedKitchenShop = localStorage.getItem('kitchenStockShop') || 'Tesco';
 let kitchenStockSelections = {}; // Temporary selections before saving
+let kitchenStockSearchTerm = '';
+let activeKitchenTab = 'select';
 
 // ================================================
 // COOKING MEASUREMENTS SYSTEM
@@ -232,8 +234,20 @@ function closeKitchenStock() {
     document.getElementById('kitchenStockModal').classList.remove('active');
 }
 
+function handleKitchenStockSearch(value) {
+    kitchenStockSearchTerm = (value || '').toLowerCase();
+    if (activeKitchenTab === 'stock') {
+        renderStockView();
+    } else if (activeKitchenTab === 'measures') {
+        renderMeasuresTab();
+    } else {
+        renderKitchenStockGrid();
+    }
+}
+
 // Switch between tabs
 function switchKitchenTab(tabName) {
+    activeKitchenTab = tabName;
     // Update tab buttons with proper colors and borders
     document.querySelectorAll('.kitchen-tab').forEach(tab => {
         const isActive = tab.dataset.tab === tabName;
@@ -381,6 +395,7 @@ function renderKitchenStockGrid() {
     // Build product grid by category
     const productsByCategory = organizeProductsByCategory(selectedKitchenShop);
     const categories = Object.keys(productsByCategory).sort();
+    const searchTerm = kitchenStockSearchTerm.trim().toLowerCase();
     
     if (categories.length === 0) {
         container.innerHTML = `
@@ -396,7 +411,15 @@ function renderKitchenStockGrid() {
     let html = '';
     
     categories.forEach(category => {
-        const products = productsByCategory[category];
+        const products = productsByCategory[category].filter(({ canonicalKey, sku }) => {
+            if (!searchTerm) return true;
+            const product = CANONICAL_PRODUCTS[canonicalKey];
+            return (product?.name?.toLowerCase().includes(searchTerm)) ||
+                   canonicalKey.toLowerCase().includes(searchTerm) ||
+                   sku.sku.toLowerCase().includes(searchTerm);
+        });
+        
+        if (products.length === 0) return;
         
         html += `
             <div style="margin-bottom: 20px;">
@@ -449,6 +472,17 @@ function renderKitchenStockGrid() {
             </div>
         `;
     });
+    
+    if (!html) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 60px 20px; color: #9ca3af;">
+                <p style="font-size: 42px; margin: 0 0 10px 0;">🔎</p>
+                <p style="font-size: 16px; margin: 0;">No products match your search.</p>
+            </div>
+        `;
+        updateKitchenStockCounter();
+        return;
+    }
     
     container.innerHTML = html;
     updateKitchenStockCounter();
@@ -586,16 +620,24 @@ function getCategoryFromKey(key) {
         return 'Vegetables';
     } else if (keyLower.includes('chicken') || keyLower.includes('beef') || keyLower.includes('pork') || keyLower.includes('bacon') || keyLower.includes('fish')) {
         return 'Meat & Fish';
-    } else if (keyLower.includes('bread') || keyLower.includes('croissant') || keyLower.includes('tortilla') || keyLower.includes('roll')) {
+    } else if ((keyLower.includes('bread') || keyLower.includes('croissant') || keyLower.includes('tortilla') || keyLower.includes('roll')) && !keyLower.includes('oats')) {
         return 'Bread & Bakery';
-    } else if (keyLower.includes('rice') || keyLower.includes('pasta') || keyLower.includes('flour') || keyLower.includes('sugar') || keyLower.includes('salt') || keyLower.includes('oil') || keyLower.includes('honey') || keyLower.includes('jam') || keyLower.includes('buckwheat') || keyLower.includes('lentil')) {
-        return 'Pantry';
-    } else if (keyLower.includes('frozen') || keyLower.includes('peas') || keyLower.includes('pizza') || keyLower.includes('ice_cream') || keyLower.includes('mixed_veg')) {
+    } else if (keyLower.includes('rice') || keyLower.includes('oats') || keyLower.includes('lentil') || keyLower.includes('bean') || keyLower.includes('buckwheat') || keyLower.includes('quinoa') || keyLower.includes('barley') || keyLower.includes('couscous') || keyLower.includes('bulgur') || keyLower.includes('grain') || keyLower.includes('pulse')) {
+        return 'Grains & Pulses';
+    } else if (keyLower.includes('pasta') || keyLower.includes('flour') || keyLower.includes('sugar') || keyLower.includes('salt') || keyLower.includes('oil') || keyLower.includes('honey') || keyLower.includes('jam') || keyLower.includes('spice') || keyLower.includes('herb') || keyLower.includes('stock') || keyLower.includes('cocoa') || keyLower.includes('vinegar') || keyLower.includes('sauce')) {
+        return 'Pantry & Dry Goods';
+    } else if (keyLower.includes('frozen') || keyLower.includes('peas_frozen') || keyLower.includes('pizza') || keyLower.includes('ice_cream') || keyLower.includes('mixed_veg')) {
         return 'Frozen';
     } else if (keyLower.includes('juice') || keyLower.includes('cola') || keyLower.includes('water') || keyLower.includes('tea')) {
         return 'Drinks';
-    } else if (keyLower.includes('chocolate') || keyLower.includes('peanut') || keyLower.includes('sultana')) {
+    } else if (keyLower.includes('crisp') || keyLower.includes('chips') || keyLower.includes('nuts') || keyLower.includes('popcorn') || keyLower.includes('snack') || keyLower.includes('bar')) {
+        return 'Snacks';
+    } else if (keyLower.includes('chocolate') || keyLower.includes('peanut') || keyLower.includes('sultana') || keyLower.includes('raisins') || keyLower.includes('syrup') || keyLower.includes('spread')) {
         return 'Sweets & Spreads';
+    } else if (keyLower.includes('foil') || keyLower.includes('wrap') || keyLower.includes('clean') || keyLower.includes('detergent') || keyLower.includes('paper') || keyLower.includes('towel') || keyLower.includes('bag')) {
+        return 'Household';
+    } else if (keyLower.includes('soap') || keyLower.includes('shampoo') || keyLower.includes('toothpaste') || keyLower.includes('toothbrush') || keyLower.includes('deodorant') || keyLower.includes('conditioner')) {
+        return 'Personal Care';
     }
     
     return 'Other';
@@ -611,12 +653,15 @@ function getCategoryIcon(category) {
         'Fruit': '🍎',
         'Vegetables': '🥕',
         'Meat & Fish': '🥩',
-        'Bakery': '🥖',
         'Bread & Bakery': '🥖',
-        'Pantry': '🌾',
+        'Grains & Pulses': '🌾',
+        'Pantry & Dry Goods': '🧂',
         'Frozen': '❄️',
         'Drinks': '🥤',
+        'Snacks': '🍿',
         'Sweets & Spreads': '🍫',
+        'Household': '🧽',
+        'Personal Care': '🧴',
         'Other': '📦'
     };
     return icons[category] || '📦';
@@ -794,6 +839,8 @@ function renderStockView() {
     
     // Organize stock by category
     const byCategory = {};
+    const searchTerm = kitchenStockSearchTerm.trim();
+    const searchTermLower = searchTerm.toLowerCase();
     
     Object.keys(kitchenStock).forEach(canonicalKey => {
         const product = CANONICAL_PRODUCTS[canonicalKey];
@@ -801,6 +848,11 @@ function renderStockView() {
             console.warn(`Product not found for key: ${canonicalKey}`);
             return;
         }
+        
+        const matchesSearch = !searchTermLower || 
+            product.name.toLowerCase().includes(searchTermLower) || 
+            canonicalKey.toLowerCase().includes(searchTermLower);
+        if (!matchesSearch) return;
         
         const category = getCategoryFromKey(canonicalKey);
         if (!byCategory[category]) {
@@ -822,11 +874,11 @@ function renderStockView() {
         container.innerHTML = `
             <div style="text-align: center; padding: 60px 20px; color: #999;">
                 <p style="font-size: 48px; margin: 0 0 20px 0;">🏠</p>
-                <p style="font-size: 18px; margin: 0 0 10px 0;">No items in stock</p>
-                <p style="font-size: 14px; margin: 0 0 20px 0;">Go to "Select" tab to add items</p>
-                <button onclick="switchKitchenTab('select')" style="padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
+                <p style="font-size: 18px; margin: 0 0 10px 0;">${searchTerm ? 'No items match your search' : 'No items in stock'}</p>
+                <p style="font-size: 14px; margin: 0 0 20px 0;">${searchTerm ? 'Try a different term or clear the search box.' : 'Go to \"Select\" tab to add items'}</p>
+                ${searchTerm ? '' : `<button onclick="switchKitchenTab('select')" style="padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
                     📋 Select Items
-                </button>
+                </button>`}
             </div>
         `;
         updateStockCounter();
@@ -977,6 +1029,7 @@ function renderMeasuresTab() {
     const defaultKeys = Object.keys(DEFAULT_MEASUREMENTS);
     const customOnlyKeys = Object.keys(customMeasurements).filter(key => !DEFAULT_MEASUREMENTS[key]);
     const measureKeys = [...defaultKeys, ...customOnlyKeys.sort((a, b) => a.localeCompare(b))];
+    const searchTerm = kitchenStockSearchTerm.trim().toLowerCase();
     
     let html = `
         <div style="max-width: 900px; margin: 0 auto;">
@@ -992,12 +1045,8 @@ function renderMeasuresTab() {
                 <h4 style="margin: 0 0 10px 0; color: #c2410c;">➕ Add a new measurement</h4>
                 <form onsubmit="addNewMeasurement(event)" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; align-items: end;">
                     <div>
-                        <label style="display: block; font-weight: 600; color: #7c2d12; margin-bottom: 4px;">Keyword (used in recipes)</label>
-                        <input id="newMeasureKey" type="text" required placeholder="e.g., cup_quinoa" style="width: 100%; padding: 10px; border: 2px solid #fdba74; border-radius: 8px; font-size: 14px;">
-                    </div>
-                    <div>
-                        <label style="display: block; font-weight: 600; color: #7c2d12; margin-bottom: 4px;">Label (display)</label>
-                        <input id="newMeasureLabel" type="text" placeholder="Quinoa Cup" style="width: 100%; padding: 10px; border: 2px solid #fdba74; border-radius: 8px; font-size: 14px;">
+                        <label style="display: block; font-weight: 600; color: #7c2d12; margin-bottom: 4px;">Name (what you see)</label>
+                        <input id="newMeasureLabel" type="text" required placeholder="e.g., Cup of Quinoa" style="width: 100%; padding: 10px; border: 2px solid #fdba74; border-radius: 8px; font-size: 14px;">
                     </div>
                     <div>
                         <label style="display: block; font-weight: 600; color: #7c2d12; margin-bottom: 4px;">Value</label>
@@ -1015,16 +1064,22 @@ function renderMeasuresTab() {
                         <button type="submit" style="width: 100%; padding: 12px; background: #f97316; color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer;">Add measurement</button>
                     </div>
                 </form>
-                <p style="margin: 10px 0 0 0; font-size: 12px; color: #9a3412;">Use the keyword in recipe units (e.g., "2 cup_quinoa"). We store values in base units so shopping and smart cooking stay accurate.</p>
+                <p style="margin: 10px 0 0 0; font-size: 12px; color: #9a3412;">We auto-generate a safe key from the name for recipe units (e.g., “2 cup_quinoa”). Values are stored in base units so shopping and cooking stay accurate.</p>
             </div>
             
             <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 16px;">
     `;
     
     measureKeys.forEach(key => {
-        const defaultData = DEFAULT_MEASUREMENTS[key];
         const definition = getMeasurementDefinition(key);
         if (!definition) return;
+        
+        if (searchTerm) {
+            const labelText = `${definition.label || ''}`.toLowerCase();
+            if (!key.toLowerCase().includes(searchTerm) && !labelText.includes(searchTerm)) return;
+        }
+        
+        const defaultData = DEFAULT_MEASUREMENTS[key];
         
         const currentValue = definition.value;
         const isCustomized = customMeasurements.hasOwnProperty(key);
@@ -1060,7 +1115,6 @@ function renderMeasuresTab() {
                 <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
                     <div style="font-weight: 600; color: #1f2937; font-size: 15px;">
                         ${definition.label}
-                        <div style="color: #6b7280; font-size: 11px; font-weight: 500;">Key: ${key}</div>
                     </div>
                     ${actionButton}
                 </div>
@@ -1101,22 +1155,37 @@ function renderMeasuresTab() {
 function addNewMeasurement(event) {
     event.preventDefault();
     
-    const keyInput = document.getElementById('newMeasureKey');
     const labelInput = document.getElementById('newMeasureLabel');
     const valueInput = document.getElementById('newMeasureValue');
     const unitInput = document.getElementById('newMeasureUnit');
     
-    if (!keyInput || !valueInput || !unitInput) return;
+    if (!labelInput || !valueInput || !unitInput) return;
     
-    const rawKey = keyInput.value.trim().toLowerCase();
-    const sanitizedKey = rawKey.replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    const labelRaw = labelInput.value.trim();
+    if (!labelRaw) {
+        alert('Please enter a measurement name');
+        return;
+    }
+    
+    const sanitizedKey = labelRaw
+        .toLowerCase()
+        .replace(/\s+/g, '_')
+        .replace(/[^a-z0-9_]/g, '')
+        .replace(/_+/g, '_')
+        .replace(/^_+|_+$/g, '');
+    
     if (!sanitizedKey) {
-        alert('Please enter a measurement keyword (letters/numbers only)');
+        alert('Please use letters and numbers for the name');
         return;
     }
     
     if (DEFAULT_MEASUREMENTS[sanitizedKey]) {
         alert('This measurement already exists. Edit it in the list below.');
+        return;
+    }
+    
+    if (customMeasurements[sanitizedKey]) {
+        alert('A custom measurement with this name already exists.');
         return;
     }
     
@@ -1127,13 +1196,12 @@ function addNewMeasurement(event) {
     }
     
     const unit = unitInput.value;
-    const label = labelInput.value.trim() || prettifyMeasurementLabel(sanitizedKey);
+    const label = labelRaw;
     
     customMeasurements[sanitizedKey] = { value, unit, label };
     saveCustomMeasurements();
     renderMeasuresTab();
     
-    keyInput.value = '';
     labelInput.value = '';
     valueInput.value = '';
     unitInput.value = 'g';

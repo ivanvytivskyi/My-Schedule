@@ -24,9 +24,9 @@ function generateSmartShopping() {
         }
         
         // Aggregate all recipe needs by canonical key
-        const needs = aggregateRecipeNeeds(recipeIds);
+        const { needs, missingItems: uncataloguedItems } = aggregateRecipeNeeds(recipeIds);
         
-        if (Object.keys(needs).length === 0) {
+        if (Object.keys(needs).length === 0 && uncataloguedItems.length === 0) {
             alert('No ingredients found in recipes');
             return;
         }
@@ -38,7 +38,7 @@ function generateSmartShopping() {
         const selectedShop = getSelectedShop();
         
         // Choose packs for the shop
-        const { shoppingItems, missingItems } = choosePacksForShop(remaining, selectedShop);
+        const { shoppingItems, missingItems } = choosePacksForShop(remaining, selectedShop, uncataloguedItems);
         
         if (shoppingItems.length === 0 && missingItems.length === 0) {
             alert('🎉 You have everything you need in Kitchen Stock!');
@@ -133,6 +133,7 @@ function formatQuantityDisplay(quantity, packSize) {
 // Aggregate recipe needs
 function aggregateRecipeNeeds(recipeIds) {
     const needs = {}; // { canonicalKey: qtyBase }
+    const uncataloguedMap = {};
     
     recipeIds.forEach(recipeId => {
         const recipe = getRecipe(recipeId);
@@ -140,7 +141,23 @@ function aggregateRecipeNeeds(recipeIds) {
         
         recipe.ingredients.forEach(ing => {
             const key = ing.canonicalKey;
+            const product = CANONICAL_PRODUCTS[key];
             const qtyBase = convertToBase(ing.qty, ing.unit, key);
+            
+            if (!product) {
+                // Track uncatalogued items so they still appear in the shopping output
+                if (!uncataloguedMap[key]) {
+                    uncataloguedMap[key] = {
+                        canonicalKey: key,
+                        productName: prettifyCanonicalKey(key),
+                        neededQty: 0,
+                        unitHint: ing.unit || ''
+                    };
+                }
+                uncataloguedMap[key].neededQty += qtyBase;
+                uncataloguedMap[key].prettyQty = formatMissingQty(uncataloguedMap[key].neededQty, uncataloguedMap[key].unitHint);
+                return;
+            }
             
             if (!needs[key]) {
                 needs[key] = 0;
@@ -149,7 +166,35 @@ function aggregateRecipeNeeds(recipeIds) {
         });
     });
     
-    return needs;
+    const missingItems = Object.values(uncataloguedMap);
+    return { needs, missingItems };
+}
+
+// Format missing items nicely even if they are not in the catalog
+function prettifyCanonicalKey(key) {
+    if (!key) return 'Unknown item';
+    return key
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, char => char.toUpperCase());
+}
+
+function formatMissingQty(qtyBase, unitHint = '') {
+    const safeQty = typeof qtyBase === 'number' ? qtyBase : parseFloat(qtyBase) || 0;
+    const unit = (unitHint || '').toLowerCase();
+    const formatNumber = (num) => {
+        if (Number.isInteger(num)) return String(num);
+        return num.toFixed(2).replace(/\.?0+$/, '');
+    };
+    
+    if (unit === 'kg') return `${formatNumber(safeQty / 1000)} kg`;
+    if (unit === 'g') return `${formatNumber(safeQty)} g`;
+    if (unit === 'l') return `${formatNumber(safeQty / 1000)} L`;
+    if (unit === 'ml') return `${formatNumber(safeQty)} ml`;
+    if (unit === 'count' || unit === 'piece' || unit === 'pieces' || unit === '') {
+        return `${formatNumber(Math.round(safeQty))} pcs`;
+    }
+    
+    return `${formatNumber(safeQty)} ${unit || 'units'}`;
 }
 
 // Subtract Kitchen Stock from needs
@@ -176,15 +221,23 @@ function subtractKitchenStock(needs) {
 }
 
 // Choose best packs for shop
-function choosePacksForShop(needs, shop) {
+function choosePacksForShop(needs, shop, baseMissingItems = []) {
     const shoppingItems = [];
-    const missingItems = [];
+    const missingItems = [...baseMissingItems];
     
     Object.keys(needs).forEach(canonicalKey => {
         const neededQty = needs[canonicalKey];
         const product = CANONICAL_PRODUCTS[canonicalKey];
         
-        if (!product) return;
+        if (!product) {
+            missingItems.push({
+                canonicalKey,
+                productName: prettifyCanonicalKey(canonicalKey),
+                neededQty,
+                prettyQty: formatMissingQty(neededQty)
+            });
+            return;
+        }
         
         // Check if shop has this product
         if (!product.shops || !product.shops[shop]) {
