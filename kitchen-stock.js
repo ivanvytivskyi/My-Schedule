@@ -10,6 +10,8 @@ let kitchenStock = JSON.parse(localStorage.getItem('kitchenStock_v2')) || {};
 // UI State
 let selectedKitchenShop = localStorage.getItem('kitchenStockShop') || 'Tesco';
 let kitchenStockSelections = {}; // Temporary selections before saving
+let kitchenStockSearchTerm = '';
+let activeKitchenTab = 'select';
 
 // ================================================
 // COOKING MEASUREMENTS SYSTEM
@@ -232,8 +234,18 @@ function closeKitchenStock() {
     document.getElementById('kitchenStockModal').classList.remove('active');
 }
 
+function handleKitchenStockSearch(value) {
+    kitchenStockSearchTerm = (value || '').toLowerCase();
+    if (activeKitchenTab === 'stock') {
+        renderStockView();
+    } else {
+        renderKitchenStockGrid();
+    }
+}
+
 // Switch between tabs
 function switchKitchenTab(tabName) {
+    activeKitchenTab = tabName;
     // Update tab buttons with proper colors and borders
     document.querySelectorAll('.kitchen-tab').forEach(tab => {
         const isActive = tab.dataset.tab === tabName;
@@ -381,6 +393,7 @@ function renderKitchenStockGrid() {
     // Build product grid by category
     const productsByCategory = organizeProductsByCategory(selectedKitchenShop);
     const categories = Object.keys(productsByCategory).sort();
+    const searchTerm = kitchenStockSearchTerm.trim().toLowerCase();
     
     if (categories.length === 0) {
         container.innerHTML = `
@@ -396,7 +409,15 @@ function renderKitchenStockGrid() {
     let html = '';
     
     categories.forEach(category => {
-        const products = productsByCategory[category];
+        const products = productsByCategory[category].filter(({ canonicalKey, sku }) => {
+            if (!searchTerm) return true;
+            const product = CANONICAL_PRODUCTS[canonicalKey];
+            return (product?.name?.toLowerCase().includes(searchTerm)) ||
+                   canonicalKey.toLowerCase().includes(searchTerm) ||
+                   sku.sku.toLowerCase().includes(searchTerm);
+        });
+        
+        if (products.length === 0) return;
         
         html += `
             <div style="margin-bottom: 20px;">
@@ -449,6 +470,17 @@ function renderKitchenStockGrid() {
             </div>
         `;
     });
+    
+    if (!html) {
+        container.innerHTML = `
+            <div style="text-align: center; padding: 60px 20px; color: #9ca3af;">
+                <p style="font-size: 42px; margin: 0 0 10px 0;">🔎</p>
+                <p style="font-size: 16px; margin: 0;">No products match your search.</p>
+            </div>
+        `;
+        updateKitchenStockCounter();
+        return;
+    }
     
     container.innerHTML = html;
     updateKitchenStockCounter();
@@ -794,6 +826,8 @@ function renderStockView() {
     
     // Organize stock by category
     const byCategory = {};
+    const searchTerm = kitchenStockSearchTerm.trim();
+    const searchTermLower = searchTerm.toLowerCase();
     
     Object.keys(kitchenStock).forEach(canonicalKey => {
         const product = CANONICAL_PRODUCTS[canonicalKey];
@@ -801,6 +835,11 @@ function renderStockView() {
             console.warn(`Product not found for key: ${canonicalKey}`);
             return;
         }
+        
+        const matchesSearch = !searchTermLower || 
+            product.name.toLowerCase().includes(searchTermLower) || 
+            canonicalKey.toLowerCase().includes(searchTermLower);
+        if (!matchesSearch) return;
         
         const category = getCategoryFromKey(canonicalKey);
         if (!byCategory[category]) {
@@ -822,11 +861,11 @@ function renderStockView() {
         container.innerHTML = `
             <div style="text-align: center; padding: 60px 20px; color: #999;">
                 <p style="font-size: 48px; margin: 0 0 20px 0;">🏠</p>
-                <p style="font-size: 18px; margin: 0 0 10px 0;">No items in stock</p>
-                <p style="font-size: 14px; margin: 0 0 20px 0;">Go to "Select" tab to add items</p>
-                <button onclick="switchKitchenTab('select')" style="padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
+                <p style="font-size: 18px; margin: 0 0 10px 0;">${searchTerm ? 'No items match your search' : 'No items in stock'}</p>
+                <p style="font-size: 14px; margin: 0 0 20px 0;">${searchTerm ? 'Try a different term or clear the search box.' : 'Go to \"Select\" tab to add items'}</p>
+                ${searchTerm ? '' : `<button onclick="switchKitchenTab('select')" style="padding: 12px 24px; background: #667eea; color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
                     📋 Select Items
-                </button>
+                </button>`}
             </div>
         `;
         updateStockCounter();
