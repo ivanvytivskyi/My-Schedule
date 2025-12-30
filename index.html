@@ -319,7 +319,22 @@
                 <button type="button" onclick="closeDefaultsModal()" style="background: #e0e0e0; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600;">✕ Close</button>
             </div>
             
-            <p style="color: #666; margin-bottom: 20px;">Default blocks automatically appear on new days you create. Enable/disable, edit, or delete them below.</p>
+            <p style="color: #666; margin-bottom: 12px;">Default blocks automatically appear on new days you create. Enable/disable, edit, or delete them below.</p>
+            
+            <div style="background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; margin-bottom: 16px; display: grid; gap: 10px;">
+                <div style="font-weight: 600; color: #1f2937;">Day window (affects free-time calculation)</div>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+                    <label style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: #374151;">
+                        <span style="min-width: 80px;">Default start:</span>
+                        <input type="time" id="dayWindowStart" value="07:00" style="flex: 1; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px;" />
+                    </label>
+                    <label style="display: flex; align-items: center; gap: 10px; font-size: 14px; color: #374151;">
+                        <span style="min-width: 80px;">Default end:</span>
+                        <input type="time" id="dayWindowEnd" value="23:00" style="flex: 1; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px;" />
+                    </label>
+                </div>
+                <p style="margin: 0; font-size: 12px; color: #6b7280;">You can override the start time for specific days when creating a default block.</p>
+            </div>
             
             <button type="button" onclick="openAddDefaultModal()" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(102,126,234,0.3);">
                 ➕ Add New Default Block
@@ -407,6 +422,13 @@
                 <div class="form-group">
                     <label for="defaultTasks" style="font-weight: 600;">Tasks (optional, one per line):</label>
                     <textarea id="defaultTasks" placeholder="Meetings&#10;Emails&#10;Projects" style="width: 100%; min-height: 80px; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; resize: vertical;"></textarea>
+                </div>
+                
+                <!-- Day-start override -->
+                <div class="form-group">
+                    <label style="font-weight: 600;">Day start override for the selected days (optional):</label>
+                    <input type="time" id="defaultDayStartOverride" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;" />
+                    <p style="font-size: 12px; color: #666; margin: 6px 0 0 0;">If set, this earlier start will be used when calculating free time for these days (e.g., to include early routines).</p>
                 </div>
 
                 <input type="hidden" id="defaultBlockIndex" value="-1" />
@@ -638,12 +660,42 @@
                     </div>
                     
                     <div style="margin-top: 15px; padding-top: 15px; border-top: 2px solid rgba(0,0,0,0.1);">
-                        <label style="display: flex; align-items: center; gap: 10px; font-weight: 500;">
-                            <input type="checkbox" id="promptAddCommute" style="width: 18px; height: 18px;" />
+                            <label style="display: flex; align-items: center; gap: 10px; font-weight: 500;">
+                                <input type="checkbox" id="promptAddCommute" style="width: 18px; height: 18px;" />
                             <span>Add commute blocks (</span>
                             <input type="number" id="promptCommuteDuration" value="15" min="1" max="120" style="width: 70px; padding: 8px; border: 2px solid #ddd; border-radius: 6px;" />
                             <span>minutes)</span>
                         </label>
+                        <label style="display: flex; align-items: center; gap: 10px; font-weight: 500; margin-top: 8px;">
+                                <span style="min-width: 180px;">Pre-commute prep time:</span>
+                                <input type="number" id="promptCommutePrepDuration" value="20" min="0" max="180" style="width: 80px; padding: 8px; border: 2px solid #ddd; border-radius: 6px;" />
+                                <span>minutes before leaving</span>
+                            </label>
+                        <div style="margin-top: 15px; padding-top: 15px; border-top: 2px solid rgba(0,0,0,0.1); display: grid; gap: 10px;">
+                            <label style="display: flex; align-items: center; gap: 10px; font-weight: 600;">
+                                <input type="checkbox" id="promptWorkMealsProvided" style="width: 18px; height: 18px;" />
+                                <span>🍽️ Staff meal provided at work</span>
+                            </label>
+                            <div id="workMealPlanContainer" style="display: none; padding: 12px; background: rgba(0,0,0,0.04); border-radius: 8px; border: 1px dashed #d1d5db;">
+                                <div style="font-weight: 600; margin-bottom: 8px;">If no staff meal, how will you handle work meals?</div>
+                                <select id="promptWorkMealStrategy" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-weight: 600;">
+                                    <option value="cook_morning">Cook in the morning before work</option>
+                                    <option value="cook_evening">Cook the evening before</option>
+                                    <option value="buy">Buy something near work</option>
+                                </select>
+                                <div id="workMealCookOptions" style="margin-top: 10px; display: block;">
+                                    <label style="display: flex; align-items: center; gap: 10px; font-weight: 500;">
+                                        <span>Cooking time needed:</span>
+                                        <input type="number" id="promptWorkMealCookMinutes" value="30" min="10" max="180" step="5" style="width: 90px; padding: 8px; border: 2px solid #ddd; border-radius: 6px;" />
+                                        <span>minutes</span>
+                                    </label>
+                                </div>
+                                <div style="margin-top: 8px;">
+                                    <label style="display: block; font-weight: 500; margin-bottom: 6px;">Notes / preferences for work meals (optional):</label>
+                                    <textarea id="promptWorkMealNotes" rows="2" style="width: 100%; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;" placeholder="e.g., prefer quick microwaveable meals; avoid fish at work"></textarea>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
@@ -726,13 +778,7 @@
                     </div>
                     
                     <div style="margin-bottom: 15px; padding: 15px; background: rgba(255,255,255,0.15); border-radius: 8px;">
-                        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                            <input type="checkbox" id="promptFreeMeals" style="width: 20px; height: 20px;" />
-                            <span style="font-weight: 600; font-size: 15px;">🍽️ I get free meals at work</span>
-                        </label>
-                        <p style="margin: 8px 0 0 0; font-size: 13px; opacity: 0.9; padding-left: 30px;">
-                            If checked, AI will reduce shopping list and plan meals accordingly
-                        </p>
+                        <!-- Staff meal toggle moved to Work Schedule -->
                     </div>
                 </div>
                 

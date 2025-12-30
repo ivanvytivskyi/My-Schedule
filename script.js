@@ -103,6 +103,10 @@ let scheduleData = {
     events: [],
     days: {},
     defaultBlocks: [], // Default blocks that can be applied to all days
+    dayWindow: {
+        start: '07:00',
+        end: '23:00'
+    },
     shopping: [],
     recipes: []
 };
@@ -112,6 +116,12 @@ let currentEditingDay = null;
 let currentDay = null;
 let autoScrollTimeout = null;
 let isToday = false;
+const PROMPT_FORM_STORAGE_KEY = 'promptGeneratorFormState_v1';
+const WORK_MEAL_STRATEGIES = {
+    COOK_MORNING: 'cook_morning',
+    COOK_EVENING: 'cook_evening',
+    BUY: 'buy'
+};
 
 // ========================================
 // INITIALIZATION
@@ -3153,6 +3163,7 @@ function loadFromLocalStorage() {
                     events: Array.isArray(parsed.events) ? parsed.events : [],
                     days: parsed.days && typeof parsed.days === 'object' ? parsed.days : {},
                     defaultBlocks: Array.isArray(parsed.defaultBlocks) ? parsed.defaultBlocks : [],
+                    dayWindow: parsed.dayWindow && parsed.dayWindow.start && parsed.dayWindow.end ? parsed.dayWindow : { start: '07:00', end: '23:00' },
                     shopping: Array.isArray(parsed.shopping) ? parsed.shopping : [],
                     recipes: Array.isArray(parsed.recipes) ? parsed.recipes : []
                 };
@@ -3189,6 +3200,13 @@ function openDefaultsModal() {
         return;
     }
     renderDefaultBlocksList();
+    
+    // Populate day window controls
+    const startInput = document.getElementById('dayWindowStart');
+    const endInput = document.getElementById('dayWindowEnd');
+    if (startInput) startInput.value = scheduleData.dayWindow?.start || '07:00';
+    if (endInput) endInput.value = scheduleData.dayWindow?.end || '23:00';
+    
     modal.classList.add('active');
 }
 
@@ -3204,6 +3222,8 @@ function openAddDefaultModal() {
     document.getElementById('defaultModalTitle').textContent = '➕ Add Default Block';
     document.getElementById('defaultBlockForm').reset();
     document.getElementById('defaultBlockIndex').value = '-1';
+    const dayStartOverride = document.getElementById('defaultDayStartOverride');
+    if (dayStartOverride) dayStartOverride.value = '';
     
     // Set default checkboxes (Mon-Fri checked by default)
     document.querySelectorAll('.default-day-checkbox').forEach(checkbox => {
@@ -3216,6 +3236,15 @@ function openAddDefaultModal() {
 
 function closeAddEditDefaultModal() {
     document.getElementById('addEditDefaultModal').classList.remove('active');
+}
+
+function saveDayWindowSettings() {
+    const startInput = document.getElementById('dayWindowStart');
+    const endInput = document.getElementById('dayWindowEnd');
+    const start = startInput?.value || '07:00';
+    const end = endInput?.value || '23:00';
+    scheduleData.dayWindow = { start, end };
+    saveToLocalStorage();
 }
 
 function saveDefaultBlock(event) {
@@ -3243,7 +3272,8 @@ function saveDefaultBlock(event) {
         title: title,
         tasks: tasks,
         days: selectedDays,
-        enabled: true
+        enabled: true,
+        dayStartOverride: document.getElementById('defaultDayStartOverride')?.value || ''
     };
     
     if (index >= 0) {
@@ -3278,6 +3308,8 @@ function editDefaultBlock(index) {
     document.getElementById('defaultEndTime').value = end;
     document.getElementById('defaultTitle').value = block.title;
     document.getElementById('defaultTasks').value = (block.tasks || []).join('\n');
+    const dayStartOverride = document.getElementById('defaultDayStartOverride');
+    if (dayStartOverride) dayStartOverride.value = block.dayStartOverride || '';
     
     // Set day checkboxes
     const days = block.days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -3372,6 +3404,7 @@ function renderDefaultBlocksList() {
         const isEnabled = block.enabled !== false; // Default to true if not specified
         const days = block.days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
         const daysShort = days.map(d => d.substring(0, 3)).join(', ');
+        const override = block.dayStartOverride ? `<div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Day start override: ${block.dayStartOverride}</div>` : '';
         
         html += `
             <div style="background: ${isEnabled ? '#ffffff' : '#f5f5f5'}; padding: 18px; border-radius: 12px; margin-bottom: 12px; border: 2px solid ${isEnabled ? '#667eea' : '#ddd'}; position: relative; ${!isEnabled ? 'opacity: 0.6;' : ''}">
@@ -3387,6 +3420,7 @@ function renderDefaultBlocksList() {
                 <div style="margin-right: 100px;">
                     <div style="font-weight: 700; color: #667eea; font-size: 16px; margin-bottom: 8px;">${block.time}</div>
                     <div style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">${block.title}</div>
+                    ${override}
                     ${block.tasks && block.tasks.length > 0 ? `<div style="font-size: 14px; color: #666; margin-bottom: 8px;">Tasks: ${block.tasks.join(', ')}</div>` : ''}
                     <div style="font-size: 13px; color: #667eea; font-weight: 600; display: flex; align-items: center; gap: 6px;">
                         <span>📅</span>
@@ -3431,17 +3465,264 @@ function emergencyReset() {
 // PROMPT GENERATOR & RESPONSE IMPORTER
 // ========================================
 
+function loadPromptFormState() {
+    try {
+        const raw = localStorage.getItem(PROMPT_FORM_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch (error) {
+        console.warn('Unable to load prompt form state:', error);
+        return null;
+    }
+}
+
+function getWorkDayTimesFromDOM() {
+    const times = [];
+    for (let i = 0; i < 7; i++) {
+        const startInput = document.getElementById(`workDay${i}Start`);
+        const endInput = document.getElementById(`workDay${i}End`);
+        times.push({
+            start: startInput?.value || '',
+            end: endInput?.value || ''
+        });
+    }
+    return times;
+}
+
+function collectPromptFormState() {
+    return {
+        weekDate: document.getElementById('promptWeekDate')?.value || '',
+        workDayTimes: getWorkDayTimesFromDOM(),
+        addCommute: document.getElementById('promptAddCommute')?.checked || false,
+        commuteMinutes: document.getElementById('promptAddCommute')?.checked ?
+            (parseInt(document.getElementById('promptCommuteDuration')?.value) || 0) : 0,
+        commutePrepMinutes: document.getElementById('promptAddCommute')?.checked ?
+            (parseInt(document.getElementById('promptCommutePrepDuration')?.value) || 0) : 0,
+        studySubjects: document.getElementById('promptStudySubjects')?.value || '',
+        examDates: document.getElementById('promptExamDates')?.value || '',
+        studyHours: document.getElementById('promptStudyHours')?.value || '',
+        studyAIDecide: document.getElementById('promptStudyAIDecide')?.checked || false,
+        studyTopics: document.getElementById('promptStudyTopics')?.value || '',
+        foodPrefs: document.getElementById('promptFoodPrefs')?.value || '',
+        batchDuration: document.querySelector('input[name="batchDuration"]:checked')?.value || '1',
+        hobbies: document.getElementById('promptHobbies')?.value || '',
+        hobbyHours: document.getElementById('promptHobbyHours')?.value || '',
+        hobbyAIDecide: document.getElementById('promptHobbyAIDecide')?.checked || false,
+        oneOffTasks: document.getElementById('promptOneOffTasks')?.value || '',
+        sleepSchedule: document.getElementById('promptSleep')?.value || '',
+        includeRelax: document.getElementById('promptRelax')?.checked || false,
+        workMealsProvided: document.getElementById('promptWorkMealsProvided')?.checked || false,
+        workMealStrategy: document.getElementById('promptWorkMealStrategy')?.value || WORK_MEAL_STRATEGIES.COOK_MORNING,
+        workMealCookMinutes: parseInt(document.getElementById('promptWorkMealCookMinutes')?.value) || 30,
+        workMealNotes: document.getElementById('promptWorkMealNotes')?.value || '',
+        dietary: {
+            vegetarian: document.getElementById('dietVegetarian')?.checked || false,
+            vegan: document.getElementById('dietVegan')?.checked || false,
+            nutFree: document.getElementById('dietNutFree')?.checked || false,
+            dairyFree: document.getElementById('dietDairyFree')?.checked || false,
+            glutenFree: document.getElementById('dietGlutenFree')?.checked || false
+        }
+    };
+}
+
+function savePromptFormState() {
+    try {
+        const state = collectPromptFormState();
+        localStorage.setItem(PROMPT_FORM_STORAGE_KEY, JSON.stringify(state));
+    } catch (error) {
+        console.warn('Unable to save prompt form state:', error);
+    }
+}
+
+function applyWorkDayTimes(times) {
+    if (!Array.isArray(times)) return;
+    times.forEach((entry, index) => {
+        const startInput = document.getElementById(`workDay${index}Start`);
+        const endInput = document.getElementById(`workDay${index}End`);
+        if (startInput && entry.start) startInput.value = entry.start;
+        if (endInput && entry.end) endInput.value = entry.end;
+    });
+}
+
+function applyPromptFormState(state, options = {}) {
+    if (!state) return;
+    
+    if (!options.skipWeekDate && state.weekDate) {
+        const dateInput = document.getElementById('promptWeekDate');
+        if (dateInput) dateInput.value = state.weekDate;
+    }
+    
+    const studySubjects = document.getElementById('promptStudySubjects');
+    if (studySubjects) studySubjects.value = state.studySubjects || '';
+    const examDates = document.getElementById('promptExamDates');
+    if (examDates) examDates.value = state.examDates || '';
+    const studyHours = document.getElementById('promptStudyHours');
+    if (studyHours) studyHours.value = state.studyHours || '';
+    const studyAIDecide = document.getElementById('promptStudyAIDecide');
+    if (studyAIDecide) studyAIDecide.checked = !!state.studyAIDecide;
+    const studyTopics = document.getElementById('promptStudyTopics');
+    if (studyTopics) studyTopics.value = state.studyTopics || '';
+    const foodPrefs = document.getElementById('promptFoodPrefs');
+    if (foodPrefs) foodPrefs.value = state.foodPrefs || '';
+    const batchRadio = document.querySelector(`input[name="batchDuration"][value="${state.batchDuration}"]`);
+    if (batchRadio) batchRadio.checked = true;
+    
+    const hobbies = document.getElementById('promptHobbies');
+    if (hobbies) hobbies.value = state.hobbies || '';
+    const hobbyHours = document.getElementById('promptHobbyHours');
+    if (hobbyHours) hobbyHours.value = state.hobbyHours || '';
+    const hobbyAIDecide = document.getElementById('promptHobbyAIDecide');
+    if (hobbyAIDecide) hobbyAIDecide.checked = !!state.hobbyAIDecide;
+    
+    const oneOffTasks = document.getElementById('promptOneOffTasks');
+    if (oneOffTasks) oneOffTasks.value = state.oneOffTasks || '';
+    const sleepSchedule = document.getElementById('promptSleep');
+    if (sleepSchedule) sleepSchedule.value = state.sleepSchedule || '';
+    const includeRelax = document.getElementById('promptRelax');
+    if (includeRelax) includeRelax.checked = !!state.includeRelax;
+    
+    const workMealsProvided = document.getElementById('promptWorkMealsProvided');
+    if (workMealsProvided) workMealsProvided.checked = !!state.workMealsProvided;
+    const workMealStrategy = document.getElementById('promptWorkMealStrategy');
+    if (workMealStrategy && state.workMealStrategy) workMealStrategy.value = state.workMealStrategy;
+    const workMealCookMinutes = document.getElementById('promptWorkMealCookMinutes');
+    if (workMealCookMinutes) workMealCookMinutes.value = state.workMealCookMinutes ?? 30;
+    const workMealNotes = document.getElementById('promptWorkMealNotes');
+    if (workMealNotes) workMealNotes.value = state.workMealNotes || '';
+    
+    document.getElementById('dietVegetarian')?.setAttribute('checked', state.dietary?.vegetarian ? 'checked' : '');
+    const dietVegetarian = document.getElementById('dietVegetarian');
+    if (dietVegetarian) dietVegetarian.checked = !!state.dietary?.vegetarian;
+    const dietVegan = document.getElementById('dietVegan');
+    if (dietVegan) dietVegan.checked = !!state.dietary?.vegan;
+    const dietNutFree = document.getElementById('dietNutFree');
+    if (dietNutFree) dietNutFree.checked = !!state.dietary?.nutFree;
+    const dietDairyFree = document.getElementById('dietDairyFree');
+    if (dietDairyFree) dietDairyFree.checked = !!state.dietary?.dairyFree;
+    const dietGlutenFree = document.getElementById('dietGlutenFree');
+    if (dietGlutenFree) dietGlutenFree.checked = !!state.dietary?.glutenFree;
+    
+    const addCommute = document.getElementById('promptAddCommute');
+    if (addCommute) addCommute.checked = !!state.addCommute;
+    const commuteDuration = document.getElementById('promptCommuteDuration');
+    if (commuteDuration) commuteDuration.value = state.commuteMinutes ?? 15;
+    const commutePrep = document.getElementById('promptCommutePrepDuration');
+    if (commutePrep) commutePrep.value = state.commutePrepMinutes ?? 0;
+    
+    applyWorkDayTimes(state.workDayTimes);
+}
+
+function attachPromptFormListeners() {
+    const fields = [
+        'promptWeekDate',
+        'promptStudySubjects',
+        'promptExamDates',
+        'promptStudyHours',
+        'promptStudyAIDecide',
+        'promptStudyTopics',
+        'promptFoodPrefs',
+        'promptHobbies',
+        'promptHobbyHours',
+        'promptHobbyAIDecide',
+        'promptOneOffTasks',
+        'promptSleep',
+        'promptRelax',
+        'promptWorkMealsProvided',
+        'promptWorkMealStrategy',
+        'promptWorkMealCookMinutes',
+        'promptWorkMealNotes',
+        'promptAddCommute',
+        'promptCommuteDuration',
+        'promptCommutePrepDuration'
+    ];
+    
+    fields.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('input', savePromptFormState);
+            el.addEventListener('change', savePromptFormState);
+        }
+    });
+    
+    const batchRadios = document.querySelectorAll('input[name="batchDuration"]');
+    batchRadios.forEach(radio => {
+        radio.addEventListener('change', savePromptFormState);
+    });
+    
+    const dietaryCheckboxes = [
+        'dietVegetarian',
+        'dietVegan',
+        'dietNutFree',
+        'dietDairyFree',
+        'dietGlutenFree'
+    ];
+    dietaryCheckboxes.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.addEventListener('change', savePromptFormState);
+        }
+    });
+    
+    // Work meal visibility toggles
+    const staffMealToggle = document.getElementById('promptWorkMealsProvided');
+    const strategySelect = document.getElementById('promptWorkMealStrategy');
+    const cookMinutes = document.getElementById('promptWorkMealCookMinutes');
+    
+    if (staffMealToggle) {
+        staffMealToggle.addEventListener('change', () => {
+            updateWorkMealUI();
+            savePromptFormState();
+        });
+    }
+    if (strategySelect) {
+        strategySelect.addEventListener('change', () => {
+            updateWorkMealUI();
+            savePromptFormState();
+        });
+    }
+    if (cookMinutes) {
+        cookMinutes.addEventListener('input', savePromptFormState);
+    }
+}
+
+function attachWorkDayListeners() {
+    for (let i = 0; i < 7; i++) {
+        const startInput = document.getElementById(`workDay${i}Start`);
+        const endInput = document.getElementById(`workDay${i}End`);
+        if (startInput) startInput.addEventListener('input', savePromptFormState);
+        if (endInput) endInput.addEventListener('input', savePromptFormState);
+    }
+}
+
+function updateWorkMealUI() {
+    const providedToggle = document.getElementById('promptWorkMealsProvided');
+    const planContainer = document.getElementById('workMealPlanContainer');
+    const cookOptions = document.getElementById('workMealCookOptions');
+    const strategySelect = document.getElementById('promptWorkMealStrategy');
+    
+    if (!planContainer || !providedToggle || !strategySelect || !cookOptions) return;
+    
+    const showPlan = !providedToggle.checked;
+    planContainer.style.display = showPlan ? 'block' : 'none';
+    
+    const strategy = strategySelect.value || WORK_MEAL_STRATEGIES.COOK_MORNING;
+    cookOptions.style.display = (strategy === WORK_MEAL_STRATEGIES.COOK_MORNING || strategy === WORK_MEAL_STRATEGIES.COOK_EVENING) ? 'block' : 'none';
+}
+
 function openPromptGenerator() {
     document.getElementById('promptGeneratorModal').classList.add('active');
     document.getElementById('generatedPromptSection').style.display = 'none';
     
-    // Set today's date as default
-    const today = new Date();
-    const dateStr = today.toISOString().split('T')[0];
-    document.getElementById('promptWeekDate').value = dateStr;
+    const savedState = loadPromptFormState();
     
-    // Populate work days
-    populateWorkDays(today);
+    // Set today's date as default, or restore saved date
+    const today = new Date();
+    const defaultDateStr = savedState?.weekDate || today.toISOString().split('T')[0];
+    document.getElementById('promptWeekDate').value = defaultDateStr;
+    
+    // Populate work days with saved values
+    populateWorkDays(defaultDateStr);
+    applyPromptFormState(savedState, { skipWeekDate: true });
+    updateWorkMealUI();
 }
 
 function closePromptGenerator() {
@@ -3478,6 +3759,13 @@ function populateWorkDays(date) {
     
     html += '</div>';
     container.innerHTML = html;
+    
+    // Re-attach listeners and restore saved times
+    attachWorkDayListeners();
+    const savedState = loadPromptFormState();
+    if (savedState?.workDayTimes) {
+        applyWorkDayTimes(savedState.workDayTimes);
+    }
 }
 
 // Listen for date changes
@@ -3487,8 +3775,18 @@ document.addEventListener('DOMContentLoaded', () => {
         dateInput.addEventListener('change', function() {
             const date = new Date(this.value);
             populateWorkDays(date);
+            savePromptFormState();
         });
     }
+    
+    attachPromptFormListeners();
+    updateWorkMealUI();
+    
+    // Day window controls
+    const dayWindowStart = document.getElementById('dayWindowStart');
+    const dayWindowEnd = document.getElementById('dayWindowEnd');
+    if (dayWindowStart) dayWindowStart.addEventListener('change', saveDayWindowSettings);
+    if (dayWindowEnd) dayWindowEnd.addEventListener('change', saveDayWindowSettings);
 });
 
 /**
@@ -3509,8 +3807,55 @@ function getNextMonday() {
     return `${day} ${month} ${year}`;
 }
 
+function chooseWorkMealSuggestion(selectedRecipes = []) {
+    if (!Array.isArray(selectedRecipes) || selectedRecipes.length === 0) return null;
+    
+    const scored = selectedRecipes.map(recipe => {
+        const availability = typeof describeRecipeAvailability === 'function'
+            ? describeRecipeAvailability(recipe)
+            : { match: 0, isReady: false, missingList: [] };
+        return { recipe, availability };
+    });
+    
+    scored.sort((a, b) => {
+        if (a.availability.isReady !== b.availability.isReady) {
+            return a.availability.isReady ? -1 : 1; // ready first
+        }
+        return (b.availability.match || 0) - (a.availability.match || 0);
+    });
+    
+    return scored[0] || null;
+}
+
+function buildWorkMealInstruction(formData, suggestion) {
+    const notes = formData.workMealNotes ? ` Preferences: ${formData.workMealNotes}.` : '';
+    
+    if (formData.workMealsProvided) {
+        return `Staff meals provided on workdays; skip planning cooked/bought lunches/dinners during work shifts.${notes}`;
+    }
+    
+    const describeSuggestion = () => {
+        if (!suggestion) return 'Pick a quick main/batch recipe that travels well.';
+        const { recipe, availability } = suggestion;
+        const readyText = availability?.isReady ? 'ready with current stock' :
+            (availability?.missingList?.length ? `missing: ${availability.missingList.join(', ')} (schedule shopping before first cook)` : 'may need shopping first');
+        return `${recipe.name} (${recipe.id}) — ${readyText}`;
+    };
+    
+    if (formData.workMealStrategy === WORK_MEAL_STRATEGIES.COOK_MORNING) {
+        return `Cook a portable work meal each workday in the morning before leaving. Reserve ~${formData.workMealCookMinutes} mins before the commute for cooking, then pack it. Suggested recipe: ${describeSuggestion()}.${notes}`;
+    }
+    
+    if (formData.workMealStrategy === WORK_MEAL_STRATEGIES.COOK_EVENING) {
+        return `Cook the next day's work meal in the evening before workdays. Reserve ~${formData.workMealCookMinutes} mins after work or later in the evening, then pack for the next morning. Suggested recipe: ${describeSuggestion()}.${notes}`;
+    }
+    
+    return `Buy meals near work (no cooking block). Add a small buffer around lunch to purchase food.${notes}`;
+}
+
 function generatePrompt() {
     console.log('🤖 Generating AI prompt with smart selection...');
+    savePromptFormState();
     
     // Get all form data
     const weekDate = document.getElementById('promptWeekDate').value || new Date().toISOString().split('T')[0];
@@ -3518,8 +3863,12 @@ function generatePrompt() {
     // Build formData for pre-fill system
     const formData = {
         workSchedule: '',  // Will build from time inputs
+        weekDate: weekDate,
+        workDayTimes: getWorkDayTimesFromDOM(),
         commuteMinutes: document.getElementById('promptAddCommute')?.checked ? 
             (parseInt(document.getElementById('promptCommuteDuration')?.value) || 0) : 0,
+        commutePrepMinutes: document.getElementById('promptAddCommute')?.checked ?
+            (parseInt(document.getElementById('promptCommutePrepDuration')?.value) || 0) : 0,
         studySubjects: document.getElementById('promptStudySubjects')?.value || '',
         examDates: document.getElementById('promptExamDates')?.value || '',
         studyHours: document.getElementById('promptStudyHours')?.value || '',
@@ -3533,7 +3882,10 @@ function generatePrompt() {
         oneOffTasks: document.getElementById('promptOneOffTasks')?.value || '',
         sleepSchedule: document.getElementById('promptSleep')?.value || '',
         includeRelax: document.getElementById('promptRelax')?.checked || false,
-        freeMeals: document.getElementById('promptFreeMeals')?.checked || false
+        workMealsProvided: document.getElementById('promptWorkMealsProvided')?.checked || false,
+        workMealStrategy: document.getElementById('promptWorkMealStrategy')?.value || WORK_MEAL_STRATEGIES.COOK_MORNING,
+        workMealCookMinutes: parseInt(document.getElementById('promptWorkMealCookMinutes')?.value) || 30,
+        workMealNotes: document.getElementById('promptWorkMealNotes')?.value || ''
     };
     
     // Build work schedule string from time inputs
@@ -3573,6 +3925,8 @@ function generatePrompt() {
     // === SMART RECIPE SELECTION (Part 2) ===
     const selectedRecipes = selectRecipesForWeek(dietaryFilters);
     console.log(`📊 Selected ${selectedRecipes.length} recipes for this week`);
+    const workMealSuggestion = chooseWorkMealSuggestion(selectedRecipes);
+    const workMealInstruction = buildWorkMealInstruction(formData, workMealSuggestion);
     
     // === PRE-FILL SYSTEM (Part 3) ===
     const preFilledData = generatePreFilledData(formData);
@@ -3616,10 +3970,12 @@ ${formData.studyTopics ? `- Focus topics:\n${formData.studyTopics}` : ''}
 
 🍳 MEALS & FOOD:
 - Preferences: ${formData.foodPrefs || 'No preferences'}
-- Kitchen Stock (auto-loaded): ${homeInventorySummary || 'None'}
 - Batch cook duration: ${formData.batchDuration} day(s) worth of meals per batch recipe
 - Dietary filters: ${dietarySummary}
-${formData.freeMeals ? '- IMPORTANT: I get FREE meals at work! Reduce shopping accordingly and note this in schedule.' : '- No free meals at work - need to plan all meals myself.'}
+- Meal ordering rule: Cook recipes from the "READY TO COOK" list first (all ingredients on hand). For any recipe listed under "RECIPES NEEDING SHOPPING", add a shopping block before it and only schedule it after that shopping trip.
+
+🏢 WORK MEALS:
+- ${workMealInstruction || 'Plan simple, portable meals for workdays as you see fit.'}
 
 🎯 HOBBIES:
 - Hobbies: ${formData.hobbies || 'None'}
@@ -3648,6 +4004,8 @@ FORMAT RULES:
 5) Do NOT include shopping lists, meal summaries, video links, or extra headings (specifically avoid: "🗓️ WEEKLY SCHEDULE", "🛒 SHOPPING LIST…", "🍽️ MEAL PLAN SUMMARY…", "📌 RECIPES USED", or any "If you want…" variants).
 6) Keep meals simple and quick. Use Kitchen Stock items first: ${homeInventorySummary || 'none'}.
 7) Use the exact time slots provided in the "FILL THESE TIME SLOTS" section above.
+8) Ensure meals that are ready-to-cook (100% ingredients available) happen BEFORE any recipes that need shopping. Place shopping before those missing-ingredient recipes so no meal is scheduled without its ingredients.
+${workMealInstruction ? `9) Work meal handling: ${workMealInstruction}` : ''}
 
 Generate the schedule now.
     `.trim();

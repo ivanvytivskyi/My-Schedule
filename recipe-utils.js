@@ -116,24 +116,8 @@ function formatDietaryIcons(recipe) {
 
 function formatRecipeLine(recipe) {
     const icons = formatDietaryIcons(recipe);
-    
-    // Auto-generate ingredient summary for AI prompt (hidden from user UI)
-    let ingredientSummary = 'ingredients: ';
-    if (recipe.ingredients && recipe.ingredients.length > 0) {
-        // Get first 3-4 main ingredients
-        const mainIngredients = recipe.ingredients
-            .slice(0, 4)
-            .map(ing => {
-                const product = CANONICAL_PRODUCTS[ing.canonicalKey];
-                return product ? product.name.toLowerCase() : ing.canonicalKey;
-            })
-            .join(', ');
-        ingredientSummary += mainIngredients;
-    } else {
-        ingredientSummary += 'not specified';
-    }
-    
-    return `${recipe.id}: ${recipe.name} (${ingredientSummary})${icons ? ` ${icons}` : ''}`;
+
+    return `${recipe.id}: ${recipe.name}${icons ? ` ${icons}` : ''}`;
 }
 
 function formatRecipeDatabase(recipes, batchDuration) {
@@ -371,6 +355,57 @@ function calculateIngredientMatch(recipe) {
     const matchPercentage = totalIngredients > 0 ? (availableIngredients / totalIngredients) : 0;
     
     return matchPercentage;
+}
+
+function getMissingIngredients(recipe, limit = 3) {
+    if (!recipe.ingredients || recipe.ingredients.length === 0) return [];
+    
+    const missing = [];
+    const seen = new Set();
+    
+    recipe.ingredients.forEach(ing => {
+        const key = ing.canonicalKey;
+        const product = CANONICAL_PRODUCTS[key];
+        
+        if (product?.unlimited) return;
+        
+        const neededQty = convertToBase(ing.qty, ing.unit, key);
+        const haveQty = getKitchenStockQty(key);
+        
+        if (haveQty < neededQty) {
+            const name = product ? product.name : key;
+            if (!seen.has(name)) {
+                missing.push(name);
+                seen.add(name);
+            }
+        }
+    });
+    
+    return typeof limit === 'number' ? missing.slice(0, limit) : missing;
+}
+
+function describeRecipeAvailability(recipe) {
+    const match = calculateIngredientMatch(recipe);
+    const missingList = getMissingIngredients(recipe, 4);
+    return {
+        match,
+        missingList,
+        isReady: match >= 0.999
+    };
+}
+
+function formatRecipeWithAvailability(recipe, availability) {
+    const matchPercent = Math.round((availability?.match || 0) * 100);
+    const baseLine = formatRecipeLine(recipe);
+    if (availability?.isReady) {
+        return `${baseLine} — 100% ingredients ready now`;
+    }
+    
+    const missingNote = availability?.missingList?.length ?
+        `missing: ${availability.missingList.join(', ')}` :
+        'missing items (not in stock yet)';
+    
+    return `${baseLine} — ${matchPercent}% ingredients (${missingNote})`;
 }
 
 /**
@@ -677,6 +712,77 @@ function addMinutes(timeStr, minutes) {
  * Generate work and commute blocks for schedule
  */
 function createWorkBlocks(formData) {
+    const structuredTimes = Array.isArray(formData.workDayTimes) ? formData.workDayTimes : null;
+    const commuteMinutes = formData.commuteMinutes || 0;
+    const prepMinutes = formData.commutePrepMinutes || 0;
+    
+    // Prefer structured per-day times directly from the form
+    if (structuredTimes && formData.weekDate) {
+        const startDate = new Date(formData.weekDate);
+        const blocks = {};
+        
+        for (let i = 0; i < structuredTimes.length; i++) {
+            const entry = structuredTimes[i] || {};
+            if (!entry.start || !entry.end) continue;
+            
+            const dayDate = new Date(startDate);
+            dayDate.setDate(startDate.getDate() + i);
+            const dayName = getDayName(dayDate);
+            if (!blocks[dayName]) blocks[dayName] = [];
+            
+            const leaveForWork = commuteMinutes > 0 ? subtractMinutes(entry.start, commuteMinutes) : entry.start;
+            
+            if (prepMinutes > 0) {
+                const prepStart = subtractMinutes(leaveForWork, prepMinutes);
+                blocks[dayName].push({
+                    start: prepStart,
+                    end: leaveForWork,
+                    title: "🧳 Get ready for work",
+                    tasks: ["Pack essentials", "Hygiene", "Check travel items"],
+                    source: "work_form",
+                    locked: true
+                });
+            }
+            
+            if (commuteMinutes > 0) {
+                blocks[dayName].push({
+                    start: leaveForWork,
+                    end: entry.start,
+                    title: "🚗 Commute",
+                    tasks: ["Drive to work"],
+                    source: "work_form",
+                    locked: true
+                });
+            }
+            
+            blocks[dayName].push({
+                start: entry.start,
+                end: entry.end,
+                title: "💼 Work",
+                tasks: [],
+                source: "work_form",
+                locked: true
+            });
+            
+            if (commuteMinutes > 0) {
+                const commuteEnd = addMinutes(entry.end, commuteMinutes);
+                blocks[dayName].push({
+                    start: entry.end,
+                    end: commuteEnd,
+                    title: "🚗 Commute",
+                    tasks: ["Drive home"],
+                    source: "work_form",
+                    locked: true
+                });
+            }
+        }
+        
+        if (Object.keys(blocks).length > 0) {
+            return blocks;
+        }
+    }
+    
+    // Fallback: parse free-text schedule (legacy)
     const { workDays, workHours } = parseWorkSchedule(formData.workSchedule);
     
     if (!workHours || workDays.length === 0) {
@@ -684,14 +790,26 @@ function createWorkBlocks(formData) {
     }
     
     const blocks = {};
-    const commuteMinutes = formData.commuteMinutes || 0;
     
     workDays.forEach(day => {
         blocks[day] = [];
         
-        // Add commute TO work (if enabled)
+        const leaveForWork = commuteMinutes > 0 ? subtractMinutes(workHours.start, commuteMinutes) : workHours.start;
+        
+        if (prepMinutes > 0) {
+            const prepStart = subtractMinutes(leaveForWork, prepMinutes);
+            blocks[day].push({
+                start: prepStart,
+                end: leaveForWork,
+                title: "🧳 Get ready for work",
+                tasks: ["Pack essentials", "Hygiene", "Check travel items"],
+                source: "work_form",
+                locked: true
+            });
+        }
+        
         if (commuteMinutes > 0) {
-            const commuteStart = subtractMinutes(workHours.start, commuteMinutes);
+            const commuteStart = leaveForWork;
             blocks[day].push({
                 start: commuteStart,
                 end: workHours.start,
@@ -702,7 +820,6 @@ function createWorkBlocks(formData) {
             });
         }
         
-        // Add work block
         blocks[day].push({
             start: workHours.start,
             end: workHours.end,
@@ -712,7 +829,6 @@ function createWorkBlocks(formData) {
             locked: true
         });
         
-        // Add commute FROM work (if enabled)
         if (commuteMinutes > 0) {
             const commuteEnd = addMinutes(workHours.end, commuteMinutes);
             blocks[day].push({
@@ -772,6 +888,28 @@ function loadDefaultBlocks() {
     return blocksByDay;
 }
 
+function buildDayStartOverridesFromDefaults(defaultBlocks) {
+    const overrides = {};
+    const toMinutes = (timeStr) => {
+        const [h, m] = timeStr.split(':').map(Number);
+        return h * 60 + m;
+    };
+    defaultBlocks.forEach(block => {
+        if (block.enabled === false) return;
+        if (!block.dayStartOverride) return;
+        const days = block.days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        days.forEach(day => {
+            if (!overrides[day]) {
+                overrides[day] = block.dayStartOverride;
+            } else {
+                // keep earliest
+                overrides[day] = toMinutes(block.dayStartOverride) < toMinutes(overrides[day]) ? block.dayStartOverride : overrides[day];
+            }
+        });
+    });
+    return overrides;
+}
+
 /**
  * Combine work blocks and default blocks
  * Sort by time within each day
@@ -801,39 +939,85 @@ function mergePreFilledBlocks(workBlocks, defaultBlocks) {
 
 /**
  * Find empty time slots between pre-filled blocks
- * Returns time ranges AI should fill
+ * - Uses configurable default day window and per-day start overrides
+ * - Expands window to include earlier/later blocks on that specific day
+ * - Handles overnight blocks by treating them as ending at dayEnd for the current day
  */
-function calculateTimeGaps(preFilledBlocks, dayStart = "07:00", dayEnd = "23:00") {
+function calculateTimeGaps(preFilledBlocks, options = {}) {
     const allDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     const gaps = {};
+    const defaultDayStart = options.dayWindowStart || "07:00";
+    const defaultDayEnd = options.dayWindowEnd || "23:00";
+    const dayStartOverrides = options.dayStartOverrides || {};
     
+    const toMinutes = (timeStr) => {
+        const [h, m] = timeStr.split(':').map(Number);
+        return h * 60 + m;
+    };
+    
+    const toTime = (mins) => {
+        const h = Math.floor(mins / 60);
+        const m = mins % 60;
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    };
+ 
     allDays.forEach(day => {
-        const blocks = preFilledBlocks[day] || [];
-        const dayGaps = [];
+        const rawBlocks = preFilledBlocks[day] || [];
         
-        if (blocks.length === 0) {
-            // Entire day is free
-            dayGaps.push({ start: dayStart, end: dayEnd });
-        } else {
-            // Check gap before first block
-            if (blocks[0].start > dayStart) {
-                dayGaps.push({ start: dayStart, end: blocks[0].start });
+        // Base window for this day (override > default)
+        const baseStartMin = toMinutes(dayStartOverrides[day] || defaultDayStart);
+        const baseEndMin = toMinutes(defaultDayEnd);
+        const normalized = rawBlocks.map(block => {
+            const startMin = toMinutes(block.start);
+            let endMin = toMinutes(block.end);
+            
+            // Handle overnight blocks (end before start): treat as running until dayEnd for gap calc
+            if (endMin < startMin) {
+                endMin = baseEndMin;
             }
             
-            // Check gaps between blocks
-            for (let i = 0; i < blocks.length - 1; i++) {
-                const currentEnd = blocks[i].end;
-                const nextStart = blocks[i + 1].start;
+            // Clamp within day boundaries
+            const clampedStart = Math.max(startMin, baseStartMin);
+            const clampedEnd = Math.min(endMin, baseEndMin);
+            
+            return { start: clampedStart, end: clampedEnd };
+        }).filter(b => b.end > b.start);
+        
+        // Sort by start time
+        normalized.sort((a, b) => a.start - b.start);
+        
+        // Expand window to include any earlier/later blocks for this day
+        let dayStartMin = baseStartMin;
+        let dayEndMin = baseEndMin;
+        normalized.forEach(block => {
+            dayStartMin = Math.min(dayStartMin, block.start);
+            dayEndMin = Math.max(dayEndMin, block.end);
+        });
+        
+        const dayGaps = [];
+        
+        if (normalized.length === 0) {
+            dayGaps.push({ start: toTime(dayStartMin), end: toTime(dayEndMin) });
+        } else {
+            // Gap before first block
+            if (normalized[0].start > dayStartMin) {
+                dayGaps.push({ start: toTime(dayStartMin), end: toTime(normalized[0].start) });
+            }
+            
+            // Gaps between blocks
+            for (let i = 0; i < normalized.length - 1; i++) {
+                const currentEnd = normalized[i].end;
+                const nextStart = normalized[i + 1].start;
                 
                 if (currentEnd < nextStart) {
-                    dayGaps.push({ start: currentEnd, end: nextStart });
+                    dayGaps.push({ start: toTime(currentEnd), end: toTime(nextStart) });
                 }
             }
             
-            // Check gap after last block
-            const lastBlock = blocks[blocks.length - 1];
-            if (lastBlock.end < dayEnd) {
-                dayGaps.push({ start: lastBlock.end, end: dayEnd });
+            // Gap after last block
+            const lastBlock = normalized[normalized.length - 1];
+            if (lastBlock.end < dayEndMin) {
+                dayGaps.push({ start: toTime(lastBlock.end), end: toTime(dayEndMin) });
             }
         }
         
@@ -898,13 +1082,20 @@ function generatePreFilledData(formData) {
     // Step 2: Load default blocks
     const defaultBlocks = loadDefaultBlocks();
     console.log(`Default blocks: ${Object.keys(defaultBlocks).length} days`);
+    const dayStartOverrides = buildDayStartOverridesFromDefaults(scheduleData.defaultBlocks || []);
     
     // Step 3: Merge work + defaults
     const preFilledBlocks = mergePreFilledBlocks(workBlocks, defaultBlocks);
     console.log(`Total pre-filled: ${Object.keys(preFilledBlocks).length} days`);
     
     // Step 4: Calculate time gaps
-    const timeGaps = calculateTimeGaps(preFilledBlocks);
+    const dayWindowStart = (scheduleData.dayWindow && scheduleData.dayWindow.start) ? scheduleData.dayWindow.start : "07:00";
+    const dayWindowEnd = (scheduleData.dayWindow && scheduleData.dayWindow.end) ? scheduleData.dayWindow.end : "23:00";
+    const timeGaps = calculateTimeGaps(preFilledBlocks, {
+        dayWindowStart,
+        dayWindowEnd,
+        dayStartOverrides
+    });
     console.log(`Time gaps calculated for all 7 days`);
     
     // Step 5: Get excluded activities
@@ -923,6 +1114,20 @@ function generatePreFilledData(formData) {
  * Much smaller than showing all 58 recipes
  */
 function buildReducedRecipePrompt(selectedRecipes, batchDuration) {
+    const availabilityById = {};
+    const readyNow = [];
+    const needsShopping = [];
+    
+    selectedRecipes.forEach(recipe => {
+        const availability = describeRecipeAvailability(recipe);
+        availabilityById[recipe.id] = availability;
+        if (availability.isReady) {
+            readyNow.push({ recipe, availability });
+        } else {
+            needsShopping.push({ recipe, availability });
+        }
+    });
+    
     // Group by category
     const byCategory = {
         breakfast: selectedRecipes.filter(r => r.category === 'breakfast'),
@@ -938,46 +1143,59 @@ function buildReducedRecipePrompt(selectedRecipes, batchDuration) {
     lines.push('These recipes have been pre-selected based on your Kitchen Stock and usage history.');
     lines.push('Use the recipe IDs when adding meals in the schedule and in the final comma-separated list.');
     lines.push('');
+    lines.push('Priority rules:');
+    lines.push('1) Use READY TO COOK recipes first (100% ingredients available).');
+    lines.push('2) Schedule shopping before any recipe listed under "RECIPES NEEDING SHOPPING".');
+    lines.push('3) After shopping, you can cook the previously missing-ingredient recipes.');
+    lines.push('');
+    
+    lines.push('READY TO COOK NOW (100% ingredients available):');
+    lines.push(readyNow.length ? readyNow.map(item => formatRecipeWithAvailability(item.recipe, item.availability)).join('\n') : 'None at 100% right now — plan a quick shopping trip early in the week.');
+    lines.push('');
+    
+    lines.push('RECIPES NEEDING SHOPPING (missing ingredients):');
+    lines.push(needsShopping.length ? needsShopping.map(item => formatRecipeWithAvailability(item.recipe, item.availability)).join('\n') : 'All selected recipes are ready to cook with current stock.');
+    lines.push('');
     
     // Breakfast
     if (byCategory.breakfast.length > 0) {
         lines.push('BREAKFAST OPTIONS (serves 1):');
-        byCategory.breakfast.forEach(r => lines.push(formatRecipeLine(r)));
+        byCategory.breakfast.forEach(r => lines.push(formatRecipeWithAvailability(r, availabilityById[r.id])));
         lines.push('');
     }
     
     // Batch Cook
     if (byCategory.batch.length > 0) {
         lines.push(`BATCH COOK OPTIONS (serves 4-8, lasts ${batchDuration} day${batchDuration === '1' ? '' : 's'}):`);
-        byCategory.batch.forEach(r => lines.push(formatRecipeLine(r)));
+        byCategory.batch.forEach(r => lines.push(formatRecipeWithAvailability(r, availabilityById[r.id])));
         lines.push('');
     }
     
     // Main Meals
     if (byCategory.main.length > 0) {
         lines.push('MAIN MEALS (quick individual meals, serves 1-2):');
-        byCategory.main.forEach(r => lines.push(formatRecipeLine(r)));
+        byCategory.main.forEach(r => lines.push(formatRecipeWithAvailability(r, availabilityById[r.id])));
         lines.push('');
     }
     
     // Drinks
     if (byCategory.drink.length > 0) {
         lines.push('DRINKS (serves 1):');
-        byCategory.drink.forEach(r => lines.push(formatRecipeLine(r)));
+        byCategory.drink.forEach(r => lines.push(formatRecipeWithAvailability(r, availabilityById[r.id])));
         lines.push('');
     }
     
     // Snacks
     if (byCategory.snacks.length > 0) {
         lines.push('SNACKS (serves 1):');
-        byCategory.snacks.forEach(r => lines.push(formatRecipeLine(r)));
+        byCategory.snacks.forEach(r => lines.push(formatRecipeWithAvailability(r, availabilityById[r.id])));
         lines.push('');
     }
     
     // Rewards
     if (byCategory.rewards.length > 0) {
         lines.push('REWARDS (treats, serves 1):');
-        byCategory.rewards.forEach(r => lines.push(formatRecipeLine(r)));
+        byCategory.rewards.forEach(r => lines.push(formatRecipeWithAvailability(r, availabilityById[r.id])));
         lines.push('');
     }
     
