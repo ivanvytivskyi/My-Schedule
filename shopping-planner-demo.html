@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Shopping Slot Picker Demo (No AI)</title>
+  <style>
+    body { font-family: Arial, sans-serif; background: #f7f7fb; margin: 0; padding: 20px; color: #1f2933; }
+    .card { background: #fff; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 20px; margin-bottom: 16px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+    h1 { margin-top: 0; }
+    pre { background: #0f172a; color: #e5e7eb; padding: 14px; border-radius: 10px; overflow-x: auto; }
+    .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #e0f2fe; color: #075985; }
+    .pill { display: inline-block; padding: 4px 8px; border-radius: 8px; background: #eef2ff; color: #3730a3; margin-right: 6px; margin-bottom: 4px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 8px; border-bottom: 1px solid #e5e7eb; }
+    th { text-align: left; background: #f3f4f6; }
+  </style>
+</head>
+<body>
+  <h1>Shopping Slot Picker Demo (Rule-Based, No AI)</h1>
+  <div class="card">
+    <p>This single HTML shows how the app can pick a shopping time automatically using work hours, defaults, and gaps—no AI scheduling needed.</p>
+    <div>
+      <span class="badge">Inputs</span>
+      <span class="pill">Work schedule</span>
+      <span class="pill">Default blocks (e.g., morning routine)</span>
+      <span class="pill">Day window</span>
+      <span class="pill">Shopping buffers (prep/travel/unpack)</span>
+      <span class="pill">Ingredient readiness</span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h3>Sample Inputs</h3>
+      <pre id="inputData"></pre>
+    </div>
+    <div class="card">
+      <h3>Chosen Shopping Plan</h3>
+      <pre id="shoppingPlan"></pre>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3>Resulting Day Timeline (blocks merged)</h3>
+    <div id="timeline"></div>
+  </div>
+
+  <script>
+    // ---- Helpers ----
+    const dayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+    const toMinutes = (t) => { const [h,m] = t.split(":").map(Number); return h*60+m; };
+    const toTime = (mins) => `${String(Math.floor(mins/60)).padStart(2,"0")}:${String(mins%60).padStart(2,"0")}`;
+
+    function mergeBlocks(workBlocks, defaultBlocks) {
+      const merged = {};
+      dayNames.forEach(day => {
+        merged[day] = [...(workBlocks[day] || []), ...(defaultBlocks[day] || [])].sort((a,b)=>toMinutes(a.start)-toMinutes(b.start));
+      });
+      return merged;
+    }
+
+    function calcGaps(mergedBlocks, dayWindowStart="07:00", dayWindowEnd="23:00") {
+      const gaps = {};
+      const startMin = toMinutes(dayWindowStart);
+      const endMin = toMinutes(dayWindowEnd);
+      dayNames.forEach(day => {
+        const blocks = mergedBlocks[day] || [];
+        const normalized = blocks.map(b => ({start:toMinutes(b.start), end:toMinutes(b.end)})).sort((a,b)=>a.start-b.start);
+        let dayStart = startMin, dayEnd = endMin;
+        normalized.forEach(b => { dayStart = Math.min(dayStart, b.start); dayEnd = Math.max(dayEnd, b.end); });
+        const dayGaps = [];
+        if (!normalized.length) {
+          dayGaps.push({start: dayStart, end: dayEnd});
+        } else {
+          if (normalized[0].start > dayStart) dayGaps.push({start: dayStart, end: normalized[0].start});
+          for (let i=0;i<normalized.length-1;i++) {
+            if (normalized[i].end < normalized[i+1].start) dayGaps.push({start: normalized[i].end, end: normalized[i+1].start});
+          }
+          const last = normalized[normalized.length-1];
+          if (last.end < dayEnd) dayGaps.push({start: last.end, end: dayEnd});
+        }
+        gaps[day] = dayGaps.map(g => ({start: toTime(g.start), end: toTime(g.end)}));
+      });
+      return gaps;
+    }
+
+    function pickShoppingSlot({gaps, priorityDays, totalMinutes, minShopMinutes, shoppingMinutes}) {
+      let fallback = null;
+      for (const day of priorityDays) {
+        const dayGaps = gaps[day] || [];
+        for (const gap of dayGaps) {
+          const gapLen = toMinutes(gap.end) - toMinutes(gap.start);
+          if (gapLen >= totalMinutes) {
+            return { day, start: gap.start, end: toTime(toMinutes(gap.start)+totalMinutes), usedShopMinutes: shoppingMinutes };
+          }
+          // track best fallback
+          if (!fallback || gapLen > fallback.gapLen) fallback = { day, gapStart: gap.start, gapLen };
+        }
+      }
+      if (fallback) {
+        const usableShop = Math.max(minShopMinutes, fallback.gapLen); // shrink shopping to fit
+        const adjustedTotal = Math.min(fallback.gapLen, totalMinutes);
+        return {
+          day: fallback.day,
+          start: fallback.gapStart,
+          end: toTime(toMinutes(fallback.gapStart)+adjustedTotal),
+          usedShopMinutes: usableShop
+        };
+      }
+      return null;
+    }
+
+    // ---- Sample data ----
+    const sample = {
+      dayWindow: { start: "07:00", end: "23:00" },
+      workDayTimes: [
+        {}, // Mon (off)
+        {}, // Tue (off)
+        { start: "17:00", end: "21:00" }, // Wed
+        { start: "07:00", end: "15:00" }, // Thu
+        { start: "07:00", end: "13:00" }, // Fri
+        { start: "16:30", end: "23:30" }, // Sat
+        {}  // Sun (off)
+      ],
+      defaultBlocks: [
+        { start:"05:30", end:"06:00", days:["Friday","Saturday"], title:"Morning Routine" }
+      ],
+      shoppingConfig: {
+        prep: 15, travel: 15, shopping: 60, unpack: 10, minShopping: 30
+      },
+      ingredientsReady: false // if false, shopping is required early
+    };
+
+    // ---- Build blocks from sample ----
+    function buildWorkBlocks({workDayTimes}) {
+      const blocks = {};
+      workDayTimes.forEach((entry, i) => {
+        if (!entry.start || !entry.end) return;
+        const day = dayNames[i];
+        blocks[day] = [{
+          start: entry.start,
+          end: entry.end,
+          title: "Work"
+        }];
+      });
+      return blocks;
+    }
+
+    function buildDefaultBlocks(defaults) {
+      const byDay = {};
+      defaults.forEach(def => {
+        (def.days || dayNames).forEach(day => {
+          if (!byDay[day]) byDay[day] = [];
+          byDay[day].push({ start: def.start, end: def.end, title: def.title || "Default" });
+        });
+      });
+      return byDay;
+    }
+
+    function getNonWorkDays(workDayTimes) {
+      return workDayTimes.map((entry, i) => (!entry.start || !entry.end) ? dayNames[i] : null).filter(Boolean);
+    }
+
+    // ---- Run demo ----
+    (function run() {
+      const workBlocks = buildWorkBlocks(sample);
+      const defaultBlocks = buildDefaultBlocks(sample.defaultBlocks);
+      const merged = mergeBlocks(workBlocks, defaultBlocks);
+      const gaps = calcGaps(merged, sample.dayWindow.start, sample.dayWindow.end);
+
+      const nonWork = getNonWorkDays(sample.workDayTimes);
+      const priorityDays = [...nonWork, ...dayNames.filter(d => !nonWork.includes(d))];
+
+      const cfg = sample.shoppingConfig;
+      const totalNeeded = cfg.prep + cfg.travel + cfg.shopping + cfg.travel + cfg.unpack;
+      const slot = pickShoppingSlot({
+        gaps,
+        priorityDays,
+        totalMinutes: totalNeeded,
+        minShopMinutes: cfg.minShopping,
+        shoppingMinutes: cfg.shopping
+      });
+
+      // Build shopping blocks to insert (if found)
+      if (slot) {
+        const day = slot.day;
+        const blocks = merged[day] || [];
+        const startMin = toMinutes(slot.start);
+        let cursor = startMin;
+        const pushBlock = (title, minutes) => {
+          blocks.push({ start: toTime(cursor), end: toTime(cursor + minutes), title });
+          cursor += minutes;
+        };
+        pushBlock("Get ready for shopping", cfg.prep);
+        pushBlock("Travel to shop", cfg.travel);
+        pushBlock("Shopping", slot.usedShopMinutes);
+        pushBlock("Travel back", cfg.travel);
+        pushBlock("Unpack shopping", cfg.unpack);
+        merged[day] = blocks.sort((a,b)=>toMinutes(a.start)-toMinutes(b.start));
+      }
+
+      // Render inputs
+      document.getElementById("inputData").textContent = JSON.stringify({
+        workDayTimes: sample.workDayTimes,
+        defaultBlocks: sample.defaultBlocks,
+        dayWindow: sample.dayWindow,
+        shoppingConfig: sample.shoppingConfig,
+        ingredientsReady: sample.ingredientsReady
+      }, null, 2);
+
+      // Render plan
+      document.getElementById("shoppingPlan").textContent = slot
+        ? `Day: ${slot.day}\nStart: ${slot.start}\nEnd: ${slot.end}\nShopping minutes used: ${slot.usedShopMinutes}`
+        : "No slot found";
+
+      // Render timeline
+      const timeline = document.getElementById("timeline");
+      timeline.innerHTML = "";
+      dayNames.forEach(day => {
+        const rows = (merged[day] || []).map(b => `<tr><td>${b.start}–${b.end}</td><td>${b.title}</td></tr>`).join("") || "<tr><td colspan='2'>No blocks</td></tr>";
+        timeline.innerHTML += `
+          <h4>${day}</h4>
+          <table>
+            <thead><tr><th>Time</th><th>Title</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        `;
+      });
+    })();
+  </script>
+</body>
+</html>

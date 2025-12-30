@@ -1038,6 +1038,8 @@ function addWeek() {
         return `${String(newHours).padStart(2, '0')}:${String(newMins).padStart(2, '0')}`;
     }
     
+    const newDayKeys = [];
+    
     // Create 7 days starting from the selected date
     for (let i = 0; i < 7; i++) {
         const date = new Date(weekStart);
@@ -1112,6 +1114,48 @@ function addWeek() {
             motivation: '✨ Make today count!',
             blocks: blocks
         };
+        
+        newDayKeys.push(dayKey);
+    }
+    
+    // If no recipes are saved for this week, auto-pick a set (same selector used for the prompt)
+    if (!Array.isArray(selectedRecipesThisWeek) || selectedRecipesThisWeek.length === 0) {
+        try {
+            const autoSelected = selectRecipesForWeek({});
+            selectedRecipesThisWeek = autoSelected.map(r => r.id);
+            if (typeof saveSelectedRecipes === 'function') saveSelectedRecipes();
+        } catch (err) {
+            console.warn('Auto recipe selection for manual week skipped:', err);
+        }
+    }
+    
+    // Auto-attach breakfast recipes to manual week (uses selectedRecipesThisWeek if available)
+    try {
+        const ids = Array.isArray(selectedRecipesThisWeek) ? selectedRecipesThisWeek : [];
+        const recipes = ids
+            .map(id => (typeof getRecipe === 'function' ? getRecipe(id) : null))
+            .filter(r => r && r.category);
+        const breakfastRecipes = recipes.filter(r => r.category === 'breakfast');
+        
+        if (breakfastRecipes.length > 0) {
+            const blocksByDayName = {};
+            newDayKeys.forEach(key => {
+                const day = scheduleData.days[key];
+                if (day) {
+                    blocksByDayName[day.name] = day.blocks;
+                }
+            });
+            
+            addBreakfastBlocksToPreFilled(blocksByDayName, {
+                weekDate: weekStart.toISOString().split('T')[0],
+                breakfastRecipes,
+                dayWindowStart: (scheduleData.dayWindow && scheduleData.dayWindow.start) ? scheduleData.dayWindow.start : "07:00",
+                dayWindowEnd: (scheduleData.dayWindow && scheduleData.dayWindow.end) ? scheduleData.dayWindow.end : "23:00",
+                dayStartOverrides: buildDayStartOverridesFromDefaults(scheduleData.defaultBlocks || [])
+            });
+        }
+    } catch (err) {
+        console.warn('Breakfast auto-attach (manual week) skipped:', err);
     }
     
     renderDayTabs();
@@ -3929,19 +3973,28 @@ function generatePrompt() {
     const workMealInstruction = buildWorkMealInstruction(formData, workMealSuggestion);
     
     // === PRE-FILL SYSTEM (Part 3) ===
-    const preFilledData = generatePreFilledData(formData);
+    const preFilledData = generatePreFilledData(formData, selectedRecipes);
     
     // === BUILD REDUCED RECIPE PROMPT ===
     const recipePromptSection = buildReducedRecipePrompt(
         selectedRecipes, 
         formData.batchDuration
     );
+    const breakfastRotation = buildBreakfastRotation(selectedRecipes, weekDate);
+    const breakfastRotationText = breakfastRotation.length
+        ? breakfastRotation.map(entry => `- ${entry.day}: ${entry.recipe.id} ${entry.recipe.name}`).join('\n')
+        : '- None selected';
     
     // === BUILD TIME SLOT SECTION ===
     const timeSlotSection = buildTimeSlotPrompt(
         preFilledData.timeGaps,
         preFilledData.excludedActivities
     );
+    const nonWorkDays = preFilledData.nonWorkDays || [];
+    const nonWorkDaysSummary = nonWorkDays.length ? nonWorkDays.join(', ') : 'None (work scheduled on all listed days)';
+    const breakfastRule = preFilledData.hasBreakfastDefault
+        ? 'Breakfast is already in default blocks—leave those untouched. If a day has no default breakfast, place breakfast in the earliest available morning gap after any morning routine.'
+        : 'Place breakfast in the earliest available morning gap after any morning routine (earliest free morning slot).';
     
     // === BUILD KITCHEN STOCK SUMMARY ===
     const homeInventorySummary = buildHomeInventoryPromptString();
@@ -3972,6 +4025,10 @@ ${formData.studyTopics ? `- Focus topics:\n${formData.studyTopics}` : ''}
 - Preferences: ${formData.foodPrefs || 'No preferences'}
 - Batch cook duration: ${formData.batchDuration} day(s) worth of meals per batch recipe
 - Dietary filters: ${dietarySummary}
+- Non-work days: ${nonWorkDaysSummary} (use these for more flexible lunch/dinner timing; on workdays, keep meals around work blocks)
+- Breakfast rule: ${breakfastRule}
+- Breakfast rotation (use these in the set breakfast blocks; rotate, no repeats within the week):
+${breakfastRotationText}
 - Meal ordering rule: Cook recipes from the "READY TO COOK" list first (all ingredients on hand). For any recipe listed under "RECIPES NEEDING SHOPPING", add a shopping block before it and only schedule it after that shopping trip.
 
 🏢 WORK MEALS:
