@@ -113,6 +113,10 @@ let currentDay = null;
 let autoScrollTimeout = null;
 let isToday = false;
 
+// Planner form persistence (Phase 2)
+const PLANNER_FORM_KEY = 'weekPlannerFormState';
+const PLANNER_FORM_VERSION = 1;
+
 // ========================================
 // INITIALIZATION
 // ========================================
@@ -128,7 +132,320 @@ document.addEventListener("DOMContentLoaded", function () {
     startLiveClock();
     setupScrollButton();
     populateBlockRecipeSelect();
+    // Planner dynamic rows
+    const cookingFor = document.getElementById('promptCookingFor');
+    const shoppingAnchor = document.getElementById('promptShoppingAnchor');
+    if (cookingFor) {
+        cookingFor.addEventListener('change', updateCookingPeopleVisibility);
+    }
+    if (shoppingAnchor) {
+        shoppingAnchor.addEventListener('change', updateShoppingAnchorVisibility);
+    }
+    // Initial visibility in case defaults or saved state exist before opening modal
+    updateCookingPeopleVisibility();
+    updateShoppingAnchorVisibility();
 });
+
+// ================ Planner form persistence (Phase 2) ================
+
+function loadPlannerFormState() {
+    try {
+        const raw = localStorage.getItem(PLANNER_FORM_KEY);
+        if (!raw) return null;
+        const state = JSON.parse(raw);
+        if (!state || state.version !== PLANNER_FORM_VERSION) return null;
+        return state;
+    } catch (e) {
+        console.warn('Could not load planner form state:', e);
+        return null;
+    }
+}
+
+function getPlannerFormState() {
+    const form = document.getElementById('promptGeneratorForm');
+    if (!form) return null;
+
+    const state = { version: PLANNER_FORM_VERSION, fields: {} };
+    const radioGroups = new Set();
+
+    Array.from(form.elements).forEach(el => {
+        const key = el.id || el.name;
+        if (!key) return;
+
+        if (el.type === 'radio') {
+            if (el.name) radioGroups.add(el.name);
+            return;
+        }
+
+        if (el.type === 'checkbox') {
+            state.fields[key] = el.checked;
+        } else {
+            state.fields[key] = el.value;
+        }
+    });
+
+    radioGroups.forEach(name => {
+        const selected = form.querySelector(`input[type="radio"][name="${name}"]:checked`);
+        if (selected) {
+            state.fields[name] = selected.value;
+        }
+    });
+
+    return state;
+}
+
+function applyPlannerFormState(state) {
+    if (!state || state.version !== PLANNER_FORM_VERSION) return;
+    const form = document.getElementById('promptGeneratorForm');
+    if (!form) return;
+
+    Object.entries(state.fields || {}).forEach(([key, value]) => {
+        const direct = form.querySelector(`#${key}`) || form.querySelector(`[name="${key}"]`);
+        if (!direct) return;
+
+        if (direct.type === 'radio') {
+            const radio = form.querySelector(`input[type="radio"][name="${key}"][value="${value}"]`);
+            if (radio) radio.checked = true;
+            return;
+        }
+
+        if (direct.type === 'checkbox') {
+            direct.checked = !!value;
+        } else {
+            direct.value = value;
+        }
+    });
+
+    // After applying saved values, refresh dynamic visibility
+    updateCookingPeopleVisibility();
+    updateShoppingAnchorVisibility();
+}
+
+function savePlannerFormState() {
+    const state = getPlannerFormState();
+    if (!state) return;
+    try {
+        localStorage.setItem(PLANNER_FORM_KEY, JSON.stringify(state));
+    } catch (e) {
+        console.warn('Could not save planner form state:', e);
+    }
+}
+
+function generateWeekFromForm() {
+    try {
+        savePlannerFormState();
+
+        const form = document.getElementById('promptGeneratorForm');
+        if (!form) {
+            console.warn('Planner form not found');
+            return;
+        }
+        const formData = new FormData(form);
+
+        // Helpers for time math
+        const toMin = (t) => {
+            if (!t || !t.includes(':')) return null;
+            const [h, m] = t.split(':').map(Number);
+            return h * 60 + m;
+        };
+        const toTime = (mins) => {
+            mins = ((mins % 1440) + 1440) % 1440;
+            const h = Math.floor(mins / 60);
+            const m = mins % 60;
+            return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+        };
+        const addBlock = (blocks, startMin, endMin, title, note = '') => {
+            const safeStart = ((startMin % 1440) + 1440) % 1440;
+            const safeEnd = ((endMin % 1440) + 1440) % 1440;
+            blocks.push({
+                time: `${toTime(safeStart)}-${toTime(safeEnd)}`,
+                title,
+                tasks: [],
+                note
+            });
+            return safeEnd;
+        };
+
+        // Extract key inputs
+        const weekStartStr = formData.get('promptWeekDate') || new Date().toISOString().split('T')[0];
+        const sleepWindow = (formData.get('promptSleep') || '23:00-07:00').split('-');
+        const sleepStart = toMin(sleepWindow[0]);
+        const sleepEnd = toMin(sleepWindow[1]);
+        const targetSleepHours = parseFloat(formData.get('promptSleepHours')) || 8;
+        const bedtimeRoutine = parseInt(formData.get('promptBedtimeRoutine') || '0', 10);
+        const morningRoutine = parseInt(formData.get('promptMorningRoutine') || '0', 10);
+        const shiftBasedWake = form.querySelector('#promptShiftBasedWake')?.checked;
+
+        const addCommute = form.querySelector('#promptAddCommute')?.checked;
+        const commuteDuration = parseInt(formData.get('promptCommuteDuration') || '0', 10);
+        const commutePrep = parseInt(formData.get('promptCommutePrep') || '0', 10);
+
+        const studyHours = parseFloat(formData.get('promptStudyHours') || '0') || 0;
+        const hobbyHours = parseFloat(formData.get('promptHobbyHours') || '0') || 0;
+        const tasksText = formData.get('promptOneOffTasks') || '';
+        const taskList = tasksText.split('\n').map(t => t.trim()).filter(Boolean);
+
+        // Meal planning inputs
+        const cookingFor = formData.get('promptCookingFor') || 'me';
+        const cookingPeople = parseInt(formData.get('promptCookingPeople') || '1', 10);
+        const portionTarget = formData.get('promptPortionTarget') || 'one';
+        const kitchenStockFirst = form.querySelector('#promptKitchenStockFirst')?.checked ?? true;
+        const shoppingAnchorRaw = formData.get('promptShoppingAnchor') || '4';
+        const shoppingAnchorCustom = parseInt(formData.get('promptShoppingAnchorCustom') || '3', 10);
+        const shoppingAnchorDay = shoppingAnchorRaw === 'custom' ? shoppingAnchorCustom : parseInt(shoppingAnchorRaw, 10);
+        const preferredShop = document.getElementById('preferredShopSelect')?.value || 'Preferred shop';
+
+        const mealNote = `Cooking for: ${cookingFor === 'group' ? `${cookingPeople} people` : 'just me'} • Portions: ${portionTarget}`;
+
+        // Prepare days
+        const startDate = new Date(weekStartStr);
+        if (isNaN(startDate.getTime())) {
+            alert('⚠️ Please select a valid week start date.');
+            return;
+        }
+
+        // Reset schedule
+        scheduleData.days = {};
+
+        for (let i = 0; i < 7; i++) {
+            const date = new Date(startDate);
+            date.setDate(startDate.getDate() + i);
+            const dayKey = `day_${date.getTime()}`;
+            const dayName = getDayName(date);
+            const blocks = [];
+
+            // Work inputs for this day
+            const workStartStr = formData.get(`workDay${i}Start`);
+            const workEndStr = formData.get(`workDay${i}End`);
+            const hasWork = workStartStr && workEndStr;
+            const workStart = toMin(workStartStr);
+            const workEnd = toMin(workEndStr);
+
+            // Sleep logic: adjust if shift-based wake and work starts early
+            let sleepStartMin = sleepStart ?? 23 * 60;
+            let sleepEndMin = sleepEnd ?? 7 * 60;
+            if (shiftBasedWake && hasWork && workStart != null) {
+                const wakeBuffer = (morningRoutine || 0) + (addCommute ? commuteDuration + commutePrep : 0);
+                sleepEndMin = workStart - wakeBuffer;
+                sleepStartMin = sleepEndMin - targetSleepHours * 60 - bedtimeRoutine;
+            } else {
+                // Standard window; if provided end before start, assume crosses midnight
+                if (sleepStart != null && sleepEnd != null) {
+                    if (sleepEnd < sleepStart) {
+                        sleepEndMin = sleepStart + targetSleepHours * 60;
+                    } else if (targetSleepHours > 0) {
+                        sleepEndMin = sleepStart + targetSleepHours * 60;
+                    }
+                }
+                sleepStartMin = (sleepStart != null ? sleepStart : 23 * 60) - bedtimeRoutine;
+            }
+            addBlock(blocks, sleepStartMin, sleepEndMin, '😴 Sleep');
+
+            let dayCursor = sleepEndMin + morningRoutine;
+
+            // Work/commute
+            if (hasWork && workStart != null && workEnd != null) {
+                if (addCommute) {
+                    const depart = workStart - commutePrep - commuteDuration;
+                    addBlock(blocks, depart, workStart - commutePrep, '🧳 Get ready for work', `Prep: ${commutePrep}m`);
+                    addBlock(blocks, workStart - commutePrep, workStart, '🚗 Commute to work');
+                }
+                addBlock(blocks, workStart, workEnd, '💼 Work');
+                dayCursor = workEnd;
+                if (addCommute) {
+                    addBlock(blocks, workEnd, workEnd + commuteDuration, '🚗 Commute home');
+                    dayCursor = workEnd + commuteDuration;
+                }
+                dayCursor += 30; // small buffer
+            }
+
+            // Study block
+            if (studyHours > 0) {
+                const studyEnd = dayCursor + studyHours * 60;
+                addBlock(blocks, dayCursor, studyEnd, '📚 Study');
+                dayCursor = studyEnd + 15;
+            }
+
+            // Hobby block
+            if (hobbyHours > 0) {
+                const hobbyEnd = dayCursor + hobbyHours * 60;
+                addBlock(blocks, dayCursor, hobbyEnd, '🎯 Hobbies');
+                dayCursor = hobbyEnd + 15;
+            }
+
+            // One-off tasks
+            if (taskList.length > 0) {
+                const taskDuration = 45; // minutes each as a default
+                taskList.forEach(task => {
+                    const end = dayCursor + taskDuration;
+                    blocks.push({
+                        time: `${toTime(dayCursor)}-${toTime(end)}`,
+                        title: '✅ Task',
+                        tasks: [task]
+                    });
+                    dayCursor = end + 10;
+                });
+            }
+
+            // Meal planning (basic placeholders with stock-first vs post-shopping labeling)
+            const anchorIndex = Math.min(Math.max(shoppingAnchorDay || 4, 1), 7) - 1; // zero-based
+            const isPreShopping = i <= anchorIndex && kitchenStockFirst;
+            const mealLabel = isPreShopping ? 'Stock-first meal' : 'Post-shopping meal';
+
+            const mealTimes = [
+                { title: '🍳 Breakfast', start: toMin('08:00'), end: toMin('08:30') },
+                { title: '🥗 Lunch', start: toMin('12:30'), end: toMin('13:00') },
+                { title: '🍽️ Dinner', start: toMin('18:30'), end: toMin('19:15') }
+            ];
+
+            mealTimes.forEach(mt => {
+                if (mt.start != null && mt.end != null) {
+                    addBlock(blocks, mt.start, mt.end, `${mt.title} — ${mealLabel}`, mealNote);
+                }
+            });
+
+            // Shopping block on anchor day
+            if (i === anchorIndex) {
+                const shopStart = toMin('17:00');
+                const shopEnd = toMin('18:00');
+                addBlock(blocks, shopStart, shopEnd, '🛒 Shopping', `Prep ${commutePrep || 20}m • Shop: ${preferredShop}`);
+            }
+
+            scheduleData.days[dayKey] = {
+                name: dayName,
+                date: date.toISOString().split('T')[0],
+                displayDate: date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
+                subtitle: 'Generated by planner',
+                motivation: '✨ Make today count!',
+                blocks
+            };
+        }
+
+        renderDayTabs();
+        renderSchedule();
+        saveToLocalStorage();
+
+        // Activate first day
+        const firstKey = Object.keys(scheduleData.days)[0];
+        if (firstKey) {
+            showDay(firstKey);
+        }
+
+        alert('✅ Week generated from planner inputs.');
+    } catch (err) {
+        console.error('generateWeekFromForm error:', err);
+        alert('⚠️ Could not capture planner form. Check console for details.');
+    }
+}
+
+// Reset handler for the planner form (Phase 2)
+function resetPlannerForm() {
+    const form = document.getElementById('promptGeneratorForm');
+    if (!form) return;
+    form.reset();
+    localStorage.removeItem(PLANNER_FORM_KEY);
+    alert('Planner form reset to defaults and cleared from this device.');
+}
 
 function initializeApp() {
     try {
@@ -3433,15 +3750,45 @@ function emergencyReset() {
 
 function openPromptGenerator() {
     document.getElementById('promptGeneratorModal').classList.add('active');
-    document.getElementById('generatedPromptSection').style.display = 'none';
+    const generatedSection = document.getElementById('generatedPromptSection');
+    if (generatedSection) {
+        generatedSection.style.display = 'none';
+    }
     
-    // Set today's date as default
+    const savedState = loadPlannerFormState();
     const today = new Date();
-    const dateStr = today.toISOString().split('T')[0];
-    document.getElementById('promptWeekDate').value = dateStr;
+    const defaultDateStr = today.toISOString().split('T')[0];
+    const weekDateInput = document.getElementById('promptWeekDate');
+    const chosenDateStr = (savedState && savedState.fields && savedState.fields.promptWeekDate) || defaultDateStr;
+    weekDateInput.value = chosenDateStr;
     
-    // Populate work days
-    populateWorkDays(today);
+    // Populate work days using the chosen date
+    populateWorkDays(new Date(chosenDateStr));
+
+    // Rehydrate saved values (after workday inputs exist)
+    if (savedState) {
+        applyPlannerFormState(savedState);
+    }
+
+    // Apply visibility logic for dynamic rows
+    updateCookingPeopleVisibility();
+    updateShoppingAnchorVisibility();
+}
+
+function updateCookingPeopleVisibility() {
+    const mode = document.getElementById('promptCookingFor')?.value;
+    const row = document.getElementById('promptCookingPeopleRow');
+    if (row) {
+        row.style.display = mode === 'group' ? 'block' : 'none';
+    }
+}
+
+function updateShoppingAnchorVisibility() {
+    const anchor = document.getElementById('promptShoppingAnchor')?.value;
+    const row = document.getElementById('promptShoppingAnchorCustomRow');
+    if (row) {
+        row.style.display = anchor === 'custom' ? 'block' : 'none';
+    }
 }
 
 function closePromptGenerator() {
