@@ -638,14 +638,19 @@
                     </div>
                     
                     <div style="margin-top: 15px; padding-top: 15px; border-top: 2px solid rgba(0,0,0,0.1);">
-                        <label style="display: flex; align-items: center; gap: 10px; font-weight: 500;">
-                            <input type="checkbox" id="promptAddCommute" style="width: 18px; height: 18px;" />
-                            <span>Add commute blocks (</span>
-                            <input type="number" id="promptCommuteDuration" value="15" min="1" max="120" style="width: 70px; padding: 8px; border: 2px solid #ddd; border-radius: 6px;" />
-                            <span>minutes)</span>
-                        </label>
+                            <label style="display: flex; align-items: center; gap: 10px; font-weight: 500;">
+                                <input type="checkbox" id="promptAddCommute" style="width: 18px; height: 18px;" />
+                                <span>Add commute blocks (</span>
+                                <input type="number" id="promptCommuteDuration" value="15" min="1" max="120" style="width: 70px; padding: 8px; border: 2px solid #ddd; border-radius: 6px;" />
+                                <span>minutes)</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 10px; font-weight: 500; margin-top: 8px;">
+                                <span style="min-width: 180px;">Pre-commute prep time:</span>
+                                <input type="number" id="promptCommutePrepDuration" value="20" min="0" max="180" style="width: 80px; padding: 8px; border: 2px solid #ddd; border-radius: 6px;" />
+                                <span>minutes before leaving</span>
+                            </label>
+                        </div>
                     </div>
-                </div>
                 
                 <!-- Study -->
                 <div style="background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%); padding: 20px; border-radius: 12px; margin-bottom: 25px; color: white;">

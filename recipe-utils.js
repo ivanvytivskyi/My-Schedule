@@ -373,6 +373,57 @@ function calculateIngredientMatch(recipe) {
     return matchPercentage;
 }
 
+function getMissingIngredients(recipe, limit = 3) {
+    if (!recipe.ingredients || recipe.ingredients.length === 0) return [];
+    
+    const missing = [];
+    const seen = new Set();
+    
+    recipe.ingredients.forEach(ing => {
+        const key = ing.canonicalKey;
+        const product = CANONICAL_PRODUCTS[key];
+        
+        if (product?.unlimited) return;
+        
+        const neededQty = convertToBase(ing.qty, ing.unit, key);
+        const haveQty = getKitchenStockQty(key);
+        
+        if (haveQty < neededQty) {
+            const name = product ? product.name : key;
+            if (!seen.has(name)) {
+                missing.push(name);
+                seen.add(name);
+            }
+        }
+    });
+    
+    return typeof limit === 'number' ? missing.slice(0, limit) : missing;
+}
+
+function describeRecipeAvailability(recipe) {
+    const match = calculateIngredientMatch(recipe);
+    const missingList = getMissingIngredients(recipe, 4);
+    return {
+        match,
+        missingList,
+        isReady: match >= 0.999
+    };
+}
+
+function formatRecipeWithAvailability(recipe, availability) {
+    const matchPercent = Math.round((availability?.match || 0) * 100);
+    const baseLine = formatRecipeLine(recipe);
+    if (availability?.isReady) {
+        return `${baseLine} — 100% ingredients ready now`;
+    }
+    
+    const missingNote = availability?.missingList?.length ?
+        `missing: ${availability.missingList.join(', ')}` :
+        'missing items (not in stock yet)';
+    
+    return `${baseLine} — ${matchPercent}% ingredients (${missingNote})`;
+}
+
 /**
  * Remove recipes used in last 30 days
  * Forces variety over time
@@ -685,13 +736,29 @@ function createWorkBlocks(formData) {
     
     const blocks = {};
     const commuteMinutes = formData.commuteMinutes || 0;
+    const prepMinutes = formData.commutePrepMinutes || 0;
     
     workDays.forEach(day => {
         blocks[day] = [];
         
+        const leaveForWork = commuteMinutes > 0 ? subtractMinutes(workHours.start, commuteMinutes) : workHours.start;
+        
+        // Add pre-commute preparation (getting ready) if configured
+        if (prepMinutes > 0) {
+            const prepStart = subtractMinutes(leaveForWork, prepMinutes);
+            blocks[day].push({
+                start: prepStart,
+                end: leaveForWork,
+                title: "🧳 Get ready for work",
+                tasks: ["Pack essentials", "Hygiene", "Check travel items"],
+                source: "work_form",
+                locked: true
+            });
+        }
+        
         // Add commute TO work (if enabled)
         if (commuteMinutes > 0) {
-            const commuteStart = subtractMinutes(workHours.start, commuteMinutes);
+            const commuteStart = leaveForWork;
             blocks[day].push({
                 start: commuteStart,
                 end: workHours.start,
@@ -923,6 +990,20 @@ function generatePreFilledData(formData) {
  * Much smaller than showing all 58 recipes
  */
 function buildReducedRecipePrompt(selectedRecipes, batchDuration) {
+    const availabilityById = {};
+    const readyNow = [];
+    const needsShopping = [];
+    
+    selectedRecipes.forEach(recipe => {
+        const availability = describeRecipeAvailability(recipe);
+        availabilityById[recipe.id] = availability;
+        if (availability.isReady) {
+            readyNow.push({ recipe, availability });
+        } else {
+            needsShopping.push({ recipe, availability });
+        }
+    });
+    
     // Group by category
     const byCategory = {
         breakfast: selectedRecipes.filter(r => r.category === 'breakfast'),
@@ -938,46 +1019,59 @@ function buildReducedRecipePrompt(selectedRecipes, batchDuration) {
     lines.push('These recipes have been pre-selected based on your Kitchen Stock and usage history.');
     lines.push('Use the recipe IDs when adding meals in the schedule and in the final comma-separated list.');
     lines.push('');
+    lines.push('Priority rules:');
+    lines.push('1) Use READY TO COOK recipes first (100% ingredients available).');
+    lines.push('2) Schedule shopping before any recipe listed under "RECIPES NEEDING SHOPPING".');
+    lines.push('3) After shopping, you can cook the previously missing-ingredient recipes.');
+    lines.push('');
+    
+    lines.push('READY TO COOK NOW (100% ingredients available):');
+    lines.push(readyNow.length ? readyNow.map(item => formatRecipeWithAvailability(item.recipe, item.availability)).join('\n') : 'None at 100% right now — plan a quick shopping trip early in the week.');
+    lines.push('');
+    
+    lines.push('RECIPES NEEDING SHOPPING (missing ingredients):');
+    lines.push(needsShopping.length ? needsShopping.map(item => formatRecipeWithAvailability(item.recipe, item.availability)).join('\n') : 'All selected recipes are ready to cook with current stock.');
+    lines.push('');
     
     // Breakfast
     if (byCategory.breakfast.length > 0) {
         lines.push('BREAKFAST OPTIONS (serves 1):');
-        byCategory.breakfast.forEach(r => lines.push(formatRecipeLine(r)));
+        byCategory.breakfast.forEach(r => lines.push(formatRecipeWithAvailability(r, availabilityById[r.id])));
         lines.push('');
     }
     
     // Batch Cook
     if (byCategory.batch.length > 0) {
         lines.push(`BATCH COOK OPTIONS (serves 4-8, lasts ${batchDuration} day${batchDuration === '1' ? '' : 's'}):`);
-        byCategory.batch.forEach(r => lines.push(formatRecipeLine(r)));
+        byCategory.batch.forEach(r => lines.push(formatRecipeWithAvailability(r, availabilityById[r.id])));
         lines.push('');
     }
     
     // Main Meals
     if (byCategory.main.length > 0) {
         lines.push('MAIN MEALS (quick individual meals, serves 1-2):');
-        byCategory.main.forEach(r => lines.push(formatRecipeLine(r)));
+        byCategory.main.forEach(r => lines.push(formatRecipeWithAvailability(r, availabilityById[r.id])));
         lines.push('');
     }
     
     // Drinks
     if (byCategory.drink.length > 0) {
         lines.push('DRINKS (serves 1):');
-        byCategory.drink.forEach(r => lines.push(formatRecipeLine(r)));
+        byCategory.drink.forEach(r => lines.push(formatRecipeWithAvailability(r, availabilityById[r.id])));
         lines.push('');
     }
     
     // Snacks
     if (byCategory.snacks.length > 0) {
         lines.push('SNACKS (serves 1):');
-        byCategory.snacks.forEach(r => lines.push(formatRecipeLine(r)));
+        byCategory.snacks.forEach(r => lines.push(formatRecipeWithAvailability(r, availabilityById[r.id])));
         lines.push('');
     }
     
     // Rewards
     if (byCategory.rewards.length > 0) {
         lines.push('REWARDS (treats, serves 1):');
-        byCategory.rewards.forEach(r => lines.push(formatRecipeLine(r)));
+        byCategory.rewards.forEach(r => lines.push(formatRecipeWithAvailability(r, availabilityById[r.id])));
         lines.push('');
     }
     
