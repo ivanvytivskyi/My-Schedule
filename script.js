@@ -130,6 +130,47 @@ document.addEventListener("DOMContentLoaded", function () {
     populateBlockRecipeSelect();
 });
 
+// Placeholder for the new in-app planner (Phase 1)
+function generateWeekFromForm() {
+    try {
+        const form = document.getElementById('promptGeneratorForm');
+        if (!form) {
+            console.warn('Planner form not found');
+            return;
+        }
+        const formData = new FormData(form);
+        const data = {};
+        for (const [key, value] of formData.entries()) {
+            // For checkboxes and radios, capture boolean/values explicitly
+            const el = form.querySelector(`[name="${key}"], #${key}`);
+            if (el) {
+                if (el.type === 'checkbox') {
+                    data[key] = el.checked;
+                    continue;
+                }
+                if (el.type === 'radio') {
+                    data[key] = value;
+                    continue;
+                }
+            }
+            data[key] = value;
+        }
+        console.log('🧭 generateWeekFromForm placeholder data:', data);
+        alert('✅ Planner form captured. Generation logic will be implemented in Phase 3.');
+    } catch (err) {
+        console.error('generateWeekFromForm error:', err);
+        alert('⚠️ Could not capture planner form. Check console for details.');
+    }
+}
+
+// Placeholder reset handler for the planner form (Phase 1)
+function resetPlannerForm() {
+    const form = document.getElementById('promptGeneratorForm');
+    if (!form) return;
+    form.reset();
+    alert('Planner form reset to defaults. Persistence will arrive in Phase 2.');
+}
+
 function initializeApp() {
     try {
         // Don't auto-create a week - let user import or manually add days
