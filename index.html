@@ -424,20 +424,20 @@
         <div class="modal-content">
             <h2>Add Day or Week</h2>
             <form id="addDayForm">
-                <!-- Combined AI Section - Compact -->
+                <!-- Quick Planner Section - Compact -->
                 <div style="margin-bottom: 20px; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px;">
                     <div style="text-align: center; margin-bottom: 15px;">
                         <h3 style="margin: 0 0 8px 0; color: white; font-size: 20px;">📝 Quick Week Planner</h3>
-                        <p style="margin: 0; color: rgba(255,255,255,0.95); font-size: 14px;">Fill form → Get prompts → Use any AI → Import back</p>
+                        <p style="margin: 0; color: rgba(255,255,255,0.95); font-size: 14px;">Fill the form to generate and import your week quickly.</p>
                     </div>
                     
                     <button type="button" onclick="openPromptGenerator()" style="width: 100%; padding: 16px; background: white; color: #667eea; border: none; border-radius: 10px; font-size: 17px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: all 0.3s ease; margin-bottom: 12px;">
-                        📝 Generate Prompts (Schedule + Shopping + Recipes)
+                        📝 Open Week Planner
                     </button>
                     
                     <div style="display: grid; gap: 8px; margin-bottom: 12px;">
                         <button type="button" onclick="openImportSchedule()" style="width: 100%; padding: 12px; background: rgba(255,255,255,0.95); color: #667eea; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: all 0.3s ease;">
-                            📥 Import AI Output (Schedule + Recipe IDs)
+                            📥 Import Schedule Data (Schedule + Recipe IDs)
                         </button>
                     </div>
                 </div>
@@ -612,10 +612,14 @@
         <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
             <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 25px; border-radius: 12px 12px 0 0; margin: -20px -20px 20px -20px; position: sticky; top: -20px; z-index: 10;">
                 <h2 style="margin: 0; color: white; display: flex; align-items: center; gap: 12px; font-size: 26px;">
-                    📋 Weekly Schedule Form
+                    📋 Weekly Schedule Planner
                     <button onclick="closePromptGenerator()" style="margin-left: auto; background: rgba(255,255,255,0.2); border: none; color: white; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 500;">✕ Close</button>
                 </h2>
-                <p style="margin: 12px 0 0 0; color: rgba(255,255,255,0.95); font-size: 15px;">Fill in your details to get a custom schedule prompt!</p>
+                <p style="margin: 12px 0 0 0; color: rgba(255,255,255,0.95); font-size: 15px;">Answer these questions to generate your week automatically.</p>
+                <div style="margin-top: 10px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; color: rgba(255,255,255,0.9); font-size: 14px;">
+                    <span>💾 We’ll remember your settings on this device.</span>
+                    <button type="button" onclick="resetPlannerForm()" style="background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.25); color: white; padding: 8px 14px; border-radius: 8px; cursor: pointer; font-weight: 600;">Reset to defaults</button>
+                </div>
             </div>
             
             <form id="promptGeneratorForm" style="padding: 25px;">
@@ -637,12 +641,17 @@
                         <!-- Will be populated by JavaScript -->
                     </div>
                     
-                    <div style="margin-top: 15px; padding-top: 15px; border-top: 2px solid rgba(0,0,0,0.1);">
-                        <label style="display: flex; align-items: center; gap: 10px; font-weight: 500;">
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 2px solid rgba(0,0,0,0.1); display: grid; gap: 12px;">
+                        <label style="display: flex; align-items: center; gap: 10px; font-weight: 500; flex-wrap: wrap;">
                             <input type="checkbox" id="promptAddCommute" style="width: 18px; height: 18px;" />
-                            <span>Add commute blocks (</span>
+                            <span>Add commute blocks</span>
                             <input type="number" id="promptCommuteDuration" value="15" min="1" max="120" style="width: 70px; padding: 8px; border: 2px solid #ddd; border-radius: 6px;" />
-                            <span>minutes)</span>
+                            <span>minutes one-way</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 10px; font-weight: 500; flex-wrap: wrap;">
+                            <span>Pre-commute prep:</span>
+                            <input type="number" id="promptCommutePrep" value="20" min="0" max="120" style="width: 70px; padding: 8px; border: 2px solid #ddd; border-radius: 6px;" />
+                            <span>minutes</span>
                         </label>
                     </div>
                 </div>
@@ -667,7 +676,7 @@
                             <input type="number" id="promptStudyHours" value="2" min="0" max="8" step="0.5" style="width: 100px; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
                             <label style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.2); padding: 10px 15px; border-radius: 8px;">
                                 <input type="checkbox" id="promptStudyAIDecide" style="width: 16px; height: 16px;" />
-                                <span style="font-size: 14px;">Let AI decide</span>
+                                <span style="font-size: 14px;">Auto distribute</span>
                             </label>
                         </div>
                     </div>
@@ -688,14 +697,36 @@
                     </div>
 
                     <div style="margin-bottom: 15px; display: grid; gap: 10px; background: rgba(255,255,255,0.15); padding: 12px; border-radius: 8px;">
-                        <div style="font-weight: 600;">🍲 Batch cook duration:</div>
+                        <div style="font-weight: 600;">🍲 Batch cook settings:</div>
                         <label style="display: flex; align-items: center; gap: 10px;">
-                            <input type="radio" name="batchDuration" value="1" checked style="width: 18px; height: 18px;" />
-                            <span style="font-weight: 500;">1 day (lunch + dinner)</span>
+                            <span>Cooking for:</span>
+                            <select id="promptCookingFor" style="padding: 8px 10px; border-radius: 8px; border: none;">
+                                <option value="me" selected>Just me</option>
+                                <option value="group">My household</option>
+                            </select>
+                            <input type="number" id="promptCookingPeople" value="2" min="1" max="10" style="width: 70px; padding: 8px; border: none; border-radius: 8px;" />
+                            <span>people</span>
                         </label>
                         <label style="display: flex; align-items: center; gap: 10px;">
-                            <input type="radio" name="batchDuration" value="2" style="width: 18px; height: 18px;" />
-                            <span style="font-weight: 500;">2 days (4 meals)</span>
+                            <span>Portion target:</span>
+                            <select id="promptPortionTarget" style="padding: 8px 10px; border-radius: 8px; border: none;">
+                                <option value="one">One meal only</option>
+                                <option value="same-day">Lunch + Dinner same day</option>
+                                <option value="two-days">Lunch + Dinner over 2 days</option>
+                            </select>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 10px;">
+                            <input type="checkbox" id="promptKitchenStockFirst" checked style="width: 18px; height: 18px;" />
+                            <span>Use kitchen stock first</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 10px;">
+                            <span>Shopping anchor:</span>
+                            <select id="promptShoppingAnchor" style="padding: 8px 10px; border-radius: 8px; border: none;">
+                                <option value="3">Day 3</option>
+                                <option value="4" selected>Day 4</option>
+                                <option value="custom">Custom (enter below)</option>
+                            </select>
+                            <input type="number" id="promptShoppingAnchorCustom" value="3" min="1" max="7" style="width: 70px; padding: 8px; border: none; border-radius: 8px;" />
                         </label>
                     </div>
 
@@ -725,13 +756,18 @@
                         </div>
                     </div>
                     
-                    <div style="margin-bottom: 15px; padding: 15px; background: rgba(255,255,255,0.15); border-radius: 8px;">
+                    <div style="margin-bottom: 15px; padding: 15px; background: rgba(255,255,255,0.15); border-radius: 8px; display: grid; gap: 10px;">
                         <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
                             <input type="checkbox" id="promptFreeMeals" style="width: 20px; height: 20px;" />
                             <span style="font-weight: 600; font-size: 15px;">🍽️ I get free meals at work</span>
                         </label>
-                        <p style="margin: 8px 0 0 0; font-size: 13px; opacity: 0.9; padding-left: 30px;">
-                            If checked, AI will reduce shopping list and plan meals accordingly
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <span style="font-weight: 600;">🛒 Shopping prep time:</span>
+                            <input type="number" id="promptShoppingPrep" value="20" min="0" max="180" style="width: 80px; padding: 8px; border: none; border-radius: 8px;" />
+                            <span>minutes</span>
+                        </div>
+                        <p style="margin: 0; font-size: 13px; opacity: 0.9; padding-left: 2px;">
+                            We’ll remember these settings on this device.
                         </p>
                     </div>
                 </div>
@@ -751,7 +787,7 @@
                             <input type="number" id="promptHobbyHours" value="1" min="0" max="5" step="0.5" style="width: 100px; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
                             <label style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.2); padding: 10px 15px; border-radius: 8px;">
                                 <input type="checkbox" id="promptHobbyAIDecide" style="width: 16px; height: 16px;" />
-                                <span style="font-size: 14px;">Let AI decide</span>
+                                <span style="font-size: 14px;">Auto distribute</span>
                             </label>
                         </div>
                     </div>
@@ -763,7 +799,7 @@
                     <div style="margin-bottom: 0;">
                         <label style="display: block; margin-bottom: 8px; font-weight: 600;">Important things to fit in this week:</label>
                         <textarea id="promptOneOffTasks" placeholder="e.g.,&#10;- Clean the room&#10;- Repair the bike&#10;- Order new bike tyre&#10;- Call doctor" rows="5" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;"></textarea>
-                        <p style="margin: 8px 0 0 0; font-size: 13px; opacity: 0.9;">📌 AI will find perfect time slots for these tasks!</p>
+                        <p style="margin: 8px 0 0 0; font-size: 13px; opacity: 0.9;">📌 The planner will find time slots for these tasks.</p>
                     </div>
                 </div>
                 
@@ -771,12 +807,30 @@
                 <div style="background: linear-gradient(135deg, #a29bfe 0%, #6c5ce7 100%); padding: 20px; border-radius: 12px; margin-bottom: 25px; color: white;">
                     <h3 style="margin: 0 0 15px 0; font-size: 20px;">😴 Sleep & Rest</h3>
                     
-                    <div style="margin-bottom: 15px;">
-                        <label style="display: block; margin-bottom: 8px; font-weight: 600;">Preferred sleep schedule:</label>
-                        <input type="text" id="promptSleep" value="23:00-07:00" placeholder="e.g., 23:00-07:00" style="width: 200px; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
-                    </div>
-                    
-                    <div style="margin-bottom: 0;">
+                    <div style="display: grid; gap: 12px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600;">Preferred sleep window:</label>
+                            <input type="text" id="promptSleep" value="23:00-07:00" placeholder="e.g., 23:00-07:00" style="width: 200px; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <span style="font-weight: 600;">Target sleep duration:</span>
+                            <input type="number" id="promptSleepHours" value="8" min="4" max="12" step="0.5" style="width: 80px; padding: 10px; border: none; border-radius: 8px;" />
+                            <span>hours</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <span style="font-weight: 600;">Bedtime routine:</span>
+                            <input type="number" id="promptBedtimeRoutine" value="20" min="0" max="120" style="width: 80px; padding: 10px; border: none; border-radius: 8px;" />
+                            <span>minutes</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                            <span style="font-weight: 600;">Morning routine:</span>
+                            <input type="number" id="promptMorningRoutine" value="20" min="0" max="120" style="width: 80px; padding: 10px; border: none; border-radius: 8px;" />
+                            <span>minutes</span>
+                        </div>
+                        <label style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.2); padding: 12px; border-radius: 8px;">
+                            <input type="checkbox" id="promptShiftBasedWake" style="width: 18px; height: 18px;" />
+                            <span style="font-weight: 500;">Adjust wake time automatically for early shifts</span>
+                        </label>
                         <label style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.2); padding: 12px; border-radius: 8px;">
                             <input type="checkbox" id="promptRelax" checked style="width: 18px; height: 18px;" />
                             <span style="font-weight: 500;">Include relaxation/free time blocks</span>
@@ -784,29 +838,12 @@
                     </div>
                 </div>
                 
-                <button type="button" onclick="generatePrompt()" style="width: 100%; padding: 18px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); transition: all 0.3s ease;">
-                    🚀 Generate AI Prompt
+                <button type="button" onclick="generateWeekFromForm()" style="width: 100%; padding: 18px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4); transition: all 0.3s ease;">
+                    🚀 Generate Week
                 </button>
             </form>
             
-            <div id="generatedPromptSection" style="display: none; padding: 25px; background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); border-radius: 12px; margin-top: 20px;">
-                <h3 style="margin: 0 0 12px 0; color: #2e7d32; font-size: 22px;">✅ Your AI Prompt is Ready!</h3>
-                <p style="margin: 0 0 15px 0; font-size: 15px; color: #388e3c;">Copy this and paste into ChatGPT, Claude, or any AI:</p>
-                <textarea id="generatedPromptText" readonly style="width: 100%; height: 300px; padding: 15px; border: 3px solid #4caf50; border-radius: 10px; font-family: 'Courier New', monospace; font-size: 13px; resize: vertical; background: white;"></textarea>
-                <button onclick="copyPrompt()" style="width: 100%; padding: 15px; background: #4caf50; color: white; border: none; border-radius: 10px; font-size: 17px; font-weight: bold; cursor: pointer; margin-top: 12px; box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);">
-                    📋 Copy Prompt to Clipboard
-                </button>
-                <div style="margin-top: 20px; padding: 15px; background: white; border-left: 4px solid #ff9800; border-radius: 8px;">
-                    <p style="margin: 0 0 8px 0; font-size: 15px; color: #e65100; font-weight: 600;">📌 Next Steps:</p>
-                    <ol style="margin: 8px 0 0 20px; padding: 0; color: #5d4037; line-height: 1.8;">
-                        <li>Click "Copy Prompt" above</li>
-                        <li>Go to ChatGPT.com or Claude.ai</li>
-                        <li>Paste and send the prompt</li>
-                        <li>AI will give you: Schedule + recipe IDs on one line</li>
-                        <li>Use the single import button below to paste it back</li>
-                    </ol>
-                </div>
-            </div>
+            <!-- Legacy AI prompt section removed for the new in-app generator -->
         </div>
     </div>
 
@@ -815,10 +852,10 @@
         <div class="modal-content" style="max-width: 700px;">
             <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 20px; border-radius: 12px 12px 0 0; margin: -20px -20px 20px -20px;">
                 <h2 style="margin: 0; color: white; display: flex; align-items: center; gap: 10px;">
-                    📥 Import AI Output
+                    📥 Import Schedule Data
                     <button onclick="closeImportSchedule()" style="margin-left: auto; background: rgba(255,255,255,0.2); border: none; color: white; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px;">✕ Close</button>
                 </h2>
-                <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">Paste the AI response with 7-day schedule and recipe IDs (last line, comma-separated).</p>
+                <p style="margin: 10px 0 0 0; color: rgba(255,255,255,0.9); font-size: 14px;">Paste schedule data with 7-day details and recipe IDs (last line, comma-separated).</p>
             </div>
             
             <div style="padding: 20px;">
@@ -1261,7 +1298,7 @@ The app will parse and beautify automatically!" style="width: 100%; height: 300p
                 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
                     <div style="background: white; padding: 16px; border-radius: 8px;">
-                        <div style="color: #6b7280; font-size: 13px; margin-bottom: 4px;">AI Generations</div>
+                        <div style="color: #6b7280; font-size: 13px; margin-bottom: 4px;">Recent Plans</div>
                         <div style="color: #1f2937; font-size: 28px; font-weight: 700;" id="statsGenerationCount">0</div>
                     </div>
                     
