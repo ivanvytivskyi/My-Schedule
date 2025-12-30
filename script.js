@@ -1018,6 +1018,7 @@ function addWeek() {
     // Get commute settings
     const addCommute = document.getElementById('addCommute').checked;
     const commuteDuration = addCommute ? parseInt(document.getElementById('commuteDuration').value) : 0;
+    const commutePrepDuration = addCommute ? parseInt(document.getElementById('commutePrepDuration').value) || 0 : 0;
     
     // Helper function to add minutes to a time string
     function addMinutesToTime(timeStr, minutes) {
@@ -1038,6 +1039,8 @@ function addWeek() {
         return `${String(newHours).padStart(2, '0')}:${String(newMins).padStart(2, '0')}`;
     }
     
+    const newDayKeys = [];
+    
     // Create 7 days starting from the selected date
     for (let i = 0; i < 7; i++) {
         const date = new Date(weekStart);
@@ -1057,6 +1060,16 @@ function addWeek() {
             // Add commute TO work if enabled
             if (addCommute) {
                 const commuteStart = subtractMinutesFromTime(workSchedule[dayOfWeek].start, commuteDuration);
+                const prepStart = subtractMinutesFromTime(commuteStart, commutePrepDuration);
+                if (commutePrepDuration > 0) {
+                    blocks.push({
+                        time: `${prepStart}-${commuteStart}`,
+                        title: '🧳 Get ready for work',
+                        tasks: ['Pack essentials', 'Hygiene', 'Check travel items'],
+                        note: '',
+                        video: ''
+                    });
+                }
                 blocks.push({
                     time: `${commuteStart}-${workSchedule[dayOfWeek].start}`,
                     title: '🚶 Commute to work',
@@ -1112,6 +1125,48 @@ function addWeek() {
             motivation: '✨ Make today count!',
             blocks: blocks
         };
+        
+        newDayKeys.push(dayKey);
+    }
+    
+    // If no recipes are saved for this week, auto-pick a set (same selector used for the prompt)
+    if (!Array.isArray(selectedRecipesThisWeek) || selectedRecipesThisWeek.length === 0) {
+        try {
+            const autoSelected = selectRecipesForWeek({});
+            selectedRecipesThisWeek = autoSelected.map(r => r.id);
+            if (typeof saveSelectedRecipes === 'function') saveSelectedRecipes();
+        } catch (err) {
+            console.warn('Auto recipe selection for manual week skipped:', err);
+        }
+    }
+    
+    // Auto-attach breakfast recipes to manual week (uses selectedRecipesThisWeek if available)
+    try {
+        const ids = Array.isArray(selectedRecipesThisWeek) ? selectedRecipesThisWeek : [];
+        const recipes = ids
+            .map(id => (typeof getRecipe === 'function' ? getRecipe(id) : null))
+            .filter(r => r && r.category);
+        const breakfastRecipes = recipes.filter(r => r.category === 'breakfast');
+        
+        if (breakfastRecipes.length > 0) {
+            const blocksByDayName = {};
+            newDayKeys.forEach(key => {
+                const day = scheduleData.days[key];
+                if (day) {
+                    blocksByDayName[day.name] = day.blocks;
+                }
+            });
+            
+            addBreakfastBlocksToPreFilled(blocksByDayName, {
+                weekDate: weekStart.toISOString().split('T')[0],
+                breakfastRecipes,
+                dayWindowStart: (scheduleData.dayWindow && scheduleData.dayWindow.start) ? scheduleData.dayWindow.start : "07:00",
+                dayWindowEnd: (scheduleData.dayWindow && scheduleData.dayWindow.end) ? scheduleData.dayWindow.end : "23:00",
+                dayStartOverrides: buildDayStartOverridesFromDefaults(scheduleData.defaultBlocks || [])
+            });
+        }
+    } catch (err) {
+        console.warn('Breakfast auto-attach (manual week) skipped:', err);
     }
     
     renderDayTabs();
@@ -3442,6 +3497,53 @@ function renderDefaultBlocksList() {
     });
     
     container.innerHTML = html;
+    
+    renderDefaultWeekPreview();
+}
+
+function renderDefaultWeekPreview() {
+    const preview = document.getElementById('defaultWeekPreview');
+    if (!preview) return;
+    
+    if (!scheduleData.defaultBlocks || scheduleData.defaultBlocks.length === 0) {
+        preview.style.display = 'none';
+        preview.innerHTML = '';
+        return;
+    }
+    
+    const byDay = {};
+    ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'].forEach(day => byDay[day] = []);
+    
+    scheduleData.defaultBlocks.forEach(block => {
+        const isEnabled = block.enabled !== false;
+        if (!isEnabled) return;
+        const days = block.days || ['Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+        days.forEach(day => {
+            if (!byDay[day]) byDay[day] = [];
+            byDay[day].push(block);
+        });
+    });
+    
+    const sortByTime = (a, b) => a.time.localeCompare(b.time);
+    Object.keys(byDay).forEach(day => byDay[day].sort(sortByTime));
+    
+    let html = '';
+    Object.keys(byDay).forEach(day => {
+        const blocks = byDay[day];
+        if (!blocks.length) return;
+        const rows = blocks.map(b => `<tr><td style="padding:6px 8px;">${b.time}</td><td style="padding:6px 8px;">${b.title}</td></tr>`).join('');
+        html += `
+            <div style="margin-bottom: 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
+                <div style="padding: 10px 12px; font-weight: 700; color: #374151; background: #f3f4f6; border-bottom: 1px solid #e5e7eb;">${day}</div>
+                <table style="width:100%; border-collapse: collapse; font-size: 13px;">
+                    ${rows}
+                </table>
+            </div>
+        `;
+    });
+    
+    preview.innerHTML = html || '<div style="color:#6b7280; font-size:13px;">No enabled default blocks to preview.</div>';
+    preview.style.display = 'block';
 }
 
 function removeDefaultBlock(index) {
@@ -3929,19 +4031,28 @@ function generatePrompt() {
     const workMealInstruction = buildWorkMealInstruction(formData, workMealSuggestion);
     
     // === PRE-FILL SYSTEM (Part 3) ===
-    const preFilledData = generatePreFilledData(formData);
+    const preFilledData = generatePreFilledData(formData, selectedRecipes);
     
     // === BUILD REDUCED RECIPE PROMPT ===
     const recipePromptSection = buildReducedRecipePrompt(
         selectedRecipes, 
         formData.batchDuration
     );
+    const breakfastRotation = buildBreakfastRotation(selectedRecipes, weekDate);
+    const breakfastRotationText = breakfastRotation.length
+        ? breakfastRotation.map(entry => `- ${entry.day}: ${entry.recipe.id} ${entry.recipe.name}`).join('\n')
+        : '- None selected';
     
     // === BUILD TIME SLOT SECTION ===
     const timeSlotSection = buildTimeSlotPrompt(
         preFilledData.timeGaps,
         preFilledData.excludedActivities
     );
+    const nonWorkDays = preFilledData.nonWorkDays || [];
+    const nonWorkDaysSummary = nonWorkDays.length ? nonWorkDays.join(', ') : 'None (work scheduled on all listed days)';
+    const breakfastRule = preFilledData.hasBreakfastDefault
+        ? 'Breakfast is already in default blocks—leave those untouched. If a day has no default breakfast, place breakfast in the earliest available morning gap after any morning routine.'
+        : 'Place breakfast in the earliest available morning gap after any morning routine (earliest free morning slot).';
     
     // === BUILD KITCHEN STOCK SUMMARY ===
     const homeInventorySummary = buildHomeInventoryPromptString();
@@ -3972,6 +4083,10 @@ ${formData.studyTopics ? `- Focus topics:\n${formData.studyTopics}` : ''}
 - Preferences: ${formData.foodPrefs || 'No preferences'}
 - Batch cook duration: ${formData.batchDuration} day(s) worth of meals per batch recipe
 - Dietary filters: ${dietarySummary}
+- Non-work days: ${nonWorkDaysSummary} (use these for more flexible lunch/dinner timing; on workdays, keep meals around work blocks)
+- Breakfast rule: ${breakfastRule}
+- Breakfast rotation (use these in the set breakfast blocks; rotate, no repeats within the week):
+${breakfastRotationText}
 - Meal ordering rule: Cook recipes from the "READY TO COOK" list first (all ingredients on hand). For any recipe listed under "RECIPES NEEDING SHOPPING", add a shopping block before it and only schedule it after that shopping trip.
 
 🏢 WORK MEALS:
@@ -4922,6 +5037,16 @@ document.addEventListener('DOMContentLoaded', function() {
     if (commuteDurationNew && commuteDuration) {
         commuteDurationNew.addEventListener('input', function() {
             commuteDuration.value = this.value;
+        });
+    }
+    
+    // Sync commute prep duration
+    const commutePrepDurationNew = document.getElementById('commutePrepDurationNew');
+    const commutePrepDuration = document.getElementById('commutePrepDuration');
+    
+    if (commutePrepDurationNew && commutePrepDuration) {
+        commutePrepDurationNew.addEventListener('input', function() {
+            commutePrepDuration.value = this.value;
         });
     }
 
