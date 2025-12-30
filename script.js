@@ -113,6 +113,10 @@ let currentDay = null;
 let autoScrollTimeout = null;
 let isToday = false;
 
+// Planner form persistence (Phase 2)
+const PLANNER_FORM_KEY = 'weekPlannerFormState';
+const PLANNER_FORM_VERSION = 1;
+
 // ========================================
 // INITIALIZATION
 // ========================================
@@ -129,6 +133,131 @@ document.addEventListener("DOMContentLoaded", function () {
     setupScrollButton();
     populateBlockRecipeSelect();
 });
+
+// ================ Planner form persistence (Phase 2) ================
+
+function loadPlannerFormState() {
+    try {
+        const raw = localStorage.getItem(PLANNER_FORM_KEY);
+        if (!raw) return null;
+        const state = JSON.parse(raw);
+        if (!state || state.version !== PLANNER_FORM_VERSION) return null;
+        return state;
+    } catch (e) {
+        console.warn('Could not load planner form state:', e);
+        return null;
+    }
+}
+
+function getPlannerFormState() {
+    const form = document.getElementById('promptGeneratorForm');
+    if (!form) return null;
+
+    const state = { version: PLANNER_FORM_VERSION, fields: {} };
+    const radioGroups = new Set();
+
+    Array.from(form.elements).forEach(el => {
+        const key = el.id || el.name;
+        if (!key) return;
+
+        if (el.type === 'radio') {
+            if (el.name) radioGroups.add(el.name);
+            return;
+        }
+
+        if (el.type === 'checkbox') {
+            state.fields[key] = el.checked;
+        } else {
+            state.fields[key] = el.value;
+        }
+    });
+
+    radioGroups.forEach(name => {
+        const selected = form.querySelector(`input[type="radio"][name="${name}"]:checked`);
+        if (selected) {
+            state.fields[name] = selected.value;
+        }
+    });
+
+    return state;
+}
+
+function applyPlannerFormState(state) {
+    if (!state || state.version !== PLANNER_FORM_VERSION) return;
+    const form = document.getElementById('promptGeneratorForm');
+    if (!form) return;
+
+    Object.entries(state.fields || {}).forEach(([key, value]) => {
+        const direct = form.querySelector(`#${key}`) || form.querySelector(`[name="${key}"]`);
+        if (!direct) return;
+
+        if (direct.type === 'radio') {
+            const radio = form.querySelector(`input[type="radio"][name="${key}"][value="${value}"]`);
+            if (radio) radio.checked = true;
+            return;
+        }
+
+        if (direct.type === 'checkbox') {
+            direct.checked = !!value;
+        } else {
+            direct.value = value;
+        }
+    });
+}
+
+function savePlannerFormState() {
+    const state = getPlannerFormState();
+    if (!state) return;
+    try {
+        localStorage.setItem(PLANNER_FORM_KEY, JSON.stringify(state));
+    } catch (e) {
+        console.warn('Could not save planner form state:', e);
+    }
+}
+
+// Placeholder for the new in-app planner (Phase 1) + persistence
+function generateWeekFromForm() {
+    try {
+        savePlannerFormState();
+
+        const form = document.getElementById('promptGeneratorForm');
+        if (!form) {
+            console.warn('Planner form not found');
+            return;
+        }
+        const formData = new FormData(form);
+        const data = {};
+        for (const [key, value] of formData.entries()) {
+            // For checkboxes and radios, capture boolean/values explicitly
+            const el = form.querySelector(`[name="${key}"], #${key}`);
+            if (el) {
+                if (el.type === 'checkbox') {
+                    data[key] = el.checked;
+                    continue;
+                }
+                if (el.type === 'radio') {
+                    data[key] = value;
+                    continue;
+                }
+            }
+            data[key] = value;
+        }
+        console.log('🧭 generateWeekFromForm placeholder data:', data);
+        alert('✅ Planner form captured and saved. Generation logic will be implemented in Phase 3.');
+    } catch (err) {
+        console.error('generateWeekFromForm error:', err);
+        alert('⚠️ Could not capture planner form. Check console for details.');
+    }
+}
+
+// Reset handler for the planner form (Phase 2)
+function resetPlannerForm() {
+    const form = document.getElementById('promptGeneratorForm');
+    if (!form) return;
+    form.reset();
+    localStorage.removeItem(PLANNER_FORM_KEY);
+    alert('Planner form reset to defaults and cleared from this device.');
+}
 
 function initializeApp() {
     try {
@@ -3433,15 +3562,25 @@ function emergencyReset() {
 
 function openPromptGenerator() {
     document.getElementById('promptGeneratorModal').classList.add('active');
-    document.getElementById('generatedPromptSection').style.display = 'none';
+    const generatedSection = document.getElementById('generatedPromptSection');
+    if (generatedSection) {
+        generatedSection.style.display = 'none';
+    }
     
-    // Set today's date as default
+    const savedState = loadPlannerFormState();
     const today = new Date();
-    const dateStr = today.toISOString().split('T')[0];
-    document.getElementById('promptWeekDate').value = dateStr;
+    const defaultDateStr = today.toISOString().split('T')[0];
+    const weekDateInput = document.getElementById('promptWeekDate');
+    const chosenDateStr = (savedState && savedState.fields && savedState.fields.promptWeekDate) || defaultDateStr;
+    weekDateInput.value = chosenDateStr;
     
-    // Populate work days
-    populateWorkDays(today);
+    // Populate work days using the chosen date
+    populateWorkDays(new Date(chosenDateStr));
+
+    // Rehydrate saved values (after workday inputs exist)
+    if (savedState) {
+        applyPlannerFormState(savedState);
+    }
 }
 
 function closePromptGenerator() {
