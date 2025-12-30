@@ -602,10 +602,45 @@ function selectRecipesForWeek(dietaryFilters = {}) {
     if (isFirstTime) {
         selectedRecipes = randomBalancedSelection(dietaryFiltered, 18);
     } else {
-        selectedRecipes = smartRecipeSelection(dietaryFiltered, 15);
+        selectedRecipes = selectRecipesWithReadyPriority(dietaryFiltered, 15);
     }
     
     return selectedRecipes;
+}
+
+/**
+ * Prefer a 50/50 split: half ready-to-cook (100% ingredients), half smart selection
+ */
+function selectRecipesWithReadyPriority(allRecipes, targetCount = 15) {
+    const filtered30Day = filterByUsageHistory(allRecipes);
+    const pool = filtered30Day.length ? filtered30Day : allRecipes;
+    
+    const availabilityById = {};
+    pool.forEach(r => availabilityById[r.id] = describeRecipeAvailability(r));
+    
+    const ready = pool.filter(r => availabilityById[r.id]?.isReady).sort((a, b) => {
+        return (availabilityById[b.id]?.match || 0) - (availabilityById[a.id]?.match || 0);
+    });
+    
+    const readyTarget = Math.floor(targetCount / 2);
+    const readyPick = ready.slice(0, readyTarget);
+    
+    const remainingPool = pool.filter(r => !readyPick.includes(r));
+    const smartPick = smartRecipeSelection(remainingPool, targetCount - readyPick.length);
+    
+    const combined = [...readyPick, ...smartPick];
+    
+    // Ensure unique and trim to targetCount
+    const seen = new Set();
+    const unique = [];
+    combined.forEach(r => {
+        if (!seen.has(r.id)) {
+            seen.add(r.id);
+            unique.push(r);
+        }
+    });
+    
+    return unique.slice(0, targetCount);
 }
 
 // ===================================
@@ -845,6 +880,22 @@ function createWorkBlocks(formData) {
     return blocks;
 }
 
+function getNonWorkDays(formData) {
+    const structuredTimes = Array.isArray(formData.workDayTimes) ? formData.workDayTimes : [];
+    if (!formData.weekDate || structuredTimes.length === 0) return [];
+    const startDate = new Date(formData.weekDate);
+    const nonWorkDays = [];
+    for (let i = 0; i < structuredTimes.length; i++) {
+        const entry = structuredTimes[i] || {};
+        if (!entry.start || !entry.end) {
+            const dayDate = new Date(startDate);
+            dayDate.setDate(startDate.getDate() + i);
+            nonWorkDays.push(getDayName(dayDate));
+        }
+    }
+    return nonWorkDays;
+}
+
 /**
  * Get default blocks from "Manage Defaults" system
  * Returns blocks organized by day
@@ -886,6 +937,13 @@ function loadDefaultBlocks() {
     });
     
     return blocksByDay;
+}
+
+function hasBreakfastDefault(defaultBlocks = []) {
+    return defaultBlocks.some(block => {
+        if (block.enabled === false) return false;
+        return /breakfast/i.test(block.title || '');
+    });
 }
 
 function buildDayStartOverridesFromDefaults(defaultBlocks) {
@@ -1072,21 +1130,33 @@ function getExcludedActivities(preFilledBlocks) {
  * Complete pre-fill process
  * Returns: { preFilledBlocks, timeGaps, excludedActivities }
  */
-function generatePreFilledData(formData) {
+function generatePreFilledData(formData, selectedRecipes = []) {
     console.log('🔧 Generating pre-filled data...');
     
     // Step 1: Create work blocks
     const workBlocks = createWorkBlocks(formData);
     console.log(`Work blocks: ${Object.keys(workBlocks).length} days`);
+    const nonWorkDays = getNonWorkDays(formData);
     
     // Step 2: Load default blocks
     const defaultBlocks = loadDefaultBlocks();
     console.log(`Default blocks: ${Object.keys(defaultBlocks).length} days`);
     const dayStartOverrides = buildDayStartOverridesFromDefaults(scheduleData.defaultBlocks || []);
+    const breakfastDefaultExists = hasBreakfastDefault(scheduleData.defaultBlocks || []);
     
     // Step 3: Merge work + defaults
     const preFilledBlocks = mergePreFilledBlocks(workBlocks, defaultBlocks);
     console.log(`Total pre-filled: ${Object.keys(preFilledBlocks).length} days`);
+    
+    // Step 3.5: Auto-insert breakfast blocks using rotation (if any breakfast recipes available)
+    const breakfastRecipes = selectedRecipes.filter(r => r.category === 'breakfast');
+    addBreakfastBlocksToPreFilled(preFilledBlocks, {
+        weekDate: formData.weekDate,
+        breakfastRecipes,
+        dayWindowStart: (scheduleData.dayWindow && scheduleData.dayWindow.start) ? scheduleData.dayWindow.start : "07:00",
+        dayWindowEnd: (scheduleData.dayWindow && scheduleData.dayWindow.end) ? scheduleData.dayWindow.end : "23:00",
+        dayStartOverrides
+    });
     
     // Step 4: Calculate time gaps
     const dayWindowStart = (scheduleData.dayWindow && scheduleData.dayWindow.start) ? scheduleData.dayWindow.start : "07:00";
@@ -1105,7 +1175,9 @@ function generatePreFilledData(formData) {
     return {
         preFilledBlocks,
         timeGaps,
-        excludedActivities
+        excludedActivities,
+        nonWorkDays,
+        hasBreakfastDefault: breakfastDefaultExists
     };
 }
 
@@ -1202,6 +1274,147 @@ function buildReducedRecipePrompt(selectedRecipes, batchDuration) {
     lines.push('Allergy & diet key: 🥬=Vegetarian 🌱=Vegan 🥜=Contains nuts 🥛=Contains dairy 🌾=Contains gluten');
     
     return lines.join('\n');
+}
+
+/**
+ * Build a simple 7-day breakfast rotation from selected recipes
+ * Uses weekDate to map to calendar day names; wraps if fewer breakfasts than days
+ */
+function buildBreakfastRotation(selectedRecipes, weekDate) {
+    const breakfasts = selectedRecipes.filter(r => r.category === 'breakfast');
+    if (!breakfasts.length || !weekDate) return [];
+    
+    const startDate = new Date(weekDate);
+    const rotation = [];
+    
+    for (let i = 0; i < 7; i++) {
+        const recipe = breakfasts[i % breakfasts.length];
+        const dayDate = new Date(startDate);
+        dayDate.setDate(startDate.getDate() + i);
+        rotation.push({
+            day: getDayName(dayDate),
+            recipe
+        });
+    }
+    
+    return rotation;
+}
+
+function addBreakfastBlocksToPreFilled(preFilledBlocks, options = {}) {
+    const {
+        weekDate,
+        breakfastRecipes = [],
+        dayWindowStart = "07:00",
+        dayWindowEnd = "23:00",
+        dayStartOverrides = {},
+        defaultDurationMinutes = 30,
+        maxBreakfastHour = 11
+    } = options;
+    
+    if (!weekDate || breakfastRecipes.length === 0) return preFilledBlocks;
+    
+    const toMinutes = (timeStr) => {
+        const [h, m] = timeStr.split(':').map(Number);
+        return h * 60 + m;
+    };
+    const toTime = (mins) => `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+    
+    const startDate = new Date(weekDate);
+    let recipeIndex = 0;
+    
+    const ensureDayBlocks = (day) => {
+        if (!preFilledBlocks[day]) preFilledBlocks[day] = [];
+        return preFilledBlocks[day];
+    };
+    
+    // First pass: attach recipes to existing breakfast blocks without a recipe
+    for (let i = 0; i < 7; i++) {
+        const dayDate = new Date(startDate);
+        dayDate.setDate(startDate.getDate() + i);
+        const dayName = getDayName(dayDate);
+        const blocks = ensureDayBlocks(dayName);
+        blocks.forEach(b => {
+            if (/breakfast/i.test(b.title || '') && !b.recipeID && breakfastRecipes.length > 0) {
+                const recipe = breakfastRecipes[recipeIndex % breakfastRecipes.length];
+                recipeIndex++;
+                b.recipeID = recipe.id;
+                b.recipeName = recipe.name;
+                b.title = `🍳 Breakfast | ${recipe.name}`;
+                b.source = b.source || "auto_breakfast";
+                b.locked = b.locked ?? true;
+            }
+        });
+    }
+    
+    // Second pass: add breakfast blocks where missing
+    for (let i = 0; i < 7; i++) {
+        const dayDate = new Date(startDate);
+        dayDate.setDate(startDate.getDate() + i);
+        const dayName = getDayName(dayDate);
+        const blocks = ensureDayBlocks(dayName);
+        
+        // Skip if a breakfast-like block already exists
+        if (blocks.some(b => /breakfast/i.test(b.title || ''))) {
+            continue;
+        }
+        
+        const baseStart = dayStartOverrides[dayName] || dayWindowStart;
+        const baseEnd = dayWindowEnd;
+        const morningCutoff = `${String(maxBreakfastHour).padStart(2, '0')}:00`;
+        
+        const blocksMinutes = blocks.map(b => ({
+            start: toMinutes(b.start),
+            end: toMinutes(b.end),
+            ref: b
+        })).sort((a, b) => a.start - b.start);
+        
+        const dayStartMin = toMinutes(baseStart);
+        const dayEndMin = Math.min(toMinutes(baseEnd), toMinutes(morningCutoff));
+        
+        const gaps = [];
+        if (blocksMinutes.length === 0) {
+            gaps.push({ start: dayStartMin, end: dayEndMin });
+        } else {
+            if (blocksMinutes[0].start > dayStartMin) {
+                gaps.push({ start: dayStartMin, end: Math.min(blocksMinutes[0].start, dayEndMin) });
+            }
+            for (let j = 0; j < blocksMinutes.length - 1; j++) {
+                const currentEnd = blocksMinutes[j].end;
+                const nextStart = blocksMinutes[j + 1].start;
+                if (currentEnd < nextStart && currentEnd < dayEndMin) {
+                    gaps.push({ start: currentEnd, end: Math.min(nextStart, dayEndMin) });
+                }
+            }
+            const last = blocksMinutes[blocksMinutes.length - 1];
+            if (last.end < dayEndMin) {
+                gaps.push({ start: last.end, end: dayEndMin });
+            }
+        }
+        
+        const validGap = gaps.find(gap => gap.end - gap.start >= 15);
+        if (!validGap) continue;
+        
+        const duration = Math.min(defaultDurationMinutes, validGap.end - validGap.start);
+        const startTime = toTime(validGap.start);
+        const endTime = toTime(validGap.start + duration);
+        const recipe = breakfastRecipes[recipeIndex % breakfastRecipes.length];
+        recipeIndex++;
+        
+        blocks.push({
+            start: startTime,
+            end: endTime,
+            title: `🍳 Breakfast | ${recipe.name}`,
+            tasks: [],
+            source: "auto_breakfast",
+            locked: true,
+            recipeID: recipe.id,
+            recipeName: recipe.name
+        });
+        
+        blocks.sort((a, b) => toMinutes(a.start) - toMinutes(b.start));
+    }
+    
+    return preFilledBlocks;
 }
 
 /**
