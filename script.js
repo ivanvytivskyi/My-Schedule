@@ -66,6 +66,8 @@ const emojiMap = {
     'project': ['💼', '📊', '📈']
 };
 
+const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
 // Month-specific emojis
 function getMonthEmoji(monthName) {
     const monthEmojis = {
@@ -122,6 +124,7 @@ const WORK_MEAL_STRATEGIES = {
     COOK_EVENING: 'cook_evening',
     BUY: 'buy'
 };
+let activeDefaultDay = localStorage.getItem('defaultBlocksActiveDay') || 'Monday';
 
 // ========================================
 // INITIALIZATION
@@ -1119,7 +1122,7 @@ function addWeek() {
     saveToLocalStorage();
     
     // Show first day of new week
-    const firstDayKey = `day_${monday.getTime()}`;
+    const firstDayKey = `day_${weekStart.getTime()}`;
     showDay(firstDayKey);
     
     // Set active tab and scroll to it
@@ -3193,11 +3196,99 @@ function saveCheckboxState(id, checked) {
 
 // Time picker for clock icon clicks
 
+function setActiveDefaultDay(day) {
+    if (!DAYS_OF_WEEK.includes(day)) return;
+    activeDefaultDay = day;
+    localStorage.setItem('defaultBlocksActiveDay', day);
+    renderDefaultBlocksList();
+}
+
+function timeStrToMinutes(timeStr) {
+    if (!timeStr || !timeStr.includes(':')) return NaN;
+    const [hours, mins] = timeStr.split(':').map(Number);
+    if (isNaN(hours) || isNaN(mins)) return NaN;
+    return hours * 60 + mins;
+}
+
+function parseTimeRangeToMinutes(range) {
+    if (!range || !range.includes('-')) return { start: NaN, end: NaN };
+    const [start, end] = range.split('-');
+    return { start: timeStrToMinutes(start), end: timeStrToMinutes(end) };
+}
+
+function getBlockTimeRange(block) {
+    return parseTimeRangeToMinutes(block.time || '');
+}
+
+function getBlockDurationMinutes(block) {
+    const { start, end } = getBlockTimeRange(block);
+    if (isNaN(start) || isNaN(end)) return 0;
+    return Math.max(0, end - start);
+}
+
+function getDefaultBlocksForDay(day, includeDisabled = true) {
+    if (!scheduleData.defaultBlocks) return [];
+    return scheduleData.defaultBlocks
+        .map((block, index) => ({ block, index }))
+        .filter(entry => {
+            const applies = (entry.block.days || DAYS_OF_WEEK).includes(day);
+            const enabled = includeDisabled ? true : entry.block.enabled !== false;
+            return applies && enabled;
+        });
+}
+
+function validateDefaultBlock(newBlock, editingIndex) {
+    const { start, end } = getBlockTimeRange(newBlock);
+    if (isNaN(start) || isNaN(end)) {
+        alert('⚠️ Please provide a valid start and end time.');
+        return false;
+    }
+    if (end <= start) {
+        alert('⚠️ End time must be after start time.');
+        return false;
+    }
+    
+    const duration = end - start;
+    
+    for (const day of newBlock.days) {
+        const existingBlocks = getDefaultBlocksForDay(day, false)
+            .filter(entry => entry.index !== editingIndex)
+            .map(entry => entry.block);
+        
+        const totalMinutes = existingBlocks.reduce((sum, block) => sum + getBlockDurationMinutes(block), 0) + duration;
+        if (totalMinutes > 24 * 60) {
+            const hours = (totalMinutes / 60).toFixed(1);
+            alert(`⚠️ ${day}: total default block time would exceed 24 hours (${hours}h). Please adjust your times.`);
+            return false;
+        }
+        
+        // Check ordering/overlap for the day
+        const combined = [...existingBlocks, newBlock]
+            .map(block => ({ ...block, range: getBlockTimeRange(block) }))
+            .filter(item => !isNaN(item.range.start) && !isNaN(item.range.end))
+            .sort((a, b) => a.range.start - b.range.start);
+        
+        for (let i = 1; i < combined.length; i++) {
+            const prev = combined[i - 1].range;
+            const curr = combined[i].range;
+            if (curr.start < prev.end) {
+                alert(`⚠️ ${day}: blocks overlap or are out of order. Please fix the times so they are sequential.`);
+                return false;
+            }
+        }
+    }
+    
+    return true;
+}
+
 function openDefaultsModal() {
     const modal = document.getElementById('manageDefaultsModal');
     if (!modal) {
         console.error('Manage Defaults modal not found in HTML');
         return;
+    }
+    if (!DAYS_OF_WEEK.includes(activeDefaultDay)) {
+        activeDefaultDay = DAYS_OF_WEEK[0];
     }
     renderDefaultBlocksList();
     
@@ -3225,10 +3316,10 @@ function openAddDefaultModal() {
     const dayStartOverride = document.getElementById('defaultDayStartOverride');
     if (dayStartOverride) dayStartOverride.value = '';
     
-    // Set default checkboxes (Mon-Fri checked by default)
+    // Set default checkboxes (active day selected by default)
     document.querySelectorAll('.default-day-checkbox').forEach(checkbox => {
         const day = checkbox.value;
-        checkbox.checked = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(day);
+        checkbox.checked = activeDefaultDay ? day === activeDefaultDay : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(day);
     });
     
     document.getElementById('addEditDefaultModal').classList.add('active');
@@ -3256,6 +3347,17 @@ function saveDefaultBlock(event) {
     const title = document.getElementById('defaultTitle').value;
     const tasks = document.getElementById('defaultTasks').value.split('\n').filter(t => t.trim());
     
+    if (!startTime || !endTime) {
+        alert('⚠️ Please enter both start and end times.');
+        return;
+    }
+    
+    const range = parseTimeRangeToMinutes(`${startTime}-${endTime}`);
+    if (isNaN(range.start) || isNaN(range.end) || range.end <= range.start) {
+        alert('⚠️ Invalid time range. End time must be after start time.');
+        return;
+    }
+    
     // Get selected days
     const selectedDays = [];
     document.querySelectorAll('.default-day-checkbox:checked').forEach(checkbox => {
@@ -3275,6 +3377,10 @@ function saveDefaultBlock(event) {
         enabled: true,
         dayStartOverride: document.getElementById('defaultDayStartOverride')?.value || ''
     };
+    
+    if (!validateDefaultBlock(newBlock, index)) {
+        return;
+    }
     
     if (index >= 0) {
         // Edit existing
@@ -3325,6 +3431,14 @@ function toggleDefaultBlock(index) {
     if (!block) return;
     
     block.enabled = !block.enabled;
+    
+    if (block.enabled && !validateDefaultBlock(block, index)) {
+        block.enabled = false;
+        saveToLocalStorage();
+        renderDefaultBlocksList();
+        return;
+    }
+    
     saveToLocalStorage();
     renderDefaultBlocksList();
     
@@ -3388,21 +3502,74 @@ function renderDefaultBlocksList() {
         return;
     }
     
+    const dayTabs = DAYS_OF_WEEK.map(day => {
+        const isActive = day === activeDefaultDay;
+        return `
+            <button 
+                onclick="setActiveDefaultDay('${day}')" 
+                style="
+                    padding: 10px 14px;
+                    border-radius: 10px;
+                    border: 2px solid ${isActive ? '#4f46e5' : '#e5e7eb'};
+                    background: ${isActive ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#ffffff'};
+                    color: ${isActive ? 'white' : '#374151'};
+                    font-weight: 700;
+                    cursor: pointer;
+                    min-width: 90px;
+                ">
+                ${day}
+            </button>
+        `;
+    }).join('');
+    
+    const entriesForDay = getDefaultBlocksForDay(activeDefaultDay, true)
+        .map(entry => ({ ...entry, range: getBlockTimeRange(entry.block) }))
+        .sort((a, b) => {
+            const aStart = isNaN(a.range.start) ? Infinity : a.range.start;
+            const bStart = isNaN(b.range.start) ? Infinity : b.range.start;
+            return aStart - bStart;
+        });
+    
     if (!scheduleData.defaultBlocks || scheduleData.defaultBlocks.length === 0) {
         container.innerHTML = `
+            <div style="margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 8px;">${dayTabs}</div>
             <div style="text-align: center; padding: 40px 20px; background: #f8f9fa; border-radius: 12px; border: 2px dashed #ddd;">
                 <div style="font-size: 48px; margin-bottom: 10px;">📋</div>
                 <p style="color: #999; font-size: 16px; margin: 0;">No default blocks yet.</p>
-                <p style="color: #999; font-size: 14px; margin: 10px 0 0 0;">Click "Add New Default Block" above to create one.</p>
+                <p style="color: #999; font-size: 14px; margin: 10px 0 0 0;">Pick a day above and click "Add New Default Block" to start.</p>
             </div>
         `;
         return;
     }
     
-    let html = '';
-    scheduleData.defaultBlocks.forEach((block, index) => {
+    if (entriesForDay.length === 0) {
+        container.innerHTML = `
+            <div style="margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 8px;">${dayTabs}</div>
+            <div style="text-align: center; padding: 32px 20px; background: #f8f9fa; border-radius: 12px; border: 2px dashed #ddd;">
+                <p style="color: #4f46e5; font-weight: 700; font-size: 16px;">No default blocks for ${activeDefaultDay} yet.</p>
+                <p style="color: #6b7280; font-size: 14px; margin: 6px 0 0 0;">Add one to prefill this day when creating weeks.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const totalMinutes = entriesForDay
+        .filter(entry => entry.block.enabled !== false)
+        .reduce((sum, entry) => sum + getBlockDurationMinutes(entry.block), 0);
+    const totalHours = `${Math.floor(totalMinutes / 60)}h ${String(totalMinutes % 60).padStart(2, '0')}m`;
+    
+    let html = `
+        <div style="margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+            ${dayTabs}
+            <div style="margin-left: auto; font-weight: 700; color: ${totalMinutes > 1440 ? '#dc2626' : '#065f46'};">
+                Enabled total for ${activeDefaultDay}: ${totalHours}
+            </div>
+        </div>
+    `;
+    
+    entriesForDay.forEach(({ block, index, range }) => {
         const isEnabled = block.enabled !== false; // Default to true if not specified
-        const days = block.days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        const days = block.days || DAYS_OF_WEEK;
         const daysShort = days.map(d => d.substring(0, 3)).join(', ');
         const override = block.dayStartOverride ? `<div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Day start override: ${block.dayStartOverride}</div>` : '';
         
