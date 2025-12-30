@@ -3942,6 +3942,11 @@ function generatePrompt() {
         preFilledData.timeGaps,
         preFilledData.excludedActivities
     );
+    const nonWorkDays = preFilledData.nonWorkDays || [];
+    const nonWorkDaysSummary = nonWorkDays.length ? nonWorkDays.join(', ') : 'None (work scheduled on all listed days)';
+    const breakfastRule = preFilledData.hasBreakfastDefault
+        ? 'Breakfast is already in default blocks—leave those untouched. If a day has no default breakfast, place breakfast in the earliest available morning gap after any morning routine.'
+        : 'Place breakfast in the earliest available morning gap after any morning routine (earliest free morning slot).';
     
     // === BUILD KITCHEN STOCK SUMMARY ===
     const homeInventorySummary = buildHomeInventoryPromptString();
@@ -3972,6 +3977,8 @@ ${formData.studyTopics ? `- Focus topics:\n${formData.studyTopics}` : ''}
 - Preferences: ${formData.foodPrefs || 'No preferences'}
 - Batch cook duration: ${formData.batchDuration} day(s) worth of meals per batch recipe
 - Dietary filters: ${dietarySummary}
+- Non-work days: ${nonWorkDaysSummary} (use these for more flexible lunch/dinner timing; on workdays, keep meals around work blocks)
+- Breakfast rule: ${breakfastRule}
 - Meal ordering rule: Cook recipes from the "READY TO COOK" list first (all ingredients on hand). For any recipe listed under "RECIPES NEEDING SHOPPING", add a shopping block before it and only schedule it after that shopping trip.
 
 🏢 WORK MEALS:

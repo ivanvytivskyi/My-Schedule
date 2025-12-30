@@ -845,6 +845,22 @@ function createWorkBlocks(formData) {
     return blocks;
 }
 
+function getNonWorkDays(formData) {
+    const structuredTimes = Array.isArray(formData.workDayTimes) ? formData.workDayTimes : [];
+    if (!formData.weekDate || structuredTimes.length === 0) return [];
+    const startDate = new Date(formData.weekDate);
+    const nonWorkDays = [];
+    for (let i = 0; i < structuredTimes.length; i++) {
+        const entry = structuredTimes[i] || {};
+        if (!entry.start || !entry.end) {
+            const dayDate = new Date(startDate);
+            dayDate.setDate(startDate.getDate() + i);
+            nonWorkDays.push(getDayName(dayDate));
+        }
+    }
+    return nonWorkDays;
+}
+
 /**
  * Get default blocks from "Manage Defaults" system
  * Returns blocks organized by day
@@ -886,6 +902,13 @@ function loadDefaultBlocks() {
     });
     
     return blocksByDay;
+}
+
+function hasBreakfastDefault(defaultBlocks = []) {
+    return defaultBlocks.some(block => {
+        if (block.enabled === false) return false;
+        return /breakfast/i.test(block.title || '');
+    });
 }
 
 function buildDayStartOverridesFromDefaults(defaultBlocks) {
@@ -1078,11 +1101,13 @@ function generatePreFilledData(formData) {
     // Step 1: Create work blocks
     const workBlocks = createWorkBlocks(formData);
     console.log(`Work blocks: ${Object.keys(workBlocks).length} days`);
+    const nonWorkDays = getNonWorkDays(formData);
     
     // Step 2: Load default blocks
     const defaultBlocks = loadDefaultBlocks();
     console.log(`Default blocks: ${Object.keys(defaultBlocks).length} days`);
     const dayStartOverrides = buildDayStartOverridesFromDefaults(scheduleData.defaultBlocks || []);
+    const breakfastDefaultExists = hasBreakfastDefault(scheduleData.defaultBlocks || []);
     
     // Step 3: Merge work + defaults
     const preFilledBlocks = mergePreFilledBlocks(workBlocks, defaultBlocks);
@@ -1105,7 +1130,9 @@ function generatePreFilledData(formData) {
     return {
         preFilledBlocks,
         timeGaps,
-        excludedActivities
+        excludedActivities,
+        nonWorkDays,
+        hasBreakfastDefault: breakfastDefaultExists
     };
 }
 
