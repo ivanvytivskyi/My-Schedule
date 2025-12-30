@@ -257,15 +257,47 @@ function generateWeekFromForm() {
             const [h, m] = t.split(':').map(Number);
             return h * 60 + m;
         };
+        const clampMinutes = (mins) => Math.max(0, Math.min(mins, 23 * 60 + 59));
         const toTime = (mins) => {
-            mins = ((mins % 1440) + 1440) % 1440;
-            const h = Math.floor(mins / 60);
-            const m = mins % 60;
+            const clamped = clampMinutes(mins);
+            const h = Math.floor(clamped / 60);
+            const m = clamped % 60;
             return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
         };
+        const parseRange = (rangeStr) => {
+            if (!rangeStr || !rangeStr.includes('-')) return null;
+            const [start, end] = rangeStr.split('-');
+            const toMins = (t) => {
+                const [h, m] = t.split(':').map(Number);
+                return h * 60 + m;
+            };
+            return { start: toMins(start), end: toMins(end) };
+        };
+        const rangesFromBlocks = (blocks) => blocks
+            .map(b => parseRange(b.time))
+            .filter(Boolean)
+            .sort((a, b) => a.start - b.start);
+        const findNextFreeSlot = (blocks, desiredStart, duration, windowStart, windowEnd) => {
+            const startFloor = clampMinutes(Math.max(desiredStart, windowStart));
+            const endLimit = clampMinutes(windowEnd);
+            const ranges = rangesFromBlocks(blocks);
+
+            let candidate = startFloor;
+            for (const r of ranges) {
+                if (candidate + duration <= r.start) break;
+                if (candidate < r.end && candidate + duration > r.start) {
+                    candidate = r.end;
+                }
+            }
+
+            if (candidate + duration <= endLimit) {
+                return candidate;
+            }
+            return null;
+        };
         const addBlock = (blocks, startMin, endMin, title, note = '') => {
-            const safeStart = ((startMin % 1440) + 1440) % 1440;
-            const safeEnd = ((endMin % 1440) + 1440) % 1440;
+            const safeStart = clampMinutes(startMin);
+            const safeEnd = clampMinutes(Math.max(endMin, safeStart));
             blocks.push({
                 time: `${toTime(safeStart)}-${toTime(safeEnd)}`,
                 title,
@@ -273,6 +305,12 @@ function generateWeekFromForm() {
                 note
             });
             return safeEnd;
+        };
+        const addBlockFitting = (blocks, desiredStart, duration, title, note, windowStart, windowEnd) => {
+            const slot = findNextFreeSlot(blocks, desiredStart, duration, windowStart, windowEnd);
+            if (slot == null) return null;
+            addBlock(blocks, slot, slot + duration, title, note);
+            return slot + duration;
         };
 
         // Extract key inputs
@@ -309,6 +347,7 @@ function generateWeekFromForm() {
         const shoppingAnchorDay = isNaN(shoppingAnchorDayRaw) ? 4 : shoppingAnchorDayRaw;
         const preferredShop = document.getElementById('preferredShopSelect')?.value || 'Preferred shop';
         const priorityPreset = formData.get('promptPriorityPreset') || 'productivity';
+        const shoppingPrepMinutes = parseInt(formData.get('promptShoppingPrep') || '0', 10) || 0;
 
         const mealNote = `Cooking for: ${cookingFor === 'group' ? `${cookingPeople} people` : 'just me'} • Portions: ${portionTarget}`;
 
@@ -327,6 +366,7 @@ function generateWeekFromForm() {
             return;
         }
 
+        // Helper to parse "HH:MM-HH:MM" into minutes
         // Reset schedule
         scheduleData.days = {};
 
@@ -348,27 +388,40 @@ function generateWeekFromForm() {
             const workStart = toMin(workStartStr);
             const workEnd = toMin(workEndStr);
 
-            // Sleep logic: adjust if shift-based wake and work starts early
-            let sleepStartMin = sleepStart ?? 23 * 60;
-            let sleepEndMin = sleepEnd ?? 7 * 60;
-            if (shiftBasedWake && hasWork && workStart != null) {
-                const wakeBuffer = (morningRoutine || 0) + (addCommute ? commuteDuration + commutePrep : 0);
-                sleepEndMin = workStart - wakeBuffer;
-                sleepStartMin = sleepEndMin - targetSleepHours * 60 - bedtimeRoutine;
-            } else {
-                // Standard window; if provided end before start, assume crosses midnight
-                if (sleepStart != null && sleepEnd != null) {
-                    if (sleepEnd < sleepStart) {
-                        sleepEndMin = sleepStart + targetSleepHours * 60;
-                    } else if (targetSleepHours > 0) {
-                        sleepEndMin = sleepStart + targetSleepHours * 60;
-                    }
-                }
-                sleepStartMin = (sleepStart != null ? sleepStart : 23 * 60) - bedtimeRoutine;
-            }
-            addBlock(blocks, sleepStartMin, sleepEndMin, '😴 Sleep');
+            // Sleep logic: adjust for shifts and avoid post-late-shift cooking
+            const defaultSleepStart = sleepStart != null ? sleepStart : 23 * 60;
+            const defaultSleepEnd = sleepEnd != null ? sleepEnd : 7 * 60;
+            const baseSleepStart = defaultSleepStart;
+            const baseWake = defaultSleepEnd + morningRoutine;
 
-            let dayCursor = sleepEndMin + morningRoutine;
+            let daySleepStart = baseSleepStart;
+            let dayWake = baseWake;
+
+            if (hasWork && workStart != null) {
+                // If we should wake for shift, pull wake earlier
+                if (shiftBasedWake) {
+                    const wakeBuffer = (morningRoutine || 0) + (addCommute ? commuteDuration + commutePrep : 0);
+                    dayWake = Math.max(0, workStart - wakeBuffer);
+                    daySleepStart = dayWake - targetSleepHours * 60 - bedtimeRoutine;
+                }
+                // If shift ends late, push sleep later to allow wind-down + commute
+                if (workEnd != null && workEnd >= 21 * 60) {
+                    const postShiftBuffer = (addCommute ? commuteDuration : 0) + 30; // 30m unwind
+                    const lateSleepStart = workEnd + postShiftBuffer + bedtimeRoutine;
+                    daySleepStart = Math.max(daySleepStart, lateSleepStart);
+                    dayWake = daySleepStart + targetSleepHours * 60 + morningRoutine;
+                }
+            }
+
+            daySleepStart = clampMinutes(daySleepStart);
+            dayWake = clampMinutes(dayWake);
+            const dayEndWindow = clampMinutes(daySleepStart - bedtimeRoutine);
+
+            // Sleep block
+            addBlock(blocks, daySleepStart, dayWake - morningRoutine, '😴 Sleep');
+
+            const windowStart = dayWake;
+            const windowEnd = Math.max(windowStart + 60, dayEndWindow); // ensure at least an hour of planning window
 
             const placeWork = () => {
                 if (hasWork && workStart != null && workEnd != null) {
@@ -378,12 +431,9 @@ function generateWeekFromForm() {
                         addBlock(blocks, workStart - commutePrep, workStart, '🚗 Commute to work');
                     }
                     addBlock(blocks, workStart, workEnd, '💼 Work');
-                    dayCursor = workEnd;
                     if (addCommute) {
                         addBlock(blocks, workEnd, workEnd + commuteDuration, '🚗 Commute home');
-                        dayCursor = workEnd + commuteDuration;
                     }
-                    dayCursor += 30; // small buffer
 
                     // Workday meal handling
                     const workDuration = workEnd - workStart;
@@ -422,31 +472,35 @@ function generateWeekFromForm() {
 
             const placeStudy = () => {
                 if (studyHours > 0) {
-                    const studyEnd = dayCursor + studyHours * 60;
-                    addBlock(blocks, dayCursor, studyEnd, '📚 Study');
-                    dayCursor = studyEnd + 15;
+                    const blockMinutes = Math.max(60, Math.round((studyHours * 60) / 2));
+                    let remaining = studyHours * 60;
+                    let cursor = windowStart;
+                    while (remaining > 0) {
+                        const dur = Math.min(blockMinutes, remaining);
+                        const placed = addBlockFitting(blocks, cursor, dur, '📚 Study', '', windowStart, windowEnd);
+                        if (placed == null) break;
+                        remaining -= dur;
+                        cursor = placed + 15;
+                    }
                 }
             };
 
             const placeHobbies = () => {
                 if (hobbyHours > 0) {
-                    const hobbyEnd = dayCursor + hobbyHours * 60;
-                    addBlock(blocks, dayCursor, hobbyEnd, '🎯 Hobbies');
-                    dayCursor = hobbyEnd + 15;
+                    const hobbyDur = hobbyHours * 60;
+                    addBlockFitting(blocks, windowStart + 60, hobbyDur, '🎯 Hobbies', '', windowStart, windowEnd);
                 }
             };
 
             const placeTasks = () => {
                 if (taskList.length > 0) {
                     const taskDuration = 45; // minutes each as a default
+                    let cursor = windowStart + 120;
                     taskList.forEach(task => {
-                        const end = dayCursor + taskDuration;
-                        blocks.push({
-                            time: `${toTime(dayCursor)}-${toTime(end)}`,
-                            title: '✅ Task',
-                            tasks: [task]
-                        });
-                        dayCursor = end + 10;
+                        const placed = addBlockFitting(blocks, cursor, taskDuration, '✅ Task', task, windowStart, windowEnd);
+                        if (placed != null) {
+                            cursor = placed + 10;
+                        }
                     });
                 }
             };
@@ -456,22 +510,30 @@ function generateWeekFromForm() {
                 const isPreShopping = i <= anchorIndex && kitchenStockFirst;
                 const mealLabel = isPreShopping ? 'Stock-first meal' : 'Post-shopping meal';
 
-                const mealTimes = [
-                    { title: '🍳 Breakfast', start: toMin('08:00'), end: toMin('08:30') },
-                    { title: '🥗 Lunch', start: toMin('12:30'), end: toMin('13:00') },
-                    { title: '🍽️ Dinner', start: toMin('18:30'), end: toMin('19:15') }
-                ];
+                // Place meals relative to wake/work windows
+                const desiredBreakfast = windowStart + 30;
+                const desiredLunch = toMin('12:30');
+                const desiredDinner = Math.min(toMin('19:00'), windowEnd - 120);
 
-                mealTimes.forEach(mt => {
-                    if (mt.start != null && mt.end != null) {
-                        addBlock(blocks, mt.start, mt.end, `${mt.title} — ${mealLabel}`, mealNote);
+                addBlockFitting(blocks, desiredBreakfast, 30, `🍳 Breakfast — ${mealLabel}`, mealNote, windowStart, windowEnd);
+                addBlockFitting(blocks, desiredLunch, 30, `🥗 Lunch — ${mealLabel}`, mealNote, windowStart, windowEnd);
+                addBlockFitting(blocks, desiredDinner, 45, `🍽️ Dinner — ${mealLabel}`, mealNote, windowStart, windowEnd);
+
+                // Shopping block on anchor day (avoid overlaps with work/other blocks)
+                if (i === anchorIndex) {
+                    const baseStart = toMin('17:00');
+                    const baseDuration = 60;
+                    const workWindowStart = hasWork && workStart != null ? workStart - (addCommute ? (commuteDuration + commutePrep) : 0) : null;
+                    const workWindowEnd = hasWork && workEnd != null ? workEnd + (addCommute ? commuteDuration : 0) : null;
+
+                    const overlapsWork = workWindowStart != null && workWindowEnd != null &&
+                        !(baseStart + baseDuration <= workWindowStart || baseStart >= workWindowEnd);
+
+                    let shoppingStart = overlapsWork ? (workWindowEnd + shoppingPrepMinutes) : baseStart;
+                    const slot = addBlockFitting(blocks, shoppingStart, baseDuration, '🛒 Shopping', `Prep ${shoppingPrepMinutes || 20}m • Shop: ${preferredShop}`, windowStart, windowEnd);
+                    if (slot == null && !overlapsWork) {
+                        addBlockFitting(blocks, windowEnd - baseDuration, baseDuration, '🛒 Shopping', `Prep ${shoppingPrepMinutes || 20}m • Shop: ${preferredShop}`, windowStart, windowEnd);
                     }
-                });
-
-                if (i === Math.min(Math.max(shoppingAnchorDay || 4, 1), 7) - 1) {
-                    const shopStart = toMin('17:00');
-                    const shopEnd = toMin('18:00');
-                    addBlock(blocks, shopStart, shopEnd, '🛒 Shopping', `Prep ${commutePrep || 20}m • Shop: ${preferredShop}`);
                 }
             };
 
@@ -498,57 +560,6 @@ function generateWeekFromForm() {
             }
 
             // Study block
-            if (studyHours > 0) {
-                const studyEnd = dayCursor + studyHours * 60;
-                addBlock(blocks, dayCursor, studyEnd, '📚 Study');
-                dayCursor = studyEnd + 15;
-            }
-
-            // Hobby block
-            if (hobbyHours > 0) {
-                const hobbyEnd = dayCursor + hobbyHours * 60;
-                addBlock(blocks, dayCursor, hobbyEnd, '🎯 Hobbies');
-                dayCursor = hobbyEnd + 15;
-            }
-
-            // One-off tasks
-            if (taskList.length > 0) {
-                const taskDuration = 45; // minutes each as a default
-                taskList.forEach(task => {
-                    const end = dayCursor + taskDuration;
-                    blocks.push({
-                        time: `${toTime(dayCursor)}-${toTime(end)}`,
-                        title: '✅ Task',
-                        tasks: [task]
-                    });
-                    dayCursor = end + 10;
-                });
-            }
-
-            // Meal planning (basic placeholders with stock-first vs post-shopping labeling)
-            const anchorIndex = Math.min(Math.max(shoppingAnchorDay || 4, 1), 7) - 1; // zero-based
-            const isPreShopping = i <= anchorIndex && kitchenStockFirst;
-            const mealLabel = isPreShopping ? 'Stock-first meal' : 'Post-shopping meal';
-
-            const mealTimes = [
-                { title: '🍳 Breakfast', start: toMin('08:00'), end: toMin('08:30') },
-                { title: '🥗 Lunch', start: toMin('12:30'), end: toMin('13:00') },
-                { title: '🍽️ Dinner', start: toMin('18:30'), end: toMin('19:15') }
-            ];
-
-            mealTimes.forEach(mt => {
-                if (mt.start != null && mt.end != null) {
-                    addBlock(blocks, mt.start, mt.end, `${mt.title} — ${mealLabel}`, mealNote);
-                }
-            });
-
-            // Shopping block on anchor day
-            if (i === anchorIndex) {
-                const shopStart = toMin('17:00');
-                const shopEnd = toMin('18:00');
-                addBlock(blocks, shopStart, shopEnd, '🛒 Shopping', `Prep ${commutePrep || 20}m • Shop: ${preferredShop}`);
-            }
-
             scheduleData.days[dayKey] = {
                 name: dayName,
                 date: date.toISOString().split('T')[0],
@@ -3970,9 +3981,9 @@ function populateWorkDays(date) {
             <div style="background: white; padding: 8px 12px; border-radius: 6px; display: flex; align-items: center; gap: 10px;">
                 <span style="font-weight: 600; min-width: 80px; color: #2c3e50; font-size: 14px;">${dayName}</span>
                 <span style="color: #7f8c8d; font-size: 12px; min-width: 50px;">${dateStr}</span>
-                <input type="time" id="workDay${i}Start" style="padding: 6px 8px; border: 2px solid #ddd; border-radius: 4px; font-size: 13px; width: 110px;" />
+                <input type="time" id="workDay${i}Start" name="workDay${i}Start" style="padding: 6px 8px; border: 2px solid #ddd; border-radius: 4px; font-size: 13px; width: 110px;" />
                 <span style="color: #7f8c8d; font-size: 13px;">to</span>
-                <input type="time" id="workDay${i}End" style="padding: 6px 8px; border: 2px solid #ddd; border-radius: 4px; font-size: 13px; width: 110px;" />
+                <input type="time" id="workDay${i}End" name="workDay${i}End" style="padding: 6px 8px; border: 2px solid #ddd; border-radius: 4px; font-size: 13px; width: 110px;" />
             </div>
         `;
     }
