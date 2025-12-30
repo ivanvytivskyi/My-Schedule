@@ -3970,9 +3970,9 @@ function populateWorkDays(date) {
             <div style="background: white; padding: 8px 12px; border-radius: 6px; display: flex; align-items: center; gap: 10px;">
                 <span style="font-weight: 600; min-width: 80px; color: #2c3e50; font-size: 14px;">${dayName}</span>
                 <span style="color: #7f8c8d; font-size: 12px; min-width: 50px;">${dateStr}</span>
-                <input type="time" id="workDay${i}Start" style="padding: 6px 8px; border: 2px solid #ddd; border-radius: 4px; font-size: 13px; width: 110px;" />
+                <input type="time" id="workDay${i}Start" name="workDay${i}Start" style="padding: 6px 8px; border: 2px solid #ddd; border-radius: 4px; font-size: 13px; width: 110px;" />
                 <span style="color: #7f8c8d; font-size: 13px;">to</span>
-                <input type="time" id="workDay${i}End" style="padding: 6px 8px; border: 2px solid #ddd; border-radius: 4px; font-size: 13px; width: 110px;" />
+                <input type="time" id="workDay${i}End" name="workDay${i}End" style="padding: 6px 8px; border: 2px solid #ddd; border-radius: 4px; font-size: 13px; width: 110px;" />
             </div>
         `;
     }
