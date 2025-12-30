@@ -257,15 +257,16 @@ function generateWeekFromForm() {
             const [h, m] = t.split(':').map(Number);
             return h * 60 + m;
         };
+        const clampMinutes = (mins) => Math.max(0, Math.min(mins, 23 * 60 + 59));
         const toTime = (mins) => {
-            mins = ((mins % 1440) + 1440) % 1440;
-            const h = Math.floor(mins / 60);
-            const m = mins % 60;
+            const clamped = clampMinutes(mins);
+            const h = Math.floor(clamped / 60);
+            const m = clamped % 60;
             return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
         };
         const addBlock = (blocks, startMin, endMin, title, note = '') => {
-            const safeStart = ((startMin % 1440) + 1440) % 1440;
-            const safeEnd = ((endMin % 1440) + 1440) % 1440;
+            const safeStart = clampMinutes(startMin);
+            const safeEnd = clampMinutes(Math.max(endMin, safeStart));
             blocks.push({
                 time: `${toTime(safeStart)}-${toTime(safeEnd)}`,
                 title,
@@ -309,6 +310,7 @@ function generateWeekFromForm() {
         const shoppingAnchorDay = isNaN(shoppingAnchorDayRaw) ? 4 : shoppingAnchorDayRaw;
         const preferredShop = document.getElementById('preferredShopSelect')?.value || 'Preferred shop';
         const priorityPreset = formData.get('promptPriorityPreset') || 'productivity';
+        const shoppingPrepMinutes = parseInt(formData.get('promptShoppingPrep') || '0', 10) || 0;
 
         const mealNote = `Cooking for: ${cookingFor === 'group' ? `${cookingPeople} people` : 'just me'} • Portions: ${portionTarget}`;
 
@@ -326,6 +328,34 @@ function generateWeekFromForm() {
             alert('⚠️ Please select a valid week start date.');
             return;
         }
+
+        // Helper to parse "HH:MM-HH:MM" into minutes
+        const parseRange = (rangeStr) => {
+            if (!rangeStr || !rangeStr.includes('-')) return null;
+            const [start, end] = rangeStr.split('-');
+            const toMins = (t) => {
+                const [h, m] = t.split(':').map(Number);
+                return h * 60 + m;
+            };
+            return { start: toMins(start), end: toMins(end) };
+        };
+
+        // Find the next free slot (naive forward-scan)
+        const findNextFreeSlot = (blocks, desiredStart, duration) => {
+            const ranges = blocks
+                .map(b => parseRange(b.time))
+                .filter(Boolean)
+                .sort((a, b) => a.start - b.start);
+
+            let start = desiredStart;
+            for (const r of ranges) {
+                if (start + duration <= r.start) break;
+                if (start < r.end && start + duration > r.start) {
+                    start = r.end; // push after this block
+                }
+            }
+            return start;
+        };
 
         // Reset schedule
         scheduleData.days = {};
@@ -468,10 +498,21 @@ function generateWeekFromForm() {
                     }
                 });
 
-                if (i === Math.min(Math.max(shoppingAnchorDay || 4, 1), 7) - 1) {
-                    const shopStart = toMin('17:00');
-                    const shopEnd = toMin('18:00');
-                    addBlock(blocks, shopStart, shopEnd, '🛒 Shopping', `Prep ${commutePrep || 20}m • Shop: ${preferredShop}`);
+                // Shopping block on anchor day (avoid overlaps with work/other blocks)
+                if (i === anchorIndex) {
+                    const baseStart = toMin('17:00');
+                    const baseDuration = 60;
+                    const workWindowStart = hasWork && workStart != null ? workStart - (addCommute ? (commuteDuration + commutePrep) : 0) : null;
+                    const workWindowEnd = hasWork && workEnd != null ? workEnd + (addCommute ? commuteDuration : 0) : null;
+
+                    const overlapsWork = workWindowStart != null && workWindowEnd != null &&
+                        !(baseStart + baseDuration <= workWindowStart || baseStart >= workWindowEnd);
+
+                    let shoppingStart = overlapsWork ? (workWindowEnd + shoppingPrepMinutes) : baseStart;
+                    shoppingStart = findNextFreeSlot(blocks, shoppingStart, baseDuration);
+                    const shoppingEnd = shoppingStart + baseDuration;
+
+                    addBlock(blocks, shoppingStart, shoppingEnd, '🛒 Shopping', `Prep ${shoppingPrepMinutes || 20}m • Shop: ${preferredShop}`);
                 }
             };
 
@@ -498,57 +539,6 @@ function generateWeekFromForm() {
             }
 
             // Study block
-            if (studyHours > 0) {
-                const studyEnd = dayCursor + studyHours * 60;
-                addBlock(blocks, dayCursor, studyEnd, '📚 Study');
-                dayCursor = studyEnd + 15;
-            }
-
-            // Hobby block
-            if (hobbyHours > 0) {
-                const hobbyEnd = dayCursor + hobbyHours * 60;
-                addBlock(blocks, dayCursor, hobbyEnd, '🎯 Hobbies');
-                dayCursor = hobbyEnd + 15;
-            }
-
-            // One-off tasks
-            if (taskList.length > 0) {
-                const taskDuration = 45; // minutes each as a default
-                taskList.forEach(task => {
-                    const end = dayCursor + taskDuration;
-                    blocks.push({
-                        time: `${toTime(dayCursor)}-${toTime(end)}`,
-                        title: '✅ Task',
-                        tasks: [task]
-                    });
-                    dayCursor = end + 10;
-                });
-            }
-
-            // Meal planning (basic placeholders with stock-first vs post-shopping labeling)
-            const anchorIndex = Math.min(Math.max(shoppingAnchorDay || 4, 1), 7) - 1; // zero-based
-            const isPreShopping = i <= anchorIndex && kitchenStockFirst;
-            const mealLabel = isPreShopping ? 'Stock-first meal' : 'Post-shopping meal';
-
-            const mealTimes = [
-                { title: '🍳 Breakfast', start: toMin('08:00'), end: toMin('08:30') },
-                { title: '🥗 Lunch', start: toMin('12:30'), end: toMin('13:00') },
-                { title: '🍽️ Dinner', start: toMin('18:30'), end: toMin('19:15') }
-            ];
-
-            mealTimes.forEach(mt => {
-                if (mt.start != null && mt.end != null) {
-                    addBlock(blocks, mt.start, mt.end, `${mt.title} — ${mealLabel}`, mealNote);
-                }
-            });
-
-            // Shopping block on anchor day
-            if (i === anchorIndex) {
-                const shopStart = toMin('17:00');
-                const shopEnd = toMin('18:00');
-                addBlock(blocks, shopStart, shopEnd, '🛒 Shopping', `Prep ${commutePrep || 20}m • Shop: ${preferredShop}`);
-            }
-
             scheduleData.days[dayKey] = {
                 name: dayName,
                 date: date.toISOString().split('T')[0],
@@ -3970,9 +3960,9 @@ function populateWorkDays(date) {
             <div style="background: white; padding: 8px 12px; border-radius: 6px; display: flex; align-items: center; gap: 10px;">
                 <span style="font-weight: 600; min-width: 80px; color: #2c3e50; font-size: 14px;">${dayName}</span>
                 <span style="color: #7f8c8d; font-size: 12px; min-width: 50px;">${dateStr}</span>
-                <input type="time" id="workDay${i}Start" style="padding: 6px 8px; border: 2px solid #ddd; border-radius: 4px; font-size: 13px; width: 110px;" />
+                <input type="time" id="workDay${i}Start" name="workDay${i}Start" style="padding: 6px 8px; border: 2px solid #ddd; border-radius: 4px; font-size: 13px; width: 110px;" />
                 <span style="color: #7f8c8d; font-size: 13px;">to</span>
-                <input type="time" id="workDay${i}End" style="padding: 6px 8px; border: 2px solid #ddd; border-radius: 4px; font-size: 13px; width: 110px;" />
+                <input type="time" id="workDay${i}End" name="workDay${i}End" style="padding: 6px 8px; border: 2px solid #ddd; border-radius: 4px; font-size: 13px; width: 110px;" />
             </div>
         `;
     }

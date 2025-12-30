@@ -629,7 +629,7 @@
                     <h3 style="margin: 0 0 15px 0; color: #2c3e50; font-size: 20px;">📅 Week Information</h3>
                     <div style="margin-bottom: 15px;">
                         <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #34495e;">Week start date:</label>
-                        <input type="date" id="promptWeekDate" style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 15px;" />
+                        <input type="date" id="promptWeekDate" name="promptWeekDate" style="width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 15px;" />
                     </div>
                 </div>
                 
@@ -643,42 +643,42 @@
                     
                     <div style="margin-top: 15px; padding-top: 15px; border-top: 2px solid rgba(0,0,0,0.1); display: grid; gap: 12px;">
                         <label style="display: flex; align-items: center; gap: 10px; font-weight: 500; flex-wrap: wrap;">
-                            <input type="checkbox" id="promptAddCommute" style="width: 18px; height: 18px;" />
+                            <input type="checkbox" id="promptAddCommute" name="promptAddCommute" style="width: 18px; height: 18px;" />
                             <span>Add commute blocks</span>
-                            <input type="number" id="promptCommuteDuration" value="15" min="1" max="120" style="width: 70px; padding: 8px; border: 2px solid #ddd; border-radius: 6px;" />
+                            <input type="number" id="promptCommuteDuration" name="promptCommuteDuration" value="15" min="1" max="120" style="width: 70px; padding: 8px; border: 2px solid #ddd; border-radius: 6px;" />
                             <span>minutes one-way</span>
                         </label>
                         <label style="display: flex; align-items: center; gap: 10px; font-weight: 500; flex-wrap: wrap;">
                             <span>Pre-commute prep:</span>
-                            <input type="number" id="promptCommutePrep" value="20" min="0" max="120" style="width: 70px; padding: 8px; border: 2px solid #ddd; border-radius: 6px;" />
+                            <input type="number" id="promptCommutePrep" name="promptCommutePrep" value="20" min="0" max="120" style="width: 70px; padding: 8px; border: 2px solid #ddd; border-radius: 6px;" />
                             <span>minutes</span>
                         </label>
 
                         <div style="font-weight: 600; margin-top: 4px;">🏢 Workday meal preference:</div>
                         <label style="display: flex; align-items: center; gap: 10px;">
-                            <input type="checkbox" id="promptStaffMeal" checked style="width: 18px; height: 18px;" />
+                            <input type="checkbox" id="promptStaffMeal" name="promptStaffMeal" checked style="width: 18px; height: 18px;" />
                             <span>I get a staff meal at work</span>
                         </label>
                         <div id="promptWorkMealPlanRow" style="display: none; align-items: center; gap: 10px; flex-wrap: wrap;">
                             <span>If no staff meal, plan to:</span>
-                            <select id="promptWorkMealPlan" style="padding: 8px 10px; border-radius: 8px; border: none;">
+                            <select id="promptWorkMealPlan" name="promptWorkMealPlan" style="padding: 8px 10px; border-radius: 8px; border: none;">
                                 <option value="cook" selected>Cook/bring a packed meal</option>
                                 <option value="buy">Buy/order during shift</option>
                             </select>
                         </div>
                         <div id="promptWorkMealPrepRow" style="display: none; align-items: center; gap: 10px; flex-wrap: wrap;">
                             <span>Prep/pack timing:</span>
-                            <select id="promptWorkMealPrep" style="padding: 8px 10px; border-radius: 8px; border: none;">
+                            <select id="promptWorkMealPrep" name="promptWorkMealPrep" style="padding: 8px 10px; border-radius: 8px; border: none;">
                                 <option value="evening">Evening before shift</option>
                                 <option value="morning">Morning before shift</option>
                                 <option value="any">Any free slot</option>
                             </select>
-                            <input type="number" id="promptWorkMealPrepMinutes" value="30" min="5" max="180" style="width: 90px; padding: 8px; border: none; border-radius: 8px;" />
+                            <input type="number" id="promptWorkMealPrepMinutes" name="promptWorkMealPrepMinutes" value="30" min="5" max="180" style="width: 90px; padding: 8px; border: none; border-radius: 8px;" />
                             <span>minutes</span>
                         </div>
                         <div id="promptWorkMealCountRow" style="display: none; align-items: center; gap: 10px; flex-wrap: wrap;">
                             <span>Meals needed per workday:</span>
-                            <select id="promptWorkMealCount" style="padding: 8px 10px; border-radius: 8px; border: none;">
+                            <select id="promptWorkMealCount" name="promptWorkMealCount" style="padding: 8px 10px; border-radius: 8px; border: none;">
                                 <option value="1">Lunch only</option>
                                 <option value="2" selected>Lunch + Dinner</option>
                             </select>
@@ -692,20 +692,20 @@
                     
                     <div style="margin-bottom: 15px;">
                         <label style="display: block; margin-bottom: 8px; font-weight: 600;">What are you studying?</label>
-                        <input type="text" id="promptStudySubjects" placeholder="e.g., Functional Skills English Level 1, Math Level 1" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
+                        <input type="text" id="promptStudySubjects" name="promptStudySubjects" placeholder="e.g., Functional Skills English Level 1, Math Level 1" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
                     </div>
                     
                     <div style="margin-bottom: 15px;">
                         <label style="display: block; margin-bottom: 8px; font-weight: 600;">Exam dates (if any):</label>
-                        <input type="text" id="promptExamDates" placeholder="e.g., English: Dec 11, Math: Dec 16" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
+                        <input type="text" id="promptExamDates" name="promptExamDates" placeholder="e.g., English: Dec 11, Math: Dec 16" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
                     </div>
                     
                     <div style="margin-bottom: 15px;">
                         <label style="display: block; margin-bottom: 8px; font-weight: 600;">Study hours per day:</label>
                         <div style="display: flex; gap: 10px; align-items: center;">
-                            <input type="number" id="promptStudyHours" value="2" min="0" max="8" step="0.5" style="width: 100px; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
+                            <input type="number" id="promptStudyHours" name="promptStudyHours" value="2" min="0" max="8" step="0.5" style="width: 100px; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
                             <label style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.2); padding: 10px 15px; border-radius: 8px;">
-                                <input type="checkbox" id="promptStudyAIDecide" style="width: 16px; height: 16px;" />
+                                <input type="checkbox" id="promptStudyAIDecide" name="promptStudyAIDecide" style="width: 16px; height: 16px;" />
                                 <span style="font-size: 14px;">Auto distribute</span>
                             </label>
                         </div>
@@ -713,7 +713,7 @@
                     
                     <div style="margin-bottom: 0;">
                         <label style="display: block; margin-bottom: 8px; font-weight: 600;">Topics to focus on:</label>
-                        <textarea id="promptStudyTopics" placeholder="e.g., Math: fractions, percentages&#10;English: reading comprehension, grammar" rows="3" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;"></textarea>
+                        <textarea id="promptStudyTopics" name="promptStudyTopics" placeholder="e.g., Math: fractions, percentages&#10;English: reading comprehension, grammar" rows="3" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;"></textarea>
                     </div>
                 </div>
                 
@@ -723,7 +723,7 @@
                     
                     <div style="margin-bottom: 15px;">
                         <label style="display: block; margin-bottom: 8px; font-weight: 600;">Food preferences:</label>
-                        <input type="text" id="promptFoodPrefs" placeholder="e.g., simple, quick, vegetarian" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
+                        <input type="text" id="promptFoodPrefs" name="promptFoodPrefs" placeholder="e.g., simple, quick, vegetarian" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
                     </div>
 
                     <div style="margin-bottom: 15px; display: grid; gap: 10px; background: rgba(255,255,255,0.15); padding: 12px; border-radius: 8px;">
@@ -731,43 +731,43 @@
                         <label style="display: grid; gap: 8px;">
                             <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                                 <span>Cooking for:</span>
-                                <select id="promptCookingFor" style="padding: 8px 10px; border-radius: 8px; border: none;">
+                                <select id="promptCookingFor" name="promptCookingFor" style="padding: 8px 10px; border-radius: 8px; border: none;">
                                     <option value="me" selected>Just me</option>
                                     <option value="group">My household</option>
                                 </select>
                             </div>
                             <div id="promptCookingPeopleRow" style="display: none; align-items: center; gap: 8px; width: 100%;">
-                                <input type="number" id="promptCookingPeople" value="2" min="1" max="10" style="width: 120px; padding: 10px; border: none; border-radius: 8px;" />
+                                <input type="number" id="promptCookingPeople" name="promptCookingPeople" value="2" min="1" max="10" style="width: 120px; padding: 10px; border: none; border-radius: 8px;" />
                                 <span>people</span>
                             </div>
                         </label>
                         <label style="display: flex; align-items: center; gap: 10px;">
                             <span>Portion target:</span>
-                            <select id="promptPortionTarget" style="padding: 8px 10px; border-radius: 8px; border: none;">
+                            <select id="promptPortionTarget" name="promptPortionTarget" style="padding: 8px 10px; border-radius: 8px; border: none;">
                                 <option value="one">One meal only</option>
                                 <option value="same-day">Lunch + Dinner same day</option>
                                 <option value="two-days">Lunch + Dinner over 2 days</option>
                             </select>
                         </label>
                         <label style="display: flex; align-items: center; gap: 10px;">
-                            <input type="checkbox" id="promptKitchenStockFirst" checked style="width: 18px; height: 18px;" />
+                            <input type="checkbox" id="promptKitchenStockFirst" name="promptKitchenStockFirst" checked style="width: 18px; height: 18px;" />
                             <span>Use kitchen stock first</span>
                         </label>
                         <label style="display: flex; align-items: center; gap: 10px;">
-                            <input type="checkbox" id="promptLateShiftNoCook" style="width: 18px; height: 18px;" />
+                            <input type="checkbox" id="promptLateShiftNoCook" name="promptLateShiftNoCook" style="width: 18px; height: 18px;" />
                             <span>Avoid cooking after late shifts (9pm+)</span>
                         </label>
                         <label style="display: grid; gap: 8px;">
                             <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                                 <span>Shopping anchor:</span>
-                                <select id="promptShoppingAnchor" style="padding: 8px 10px; border-radius: 8px; border: none;">
+                                <select id="promptShoppingAnchor" name="promptShoppingAnchor" style="padding: 8px 10px; border-radius: 8px; border: none;">
                                     <option value="3">Day 3</option>
                                     <option value="4" selected>Day 4</option>
                                     <option value="custom">Custom (enter below)</option>
                                 </select>
                             </div>
                             <div id="promptShoppingAnchorCustomRow" style="display: none; align-items: center; gap: 8px; width: 100%;">
-                                <input type="number" id="promptShoppingAnchorCustom" value="3" min="1" max="7" style="width: 120px; padding: 10px; border: none; border-radius: 8px;" />
+                                <input type="number" id="promptShoppingAnchorCustom" name="promptShoppingAnchorCustom" value="3" min="1" max="7" style="width: 120px; padding: 10px; border: none; border-radius: 8px;" />
                                 <span>day number (1-7)</span>
                             </div>
                         </label>
@@ -801,12 +801,12 @@
                     
                     <div style="margin-bottom: 15px; padding: 15px; background: rgba(255,255,255,0.15); border-radius: 8px; display: grid; gap: 10px;">
                         <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                            <input type="checkbox" id="promptFreeMeals" style="width: 20px; height: 20px;" />
+                            <input type="checkbox" id="promptFreeMeals" name="promptFreeMeals" style="width: 20px; height: 20px;" />
                             <span style="font-weight: 600; font-size: 15px;">🍽️ I get free meals at work</span>
                         </label>
                         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                             <span style="font-weight: 600;">🛒 Shopping prep time:</span>
-                            <input type="number" id="promptShoppingPrep" value="20" min="0" max="180" style="width: 80px; padding: 8px; border: none; border-radius: 8px;" />
+                            <input type="number" id="promptShoppingPrep" name="promptShoppingPrep" value="20" min="0" max="180" style="width: 80px; padding: 8px; border: none; border-radius: 8px;" />
                             <span>minutes</span>
                         </div>
                         <p style="margin: 0; font-size: 13px; opacity: 0.9; padding-left: 2px;">
@@ -821,15 +821,15 @@
                     
                     <div style="margin-bottom: 15px;">
                         <label style="display: block; margin-bottom: 8px; font-weight: 600;">Hobbies you want time for:</label>
-                        <input type="text" id="promptHobbies" placeholder="e.g., Hindi learning, coding projects, guitar" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
+                        <input type="text" id="promptHobbies" name="promptHobbies" placeholder="e.g., Hindi learning, coding projects, guitar" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
                     </div>
                     
                     <div style="margin-bottom: 0;">
                         <label style="display: block; margin-bottom: 8px; font-weight: 600;">Hobby time per day:</label>
                         <div style="display: flex; gap: 10px; align-items: center;">
-                            <input type="number" id="promptHobbyHours" value="1" min="0" max="5" step="0.5" style="width: 100px; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
+                            <input type="number" id="promptHobbyHours" name="promptHobbyHours" value="1" min="0" max="5" step="0.5" style="width: 100px; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
                             <label style="display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.2); padding: 10px 15px; border-radius: 8px;">
-                                <input type="checkbox" id="promptHobbyAIDecide" style="width: 16px; height: 16px;" />
+                                <input type="checkbox" id="promptHobbyAIDecide" name="promptHobbyAIDecide" style="width: 16px; height: 16px;" />
                                 <span style="font-size: 14px;">Auto distribute</span>
                             </label>
                         </div>
@@ -841,7 +841,7 @@
                     <h3 style="margin: 0 0 15px 0; font-size: 20px;">✅ One-Off Tasks & Errands</h3>
                     <div style="margin-bottom: 0;">
                         <label style="display: block; margin-bottom: 8px; font-weight: 600;">Important things to fit in this week:</label>
-                        <textarea id="promptOneOffTasks" placeholder="e.g.,&#10;- Clean the room&#10;- Repair the bike&#10;- Order new bike tyre&#10;- Call doctor" rows="5" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;"></textarea>
+                        <textarea id="promptOneOffTasks" name="promptOneOffTasks" placeholder="e.g.,&#10;- Clean the room&#10;- Repair the bike&#10;- Order new bike tyre&#10;- Call doctor" rows="5" style="width: 100%; padding: 12px; border: none; border-radius: 8px; font-size: 14px;"></textarea>
                         <p style="margin: 8px 0 0 0; font-size: 13px; opacity: 0.9;">📌 The planner will find time slots for these tasks.</p>
                     </div>
                 </div>
@@ -853,36 +853,36 @@
                     <div style="display: grid; gap: 12px;">
                         <div>
                             <label style="display: block; margin-bottom: 8px; font-weight: 600;">Preferred sleep window:</label>
-                            <input type="text" id="promptSleep" value="23:00-07:00" placeholder="e.g., 23:00-07:00" style="width: 200px; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
+                            <input type="text" id="promptSleep" name="promptSleep" value="23:00-07:00" placeholder="e.g., 23:00-07:00" style="width: 200px; padding: 12px; border: none; border-radius: 8px; font-size: 14px;" />
                         </div>
                         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                             <span style="font-weight: 600;">Target sleep duration:</span>
-                            <input type="number" id="promptSleepHours" value="8" min="4" max="12" step="0.5" style="width: 80px; padding: 10px; border: none; border-radius: 8px;" />
+                            <input type="number" id="promptSleepHours" name="promptSleepHours" value="8" min="4" max="12" step="0.5" style="width: 80px; padding: 10px; border: none; border-radius: 8px;" />
                             <span>hours</span>
                         </div>
                         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                             <span style="font-weight: 600;">Bedtime routine:</span>
-                            <input type="number" id="promptBedtimeRoutine" value="20" min="0" max="120" style="width: 80px; padding: 10px; border: none; border-radius: 8px;" />
+                            <input type="number" id="promptBedtimeRoutine" name="promptBedtimeRoutine" value="20" min="0" max="120" style="width: 80px; padding: 10px; border: none; border-radius: 8px;" />
                             <span>minutes</span>
                         </div>
                         <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
                             <span style="font-weight: 600;">Morning routine:</span>
-                            <input type="number" id="promptMorningRoutine" value="20" min="0" max="120" style="width: 80px; padding: 10px; border: none; border-radius: 8px;" />
+                            <input type="number" id="promptMorningRoutine" name="promptMorningRoutine" value="20" min="0" max="120" style="width: 80px; padding: 10px; border: none; border-radius: 8px;" />
                             <span>minutes</span>
                         </div>
                         <label style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.2); padding: 12px; border-radius: 8px;">
-                            <input type="checkbox" id="promptShiftBasedWake" style="width: 18px; height: 18px;" />
+                            <input type="checkbox" id="promptShiftBasedWake" name="promptShiftBasedWake" style="width: 18px; height: 18px;" />
                             <span style="font-weight: 500;">Adjust wake time automatically for early shifts</span>
                         </label>
                         <label style="display: flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.2); padding: 12px; border-radius: 8px;">
-                            <input type="checkbox" id="promptRelax" checked style="width: 18px; height: 18px;" />
+                            <input type="checkbox" id="promptRelax" name="promptRelax" checked style="width: 18px; height: 18px;" />
                             <span style="font-weight: 500;">Include relaxation/free time blocks</span>
                         </label>
                     </div>
 
                     <div style="margin-top: 10px; padding: 12px; background: rgba(255,255,255,0.15); border-radius: 8px;">
                         <label style="display: flex; align-items: center; gap: 10px; font-weight: 600; color: white; margin-bottom: 6px;">Placement priority preset:</label>
-                        <select id="promptPriorityPreset" style="width: 100%; padding: 10px; border: none; border-radius: 8px; font-size: 14px; color: #2c3e50;">
+                        <select id="promptPriorityPreset" name="promptPriorityPreset" style="width: 100%; padding: 10px; border: none; border-radius: 8px; font-size: 14px; color: #2c3e50;">
                             <option value="productivity" selected>Productivity-first (Sleep → Work → Study → Hobbies → Tasks → Meals)</option>
                             <option value="meals">Meals-first (Sleep → Meals → Shopping anchor → Work → Study → Tasks/Hobbies)</option>
                             <option value="errand">Errand-first (Sleep → Work → Tasks → Study → Hobbies → Meals)</option>
