@@ -312,6 +312,140 @@ function packMorningBlocksBeforeWork(blocks, workStartTime) {
         .map(b => packedMap.get(b) || b);
 }
 
+function packEveningBlocksAfterWork(blocks, workEndTime) {
+    const workEndMins = timeStrToMinutes(workEndTime);
+    if (isNaN(workEndMins)) return blocks;
+    
+    // Allow packing several hours after a shift ends (for commute, wind-down, sleep)
+    const dayEndMinutes = timeStrToMinutes(scheduleData?.dayWindow?.end || '23:59');
+    const wakeMinutes = timeStrToMinutes(scheduleData?.dayWindow?.start || '07:00');
+    const dayWindowStart = isNaN(wakeMinutes) ? 0 : wakeMinutes;
+    const windowEnd = Math.max(isNaN(dayEndMinutes) ? (24 * 60) : dayEndMinutes, workEndMins) + (4 * 60);
+    const available = windowEnd - workEndMins;
+    if (available <= 0) return blocks;
+    
+    const candidates = blocks.filter(b => isEveningCandidate(b));
+    if (candidates.length === 0) return blocks;
+    
+    const sleepBlocks = candidates.filter(b => (b.title || '').toLowerCase().includes('sleep'));
+    const otherBlocks = candidates.filter(b => !sleepBlocks.includes(b));
+    const descriptors = [];
+    const removeSet = new Set();
+    const MIN_RATIO = 2 / 3;
+    
+    if (sleepBlocks.length > 0) {
+        const totalSleepDur = sleepBlocks.reduce((sum, b) => sum + getBlockDurationMinutes(b), 0);
+        const primarySleep = sleepBlocks[0];
+        sleepBlocks.slice(1).forEach(b => removeSet.add(b)); // drop extra sleep blocks
+        descriptors.push({ ref: primarySleep, title: primarySleep.title || '', duration: totalSleepDur, minDuration: totalSleepDur });
+    }
+    
+    otherBlocks.forEach(b => {
+        const duration = getBlockDurationMinutes(b);
+        const title = (b.title || '').toLowerCase();
+        const isEveningRoutine = title.includes('evening') || title.includes('bedtime') || title.includes('wind down');
+        const isCommuteHome = title.includes('commute');
+        
+        let minDuration = 0;
+        if (isEveningRoutine) {
+            minDuration = Math.max(1, Math.round(duration * MIN_RATIO));
+        }
+        if (isCommuteHome) {
+            minDuration = duration; // don't trim commute durations
+        }
+        
+        descriptors.push({ ref: b, title: b.title || '', duration, minDuration });
+    });
+    
+    const priority = ['commute home', 'commute from work', 'commute', 'wrap', 'wind down', 'evening', 'bedtime', 'sleep'];
+    descriptors.sort((a, b) => {
+        const ta = a.title.toLowerCase();
+        const tb = b.title.toLowerCase();
+        const pa = priority.findIndex(p => ta.includes(p));
+        const pb = priority.findIndex(p => tb.includes(p));
+        const priA = pa === -1 ? priority.length : pa;
+        const priB = pb === -1 ? priority.length : pb;
+        return priA - priB;
+    });
+    
+    const trimOrder = ['evening', 'bedtime', 'wind down', 'wrap', 'commute'];
+    let overflow = descriptors.reduce((sum, d) => sum + d.duration, 0) - available;
+    while (overflow > 0) {
+        let trimmed = false;
+        for (const name of trimOrder) {
+            const target = descriptors.find(d => d.duration > 0 && d.title.toLowerCase().includes(name));
+            if (target) {
+                const minDuration = typeof target.minDuration === 'number' ? target.minDuration : 0;
+                const trimCapacity = Math.max(0, target.duration - minDuration);
+                if (trimCapacity > 0) {
+                    const cut = Math.min(overflow, trimCapacity);
+                    target.duration -= cut;
+                    overflow -= cut;
+                    trimmed = true;
+                }
+                if (overflow <= 0) break;
+            }
+        }
+        if (!trimmed) break;
+    }
+    
+    let cursor = workEndMins;
+    const packedMap = new Map();
+    const carryOver = [];
+    const minutesInDay = 24 * 60;
+    const hasWakeCap = !isNaN(wakeMinutes);
+    
+    for (let i = 0; i < descriptors.length; i++) {
+        const d = descriptors[i];
+        if (d.duration <= 0) continue;
+        const start = cursor;
+        const end = cursor + d.duration;
+        
+        // If the block starts after midnight, move it entirely to the next day
+        if (start >= minutesInDay) {
+            let nextEnd = end % minutesInDay;
+            if (hasWakeCap) nextEnd = Math.min(nextEnd, wakeMinutes);
+            const nextStart = Math.max(dayWindowStart, start % minutesInDay);
+            if (nextEnd > nextStart) {
+                carryOver.push({ ...d.ref, time: `${formatMinutesToTime(nextStart)}-${formatMinutesToTime(nextEnd)}` });
+            }
+            cursor = end;
+            if (cursor >= windowEnd) break;
+            continue;
+        }
+        
+        // If the block crosses midnight, split into today + next day carry
+        if (end > minutesInDay) {
+            const todayEnd = minutesInDay; // 24:00 boundary
+            const carryEnd = end % minutesInDay;
+            
+            const todayTime = `${formatMinutesToTime(start)}-${formatMinutesToTime(todayEnd - 1)}`;
+            packedMap.set(d.ref, { ...d.ref, time: todayTime });
+            let nextEnd = carryEnd;
+            if (hasWakeCap) nextEnd = Math.min(nextEnd, wakeMinutes);
+            const nextStart = dayWindowStart; // start at the next day's wake window start (e.g., 07:00)
+            if (nextEnd > nextStart) {
+                carryOver.push({ ...d.ref, time: `${formatMinutesToTime(nextStart)}-${formatMinutesToTime(nextEnd)}` });
+            }
+            
+            cursor = end;
+            if (cursor >= windowEnd) break;
+            continue;
+        }
+        
+        // Same-day block
+        packedMap.set(d.ref, { ...d.ref, time: `${formatMinutesToTime(start)}-${formatMinutesToTime(end)}` });
+        cursor = end;
+        if (cursor >= windowEnd) break;
+    }
+    
+    const packedBlocks = blocks
+        .filter(b => !removeSet.has(b))
+        .map(b => packedMap.get(b) || b);
+    
+    return { blocks: packedBlocks, carryOver };
+}
+
 function expandDefaultBlocksForDay(day, includeDisabled = true) {
     const entries = [];
     const prevDay = getPrevDay(day);
@@ -1498,6 +1632,18 @@ function addWeek() {
                     }
                     return true;
                 });
+                
+                const fitEveningToggle = document.getElementById('fitEveningAfterWork');
+                const fitEvening = fitEveningToggle ? fitEveningToggle.checked : true;
+                const isEveningShift = !isNaN(shiftEnd) && shiftEnd >= (17 * 60);
+                if (fitEvening && isEveningShift) {
+                    const result = packEveningBlocksAfterWork(blocks, workSchedule[dayOfWeek].end);
+                    blocks = result.blocks;
+                    if (result.carryOver && result.carryOver.length > 0 && i + 1 < orderedDays.length) {
+                        if (!nextDayCarry[i + 1]) nextDayCarry[i + 1] = [];
+                        nextDayCarry[i + 1].push(...result.carryOver);
+                    }
+                }
             }
         }
         
@@ -1507,7 +1653,7 @@ function addWeek() {
             displayDate: date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
             subtitle: 'Plan your day',
             motivation: '✨ Make today count!',
-            blocks: blocks
+            blocks: dedupeSleepBlocks(blocks)
         };
     });
     
@@ -3645,6 +3791,58 @@ function isMorningCandidate(block) {
         title.includes('sleep');
 }
 
+function isEveningCandidate(block) {
+    const title = (block.title || '').toLowerCase();
+    return title.includes('commute home') ||
+        title.includes('commute from work') ||
+        title.includes('wind down') ||
+        title.includes('evening') ||
+        title.includes('bedtime') ||
+        title.includes('sleep');
+}
+
+function dedupeSleepBlocks(blocks) {
+    const result = [];
+    const sleepBlocks = [];
+    
+    const isSleepy = (title) => {
+        const lower = (title || '').toLowerCase();
+        return lower.includes('sleep');
+    };
+    
+    blocks.forEach(block => {
+        if (!isSleepy(block.title)) {
+            result.push(block);
+            return;
+        }
+        
+        const { start, end } = getBlockTimeRange(block);
+        const duration = getBlockDurationMinutes(block);
+        if (isNaN(start) || isNaN(end)) {
+            sleepBlocks.push(block);
+            return;
+        }
+        
+        const existingIndex = sleepBlocks.findIndex(existing => {
+            const range = getBlockTimeRange(existing);
+            return !isNaN(range.start) && !isNaN(range.end) &&
+                start < range.end && end > range.start; // overlap
+        });
+        
+        if (existingIndex === -1) {
+            sleepBlocks.push(block);
+        } else {
+            const existing = sleepBlocks[existingIndex];
+            const existingDuration = getBlockDurationMinutes(existing);
+            if (duration > existingDuration) {
+                sleepBlocks[existingIndex] = block;
+            }
+        }
+    });
+    
+    return [...result, ...sleepBlocks];
+}
+
 function getDefaultBlocksForDay(day, includeDisabled = true) {
     if (!scheduleData.defaultBlocks) return [];
     return scheduleData.defaultBlocks
@@ -5584,6 +5782,10 @@ document.addEventListener('DOMContentLoaded', function() {
     const fitMorningCheckbox = document.getElementById('fitMorningBeforeWork');
     if (fitMorningCheckbox) {
         fitMorningCheckbox.checked = true;
+    }
+    const fitEveningCheckbox = document.getElementById('fitEveningAfterWork');
+    if (fitEveningCheckbox) {
+        fitEveningCheckbox.checked = true;
     }
 
     // Sync single day date
