@@ -313,7 +313,9 @@ function packMorningBlocksBeforeWork(blocks, workStartTime) {
 }
 
 function packEveningBlocksAfterWork(blocks, workEndTime) {
-    const workEndMins = timeStrToMinutes(workEndTime);
+    const workEndMins = typeof workEndTime === 'number'
+        ? workEndTime
+        : timeStrToMinutes(workEndTime);
     if (isNaN(workEndMins)) return blocks;
     
     // Allow packing several hours after a shift ends (for commute, wind-down, sleep)
@@ -401,11 +403,10 @@ function packEveningBlocksAfterWork(blocks, workEndTime) {
         const start = cursor;
         const end = cursor + d.duration;
         
-        // If the block starts after midnight, move it entirely to the next day
+        // If the block starts after midnight, move it entirely to the next day (preserve full duration)
         if (start >= minutesInDay) {
-            let nextEnd = end % minutesInDay;
-            if (hasWakeCap) nextEnd = Math.min(nextEnd, wakeMinutes);
-            const nextStart = Math.max(dayWindowStart, start % minutesInDay);
+            const nextStart = start % minutesInDay;
+            const nextEnd = Math.min(nextStart + d.duration, minutesInDay);
             if (nextEnd > nextStart) {
                 carryOver.push({ ...d.ref, time: `${formatMinutesToTime(nextStart)}-${formatMinutesToTime(nextEnd)}` });
             }
@@ -414,16 +415,17 @@ function packEveningBlocksAfterWork(blocks, workEndTime) {
             continue;
         }
         
-        // If the block crosses midnight, split into today + next day carry
+        // If the block crosses midnight, split into today + next day carry (do not drop pre-dawn time)
         if (end > minutesInDay) {
             const todayEnd = minutesInDay; // 24:00 boundary
-            const carryEnd = end % minutesInDay;
+            const todayDuration = todayEnd - start;
+            const remainder = Math.max(0, d.duration - todayDuration);
             
             const todayTime = `${formatMinutesToTime(start)}-${formatMinutesToTime(todayEnd - 1)}`;
             packedMap.set(d.ref, { ...d.ref, time: todayTime });
-            let nextEnd = carryEnd;
-            if (hasWakeCap) nextEnd = Math.min(nextEnd, wakeMinutes);
-            const nextStart = dayWindowStart; // start at the next day's wake window start (e.g., 07:00)
+            
+            const nextStart = 0;
+            const nextEnd = Math.min(remainder, minutesInDay);
             if (nextEnd > nextStart) {
                 carryOver.push({ ...d.ref, time: `${formatMinutesToTime(nextStart)}-${formatMinutesToTime(nextEnd)}` });
             }
@@ -444,6 +446,37 @@ function packEveningBlocksAfterWork(blocks, workEndTime) {
         .map(b => packedMap.get(b) || b);
     
     return { blocks: packedBlocks, carryOver };
+}
+
+function pushSleepAfterEvening(blocks, anchorMinutes = NaN) {
+    const minutesInDay = 24 * 60;
+    let latestEveningEnd = isNaN(anchorMinutes) ? NaN : anchorMinutes;
+    
+    blocks.forEach(block => {
+        if (isEveningCandidate(block) && !((block.title || '').toLowerCase().includes('sleep'))) {
+            const { start, end } = getBlockTimeRange(block);
+            if (isNaN(start) || isNaN(end)) return;
+            const adjustedEnd = end >= start ? end : end + minutesInDay;
+            if (isNaN(latestEveningEnd) || adjustedEnd > latestEveningEnd) {
+                latestEveningEnd = adjustedEnd;
+            }
+        }
+    });
+    
+    if (isNaN(latestEveningEnd)) return blocks;
+    
+    return blocks.map(block => {
+        const title = (block.title || '').toLowerCase();
+        if (!title.includes('sleep')) return block;
+        
+        const duration = getBlockDurationMinutes(block);
+        const start = latestEveningEnd;
+        const end = start + duration;
+        return {
+            ...block,
+            time: `${formatMinutesToTime(start % minutesInDay)}-${formatMinutesToTime(end % minutesInDay)}`
+        };
+    });
 }
 
 function expandDefaultBlocksForDay(day, includeDisabled = true) {
@@ -1463,6 +1496,7 @@ function addWeek() {
         const dayKey = `day_${date.getTime()}`;
         const dayName = getDayName(date);
         const dayOfWeek = date.getDay();
+        let workShiftEndMins = NaN;
         
         // Start with any overnight carry from previous day
         let blocks = nextDayCarry[i] ? [...nextDayCarry[i]] : [];
@@ -1601,6 +1635,7 @@ function addWeek() {
             let shiftEnd = timeStrToMinutes(workSchedule[dayOfWeek].end);
             if (!isNaN(shiftStart) && !isNaN(shiftEnd)) {
                 if (shiftEnd < shiftStart) shiftEnd += 24 * 60; // overnight shift spans midnight
+                workShiftEndMins = shiftEnd;
 
                 const lunchMin = 30;  // minutes needed to keep lunch
                 const dinnerMin = 40; // minutes needed to keep dinner
@@ -1633,18 +1668,25 @@ function addWeek() {
                     return true;
                 });
                 
-                const fitEveningToggle = document.getElementById('fitEveningAfterWork');
-                const fitEvening = fitEveningToggle ? fitEveningToggle.checked : true;
-                const isEveningShift = !isNaN(shiftEnd) && shiftEnd >= (17 * 60);
-                if (fitEvening && isEveningShift) {
-                    const result = packEveningBlocksAfterWork(blocks, workSchedule[dayOfWeek].end);
-                    blocks = result.blocks;
-                    if (result.carryOver && result.carryOver.length > 0 && i + 1 < orderedDays.length) {
-                        if (!nextDayCarry[i + 1]) nextDayCarry[i + 1] = [];
-                        nextDayCarry[i + 1].push(...result.carryOver);
-                    }
-                }
             }
+        }
+        
+        // Fit evening blocks after work (use explicit schedule or infer from work block)
+        if (isNaN(workShiftEndMins)) {
+            workShiftEndMins = findWorkShiftEndFromBlocks(blocks);
+        }
+        const fitEveningToggle = document.getElementById('fitEveningAfterWork');
+        const fitEvening = fitEveningToggle ? fitEveningToggle.checked : true;
+        const shiftEndForPacking = isNaN(workShiftEndMins) ? findWorkShiftEndFromBlocks(blocks) : workShiftEndMins;
+        if (fitEvening && !isNaN(shiftEndForPacking)) {
+            const result = packEveningBlocksAfterWork(blocks, shiftEndForPacking);
+            blocks = result.blocks;
+            if (result.carryOver && result.carryOver.length > 0 && i + 1 < orderedDays.length) {
+                if (!nextDayCarry[i + 1]) nextDayCarry[i + 1] = [];
+                nextDayCarry[i + 1].push(...result.carryOver);
+            }
+            // Ensure any remaining sleep blocks start after the last evening block (or shift end)
+            blocks = pushSleepAfterEvening(blocks, shiftEndForPacking);
         }
         
         scheduleData.days[dayKey] = {
@@ -3787,8 +3829,7 @@ function isMorningCandidate(block) {
     return title.includes('morning') ||
         title.includes('breakfast') ||
         title.includes('commute prep') ||
-        title.includes('commute to work') ||
-        title.includes('sleep');
+        title.includes('commute to work');
 }
 
 function isEveningCandidate(block) {
@@ -3799,6 +3840,27 @@ function isEveningCandidate(block) {
         title.includes('evening') ||
         title.includes('bedtime') ||
         title.includes('sleep');
+}
+
+function findWorkShiftEndFromBlocks(blocks) {
+    let latestEnd = NaN;
+    
+    blocks.forEach(block => {
+        if (!isWorkBlock(block)) return;
+        const { start, end } = getBlockTimeRange(block);
+        if (isNaN(start) || isNaN(end)) return;
+        
+        let endMins = end;
+        if (end < start) {
+            endMins += 24 * 60; // overnight shift that ends next morning
+        }
+        
+        if (isNaN(latestEnd) || endMins > latestEnd) {
+            latestEnd = endMins;
+        }
+    });
+    
+    return latestEnd;
 }
 
 function dedupeSleepBlocks(blocks) {
