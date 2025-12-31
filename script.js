@@ -66,6 +66,8 @@ const emojiMap = {
     'project': ['💼', '📊', '📈']
 };
 
+const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
 // Month-specific emojis
 function getMonthEmoji(monthName) {
     const monthEmojis = {
@@ -122,6 +124,150 @@ const WORK_MEAL_STRATEGIES = {
     COOK_EVENING: 'cook_evening',
     BUY: 'buy'
 };
+let activeDefaultDay = localStorage.getItem('defaultBlocksActiveDay') || 'Monday';
+let mealRecipeQueues = null;
+let weeklyBreakfastQueue = [];
+let weeklyBreakfastUsed = new Set();
+
+function isBreakfastBlock(block) {
+    return inferMealCategoryFromTitle(block.title || '') === 'breakfast';
+}
+
+function isOvernightRange(block) {
+    const { start, end } = getBlockTimeRange(block);
+    return !isNaN(start) && !isNaN(end) && end < start;
+}
+
+function splitOvernightBlock(block) {
+    if (!isOvernightRange(block)) {
+        return { todayBlock: { ...block }, nextDayBlock: null };
+    }
+    const [startStr, endStr] = (block.time || '').split('-');
+    const todayBlock = { ...block, time: `${startStr}-23:59` };
+    const nextDayBlock = { ...block, time: `00:00-${endStr}` };
+    return { todayBlock, nextDayBlock };
+}
+
+function getPrevDay(day) {
+    const idx = DAYS_OF_WEEK.indexOf(day);
+    if (idx === -1) return null;
+    return DAYS_OF_WEEK[(idx + DAYS_OF_WEEK.length - 1) % DAYS_OF_WEEK.length];
+}
+
+function shiftDaysForward(days) {
+    return days.map(day => {
+        const idx = DAYS_OF_WEEK.indexOf(day);
+        if (idx === -1) return day;
+        return DAYS_OF_WEEK[(idx + 1) % DAYS_OF_WEEK.length];
+    });
+}
+
+function ensureDefaultBlockIds() {
+    if (!Array.isArray(scheduleData.defaultBlocks)) return;
+    scheduleData.defaultBlocks.forEach(block => {
+        if (!block.id) {
+            block.id = `db_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+        }
+    });
+}
+
+function isWorkBlock(block) {
+    return (block.title || '').toLowerCase().includes('work');
+}
+
+function packMorningBlocksBeforeWork(blocks, workStartTime) {
+    if (!workStartTime) return blocks;
+    const workStartMins = timeStrToMinutes(workStartTime);
+    if (isNaN(workStartMins)) return blocks;
+    
+    const candidates = blocks.filter(b => !isWorkBlock(b) && isMorningCandidate(b));
+    if (candidates.length === 0) return blocks;
+    
+    // Merge all sleep blocks into one descriptor
+    let sleepBlocks = candidates.filter(b => (b.title || '').toLowerCase().includes('sleep'));
+    const otherBlocks = candidates.filter(b => !sleepBlocks.includes(b));
+    
+    const descriptors = [];
+    const removeSet = new Set();
+    
+    if (sleepBlocks.length > 0) {
+        const totalSleepDur = sleepBlocks.reduce((sum, b) => sum + getBlockDurationMinutes(b), 0);
+        const primarySleep = sleepBlocks[0];
+        sleepBlocks.slice(1).forEach(b => removeSet.add(b)); // drop extra sleep blocks
+        descriptors.push({ ref: primarySleep, title: primarySleep.title || '', duration: totalSleepDur });
+    }
+    
+    otherBlocks.forEach(b => {
+        descriptors.push({ ref: b, title: b.title || '', duration: getBlockDurationMinutes(b) });
+    });
+    
+    const priority = ['commute to work', 'commute prep', 'breakfast', 'morning', 'sleep'];
+    descriptors.sort((a, b) => {
+        const ta = a.title.toLowerCase();
+        const tb = b.title.toLowerCase();
+        const pa = priority.findIndex(p => ta.includes(p));
+        const pb = priority.findIndex(p => tb.includes(p));
+        const priA = pa === -1 ? priority.length : pa;
+        const priB = pb === -1 ? priority.length : pb;
+        return priA - priB;
+    });
+    
+    let cursor = workStartMins;
+    const packedMap = new Map();
+    
+    for (let i = 0; i < descriptors.length; i++) {
+        const d = descriptors[i];
+        const dur = d.duration;
+        let end = cursor;
+        let start = cursor - dur;
+        if (start < 0) start = 0; // trim earliest block only
+        if (start === end) continue;
+        const packed = { ...d.ref, time: `${formatMinutesToTime(start)}-${formatMinutesToTime(end)}` };
+        packedMap.set(d.ref, packed);
+        cursor = start;
+        if (cursor <= 0) break;
+    }
+    
+    return blocks
+        .filter(b => !removeSet.has(b))
+        .map(b => packedMap.get(b) || b);
+}
+
+function expandDefaultBlocksForDay(day, includeDisabled = true) {
+    const entries = [];
+    const prevDay = getPrevDay(day);
+    
+    if (!scheduleData.defaultBlocks) return entries;
+    
+    scheduleData.defaultBlocks.forEach((block, index) => {
+        const enabled = block.enabled !== false;
+        if (!includeDisabled && !enabled) return;
+        const applies = (block.days || DAYS_OF_WEEK).includes(day);
+        
+        if (applies) {
+            if (isOvernightRange(block)) {
+                const { todayBlock } = splitOvernightBlock(block);
+                entries.push({ block: todayBlock, index, fromPrev: false });
+            } else {
+                entries.push({ block, index, fromPrev: false });
+            }
+        }
+        
+        // Carry overnight portion from previous day into this day
+        if (prevDay && (block.days || DAYS_OF_WEEK).includes(prevDay) && isOvernightRange(block)) {
+            const [, endStr] = (block.time || '').split('-');
+            const nextDayPart = { ...block, time: `00:00-${endStr}` };
+            entries.push({ block: nextDayPart, index, fromPrev: true });
+        }
+    });
+    
+    return entries;
+}
+
+function isDuplicateBlock(existingBlocks, candidate) {
+    const key = `${candidate.time || ''}|${candidate.title || ''}`.toLowerCase();
+    return existingBlocks.some(b => `${b.time || ''}|${b.title || ''}`.toLowerCase() === key);
+}
 
 // ========================================
 // INITIALIZATION
@@ -914,6 +1060,8 @@ function addSingleDay() {
     
     // Start with empty blocks
     const blocks = [];
+    weeklyBreakfastQueue = buildBreakfastQueue();
+    weeklyBreakfastUsed = new Set();
     
     // Add default blocks if any (only enabled ones that match this day)
     if (scheduleData.defaultBlocks && scheduleData.defaultBlocks.length > 0) {
@@ -926,8 +1074,55 @@ function addSingleDay() {
             const appliesToThisDay = days.includes(dayName);
             
             if (isEnabled && appliesToThisDay) {
-                blocks.push({...defaultBlock}); // Copy the block
+                const { todayBlock, nextDayBlock } = splitOvernightBlock(defaultBlock);
+                const copyToday = { ...todayBlock };
+                if (isBreakfastBlock(copyToday)) {
+                    assignRecipeToMealBlock(copyToday, {
+                        category: 'breakfast',
+                        queue: weeklyBreakfastQueue,
+                        usedSet: weeklyBreakfastUsed
+                    });
+                }
+                blocks.push(copyToday); // Copy the block
+                
+                // For single-day add, if overnight, append the next-day piece into the same day so data isn't lost
+                if (nextDayBlock) {
+                    const copyNext = { ...nextDayBlock };
+                    if (isBreakfastBlock(copyNext)) {
+                        assignRecipeToMealBlock(copyNext, {
+                            category: 'breakfast',
+                            queue: weeklyBreakfastQueue,
+                            usedSet: weeklyBreakfastUsed
+                        });
+                    }
+                    blocks.push(copyNext);
+                }
             }
+        });
+    }
+
+    // Apply default groups (skip duplicates by time+title)
+    if (scheduleData.defaultGroups && scheduleData.defaultGroups.length > 0) {
+        const existing = [...blocks];
+        scheduleData.defaultGroups.forEach(group => {
+            (group.memberIds || []).forEach(id => {
+                const block = (scheduleData.defaultBlocks || []).find(b => b.id === id);
+                if (!block) return;
+                if (!block.days || block.days.includes(dayName)) {
+                    const copy = { ...block };
+                    if (isBreakfastBlock(copy)) {
+                        assignRecipeToMealBlock(copy, {
+                            category: 'breakfast',
+                            queue: weeklyBreakfastQueue,
+                            usedSet: weeklyBreakfastUsed
+                        });
+                    }
+                    if (!isDuplicateBlock(existing, copy)) {
+                        blocks.push(copy);
+                        existing.push(copy);
+                    }
+                }
+            });
         });
     }
     
@@ -959,7 +1154,8 @@ function addSingleDay() {
 }
 
 function addWeek() {
-    const dateStr = document.getElementById('weekStartDate').value;
+    const dateInputNew = document.getElementById('weekStartDateInput')?.value;
+    const dateStr = dateInputNew || document.getElementById('weekStartDate').value;
     
     if (!dateStr) {
         alert('Please enter a start date for the week!');
@@ -1001,23 +1197,29 @@ function addWeek() {
     }
     
     // Get work schedule if checkbox is checked
-    const addWorkSchedule = document.getElementById('addWorkSchedule').checked;
-    const workSchedule = {}; // Map of dayOfWeek -> {start, end}
+    const addWorkSchedule = document.getElementById('addWorkScheduleNew')?.checked || document.getElementById('addWorkSchedule').checked;
+    const workSchedule = {}; // Map of dayOfWeek -> {start, end, date}
     
     if (addWorkSchedule) {
-        const workDayChecks = document.querySelectorAll('.work-day-check:checked');
-        workDayChecks.forEach(checkbox => {
-            const dayValue = parseInt(checkbox.value);
-            const workDayItem = checkbox.closest('.work-day-item');
-            const startTime = workDayItem.querySelector('.work-start').value;
-            const endTime = workDayItem.querySelector('.work-end').value;
-            workSchedule[dayValue] = { start: startTime, end: endTime };
+        const dayKeys = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+        dayKeys.forEach((dayKey, idx) => {
+            const startInput = document.querySelector(`.day-work-start[data-day="${dayKey}"]`);
+            const endInput = document.querySelector(`.day-work-end[data-day="${dayKey}"]`);
+            const dateForDay = new Date(weekStart);
+            dateForDay.setDate(weekStart.getDate() + idx);
+            const dayOfWeek = dateForDay.getDay();
+            
+            if (startInput?.value && endInput?.value) {
+                workSchedule[dayOfWeek] = { start: startInput.value, end: endInput.value, date: new Date(dateForDay) };
+            }
         });
     }
     
     // Get commute settings
-    const addCommute = document.getElementById('addCommute').checked;
-    const commuteDuration = addCommute ? parseInt(document.getElementById('commuteDuration').value) : 0;
+    const addCommute = document.getElementById('addCommuteNew')?.checked || document.getElementById('addCommute').checked;
+    const commuteDuration = addCommute ? parseInt(document.getElementById('commuteDurationNew')?.value || document.getElementById('commuteDuration')?.value) : 0;
+    const addCommutePrep = addCommute && (document.getElementById('addCommutePrepNew')?.checked || false);
+    const commutePrepDuration = addCommutePrep ? parseInt(document.getElementById('commutePrepDurationNew')?.value || '0') || 0 : 0;
     
     // Helper function to add minutes to a time string
     function addMinutesToTime(timeStr, minutes) {
@@ -1039,6 +1241,10 @@ function addWeek() {
     }
     
     // Create 7 days starting from the selected date
+    const nextDayCarry = {};
+    weeklyBreakfastQueue = buildBreakfastQueue();
+    weeklyBreakfastUsed = new Set();
+    
     for (let i = 0; i < 7; i++) {
         const date = new Date(weekStart);
         date.setDate(weekStart.getDate() + i);
@@ -1047,18 +1253,33 @@ function addWeek() {
         const dayName = getDayName(date);
         const dayOfWeek = date.getDay();
         
-        // Start with empty blocks
-        const blocks = [];
+        // Start with any overnight carry from previous day
+        let blocks = nextDayCarry[i] ? [...nextDayCarry[i]] : [];
         
         // Check if this is a work day
         const isWorkDay = addWorkSchedule && workSchedule[dayOfWeek];
         
         if (isWorkDay) {
+            const workTimes = workSchedule[dayOfWeek];
+            
+            // Add pre-commute prep if enabled
+            if (addCommute && addCommutePrep && commutePrepDuration > 0) {
+                const commuteStart = subtractMinutesFromTime(workTimes.start, commuteDuration);
+                const prepStart = subtractMinutesFromTime(commuteStart, commutePrepDuration);
+                blocks.push({
+                    time: `${prepStart}-${commuteStart}`,
+                    title: '🧰 Commute prep',
+                    tasks: ['Pack meals / snacks', 'Check route', 'Get ready to leave'],
+                    note: '',
+                    video: ''
+                });
+            }
+            
             // Add commute TO work if enabled
             if (addCommute) {
-                const commuteStart = subtractMinutesFromTime(workSchedule[dayOfWeek].start, commuteDuration);
+                const commuteStart = subtractMinutesFromTime(workTimes.start, commuteDuration);
                 blocks.push({
-                    time: `${commuteStart}-${workSchedule[dayOfWeek].start}`,
+                    time: `${commuteStart}-${workTimes.start}`,
                     title: '🚶 Commute to work',
                     tasks: ['Travel to work'],
                     note: '',
@@ -1068,7 +1289,7 @@ function addWeek() {
             
             // Add WORK block
             blocks.push({
-                time: `${workSchedule[dayOfWeek].start}-${workSchedule[dayOfWeek].end}`,
+                time: `${workTimes.start}-${workTimes.end}`,
                 title: '💼 Work',
                 tasks: ['Work shift'],
                 note: '',
@@ -1077,9 +1298,9 @@ function addWeek() {
             
             // Add commute FROM work if enabled
             if (addCommute) {
-                const commuteEnd = addMinutesToTime(workSchedule[dayOfWeek].end, commuteDuration);
+                const commuteEnd = addMinutesToTime(workTimes.end, commuteDuration);
                 blocks.push({
-                    time: `${workSchedule[dayOfWeek].end}-${commuteEnd}`,
+                    time: `${workTimes.end}-${commuteEnd}`,
                     title: '🚶 Commute home',
                     tasks: ['Travel home'],
                     note: '',
@@ -1099,9 +1320,63 @@ function addWeek() {
                 const appliesToThisDay = days.includes(dayName);
                 
                 if (isEnabled && appliesToThisDay) {
-                    blocks.push({...defaultBlock});
+                    const { todayBlock, nextDayBlock } = splitOvernightBlock(defaultBlock);
+                    
+                    const copyToday = { ...todayBlock };
+                    if (isBreakfastBlock(copyToday)) {
+                        assignRecipeToMealBlock(copyToday, {
+                            category: 'breakfast',
+                            queue: weeklyBreakfastQueue,
+                            usedSet: weeklyBreakfastUsed
+                        });
+                    }
+                    blocks.push(copyToday);
+                    
+                    if (nextDayBlock && i + 1 < 7) {
+                        const copyNext = { ...nextDayBlock };
+                        if (isBreakfastBlock(copyNext)) {
+                            assignRecipeToMealBlock(copyNext, {
+                                category: 'breakfast',
+                                queue: weeklyBreakfastQueue,
+                                usedSet: weeklyBreakfastUsed
+                            });
+                        }
+                        if (!nextDayCarry[i + 1]) nextDayCarry[i + 1] = [];
+                        nextDayCarry[i + 1].push(copyNext);
+                    }
                 }
             });
+        }
+
+        // Apply default groups (skip duplicates by time+title)
+        if (scheduleData.defaultGroups && scheduleData.defaultGroups.length > 0) {
+            const existing = [...blocks];
+            scheduleData.defaultGroups.forEach(group => {
+                (group.memberIds || []).forEach(id => {
+                    const block = (scheduleData.defaultBlocks || []).find(b => b.id === id);
+                    if (!block) return;
+                    if (!block.days || block.days.includes(dayName)) {
+                        const copy = { ...block };
+                        if (isBreakfastBlock(copy)) {
+                            assignRecipeToMealBlock(copy, {
+                                category: 'breakfast',
+                                queue: weeklyBreakfastQueue,
+                                usedSet: weeklyBreakfastUsed
+                            });
+                        }
+                        if (!isDuplicateBlock(existing, copy)) {
+                            blocks.push(copy);
+                            existing.push(copy);
+                        }
+                    }
+                });
+            });
+        }
+        
+        // Fit morning blocks before work if enabled
+        const fitMorning = document.getElementById('fitMorningBeforeWork')?.checked;
+        if (fitMorning && isWorkDay) {
+            blocks = packMorningBlocksBeforeWork(blocks, workSchedule[dayOfWeek].start);
         }
         
         scheduleData.days[dayKey] = {
@@ -1119,7 +1394,7 @@ function addWeek() {
     saveToLocalStorage();
     
     // Show first day of new week
-    const firstDayKey = `day_${monday.getTime()}`;
+    const firstDayKey = `day_${weekStart.getTime()}`;
     showDay(firstDayKey);
     
     // Set active tab and scroll to it
@@ -3163,10 +3438,13 @@ function loadFromLocalStorage() {
                     events: Array.isArray(parsed.events) ? parsed.events : [],
                     days: parsed.days && typeof parsed.days === 'object' ? parsed.days : {},
                     defaultBlocks: Array.isArray(parsed.defaultBlocks) ? parsed.defaultBlocks : [],
+                    defaultGroups: Array.isArray(parsed.defaultGroups) ? parsed.defaultGroups : [],
                     dayWindow: parsed.dayWindow && parsed.dayWindow.start && parsed.dayWindow.end ? parsed.dayWindow : { start: '07:00', end: '23:00' },
                     shopping: Array.isArray(parsed.shopping) ? parsed.shopping : [],
                     recipes: Array.isArray(parsed.recipes) ? parsed.recipes : []
                 };
+                
+                ensureDefaultBlockIds();
                 
                 console.log('Loaded data from localStorage:', Object.keys(scheduleData.days).length, 'days');
             } else {
@@ -3193,11 +3471,209 @@ function saveCheckboxState(id, checked) {
 
 // Time picker for clock icon clicks
 
+function setActiveDefaultDay(day) {
+    if (!DAYS_OF_WEEK.includes(day)) return;
+    activeDefaultDay = day;
+    localStorage.setItem('defaultBlocksActiveDay', day);
+    renderDefaultBlocksList();
+}
+
+function timeStrToMinutes(timeStr) {
+    if (!timeStr || !timeStr.includes(':')) return NaN;
+    const [hours, mins] = timeStr.split(':').map(Number);
+    if (isNaN(hours) || isNaN(mins)) return NaN;
+    return hours * 60 + mins;
+}
+
+function parseTimeRangeToMinutes(range) {
+    if (!range || !range.includes('-')) return { start: NaN, end: NaN };
+    const [start, end] = range.split('-');
+    return { start: timeStrToMinutes(start), end: timeStrToMinutes(end) };
+}
+
+function getBlockTimeRange(block) {
+    return parseTimeRangeToMinutes(block.time || '');
+}
+
+function getBlockDurationMinutes(block) {
+    const { start, end } = getBlockTimeRange(block);
+    if (isNaN(start) || isNaN(end)) return 0;
+    if (end >= start) return Math.max(0, end - start);
+    // Overnight: wrap to next day
+    return (24 * 60 - start) + end;
+}
+
+function formatMinutesToTime(mins) {
+    mins = ((mins % (24 * 60)) + (24 * 60)) % (24 * 60);
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function isWorkBlock(block) {
+    return (block.title || '').toLowerCase().includes('work');
+}
+
+function isMorningCandidate(block) {
+    const title = (block.title || '').toLowerCase();
+    return title.includes('morning') ||
+        title.includes('breakfast') ||
+        title.includes('commute prep') ||
+        title.includes('commute to work') ||
+        title.includes('sleep');
+}
+
+function getDefaultBlocksForDay(day, includeDisabled = true) {
+    if (!scheduleData.defaultBlocks) return [];
+    return scheduleData.defaultBlocks
+        .map((block, index) => ({ block, index }))
+        .filter(entry => {
+            const applies = (entry.block.days || DAYS_OF_WEEK).includes(day);
+            const enabled = includeDisabled ? true : entry.block.enabled !== false;
+            return applies && enabled;
+        });
+}
+
+function validateDefaultBlock(newBlock, editingIndex) {
+    const { start, end } = getBlockTimeRange(newBlock);
+    if (isNaN(start) || isNaN(end)) {
+        alert('⚠️ Please provide a valid start and end time.');
+        return false;
+    }
+    if (end <= start) {
+        alert('⚠️ Invalid time range. End time must be after start time (overnight ranges are auto-split when saving).');
+        alert('⚠️ End time must be after start time.');
+        return false;
+    }
+    
+    const duration = getBlockDurationMinutes(newBlock);
+    
+    for (const day of newBlock.days) {
+        const existingBlocks = getDefaultBlocksForDay(day, false)
+            .filter(entry => entry.index !== editingIndex)
+            .map(entry => entry.block);
+        
+        const totalMinutes = existingBlocks.reduce((sum, block) => sum + getBlockDurationMinutes(block), 0) + duration;
+        if (totalMinutes > 24 * 60) {
+            const hours = (totalMinutes / 60).toFixed(1);
+            alert(`⚠️ ${day}: total default block time would exceed 24 hours (${hours}h). Please adjust your times.`);
+            return false;
+        }
+        
+        // Check ordering/overlap for the day
+        const combined = [...existingBlocks, newBlock]
+            .map(block => ({ ...block, range: getBlockTimeRange(block) }))
+            .filter(item => !isNaN(item.range.start) && !isNaN(item.range.end))
+            .sort((a, b) => a.range.start - b.range.start);
+        
+        for (let i = 1; i < combined.length; i++) {
+            const prev = combined[i - 1].range;
+            const curr = combined[i].range;
+            if (curr.start < prev.end) {
+                alert(`⚠️ ${day}: blocks overlap or are out of order. Please fix the times so they are sequential.`);
+                return false;
+            }
+        }
+    }
+    
+    return true;
+}
+
+function getDietaryFiltersFromUI() {
+    return {
+        vegetarian: document.getElementById('dietVegetarian')?.checked || false,
+        vegan: document.getElementById('dietVegan')?.checked || false,
+        nutFree: document.getElementById('dietNutFree')?.checked || false,
+        dairyFree: document.getElementById('dietDairyFree')?.checked || false,
+        glutenFree: document.getElementById('dietGlutenFree')?.checked || false
+    };
+}
+
+function refreshMealRecipeQueues() {
+    if (typeof selectRecipesForWeek !== 'function' || typeof getAllRecipes !== 'function') {
+        mealRecipeQueues = null;
+        return;
+    }
+    const filters = getDietaryFiltersFromUI();
+    const selected = selectRecipesForWeek(filters);
+    const mainRecipes = selected.filter(r => r.category === 'main' || r.category === 'batch');
+    mealRecipeQueues = {
+        breakfast: selected.filter(r => r.category === 'breakfast'),
+        lunch: [...mainRecipes],
+        dinner: [...mainRecipes]
+    };
+}
+
+function takeRecipeForCategory(category) {
+    if (!mealRecipeQueues || !mealRecipeQueues[category] || mealRecipeQueues[category].length === 0) {
+        refreshMealRecipeQueues();
+    }
+    if (!mealRecipeQueues || !mealRecipeQueues[category]) return null;
+    if (mealRecipeQueues[category].length === 0) return null;
+    return mealRecipeQueues[category].shift();
+}
+
+function inferMealCategoryFromTitle(title = '') {
+    const lower = title.toLowerCase();
+    if (lower.includes('breakfast')) return 'breakfast';
+    if (lower.includes('lunch')) return 'lunch';
+    if (lower.includes('dinner')) return 'dinner';
+    return null;
+}
+
+function assignRecipeToMealBlock(block, options = {}) {
+    if (block.recipeID || block.recipeName) return block;
+    const category = options.category || inferMealCategoryFromTitle(block.title);
+    
+    // Only auto-assign for breakfasts per user request
+    if (category !== 'breakfast') return block;
+    
+    let recipe = null;
+    
+    // If a specific queue and used set were provided (e.g., for breakfast defaults), use them
+    if (options.queue) {
+        while (options.queue.length > 0 && options.usedSet?.has(options.queue[0].id)) {
+            options.queue.shift();
+        }
+        recipe = options.queue.shift() || null;
+        if (recipe && options.usedSet) {
+            options.usedSet.add(recipe.id);
+        }
+    } else {
+        recipe = takeRecipeForCategory(category);
+    }
+    
+    if (recipe) {
+        block.recipeID = recipe.id;
+        block.recipeName = recipe.name;
+    }
+    return block;
+}
+
+function buildBreakfastQueue() {
+    if (typeof getAllRecipes !== 'function') return [];
+    const filters = getDietaryFiltersFromUI();
+    const all = Object.values(getAllRecipes());
+    const breakfastOnly = all.filter(r => r.category === 'breakfast');
+    const filtered = typeof filterRecipesByDietary === 'function'
+        ? filterRecipesByDietary(breakfastOnly, filters)
+        : breakfastOnly;
+    // Shuffle for variety while preventing repeats within the set
+    for (let i = filtered.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [filtered[i], filtered[j]] = [filtered[j], filtered[i]];
+    }
+    return filtered;
+}
+
 function openDefaultsModal() {
     const modal = document.getElementById('manageDefaultsModal');
     if (!modal) {
         console.error('Manage Defaults modal not found in HTML');
         return;
+    }
+    if (!DAYS_OF_WEEK.includes(activeDefaultDay)) {
+        activeDefaultDay = DAYS_OF_WEEK[0];
     }
     renderDefaultBlocksList();
     
@@ -3225,10 +3701,10 @@ function openAddDefaultModal() {
     const dayStartOverride = document.getElementById('defaultDayStartOverride');
     if (dayStartOverride) dayStartOverride.value = '';
     
-    // Set default checkboxes (Mon-Fri checked by default)
+    // Set default checkboxes (active day selected by default)
     document.querySelectorAll('.default-day-checkbox').forEach(checkbox => {
         const day = checkbox.value;
-        checkbox.checked = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(day);
+        checkbox.checked = activeDefaultDay ? day === activeDefaultDay : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(day);
     });
     
     document.getElementById('addEditDefaultModal').classList.add('active');
@@ -3256,6 +3732,21 @@ function saveDefaultBlock(event) {
     const title = document.getElementById('defaultTitle').value;
     const tasks = document.getElementById('defaultTasks').value.split('\n').filter(t => t.trim());
     
+    if (!startTime || !endTime) {
+        alert('⚠️ Please enter both start and end times.');
+        return;
+    }
+    
+    const range = parseTimeRangeToMinutes(`${startTime}-${endTime}`);
+    if (isNaN(range.start) || isNaN(range.end)) {
+        alert('⚠️ Invalid time range. End time must be after start time.');
+        return;
+    }
+    if (range.end === range.start) {
+        alert('⚠️ Invalid time range. End time must be after start time.');
+        return;
+    }
+    
     // Get selected days
     const selectedDays = [];
     document.querySelectorAll('.default-day-checkbox:checked').forEach(checkbox => {
@@ -3275,16 +3766,46 @@ function saveDefaultBlock(event) {
         enabled: true,
         dayStartOverride: document.getElementById('defaultDayStartOverride')?.value || ''
     };
+
+    // Auto-assign a breakfast recipe only if this is a breakfast default
+    assignRecipeToMealBlock(newBlock, { category: isBreakfastBlock(newBlock) ? 'breakfast' : null });
+    
+    const blocksToSave = [];
+    if (isOvernightRange(newBlock)) {
+        const { todayBlock, nextDayBlock } = splitOvernightBlock(newBlock);
+        const nextDays = shiftDaysForward(selectedDays);
+        todayBlock.days = [...selectedDays];
+        nextDayBlock.days = nextDays;
+        
+        assignRecipeToMealBlock(todayBlock, { category: isBreakfastBlock(todayBlock) ? 'breakfast' : null });
+        assignRecipeToMealBlock(nextDayBlock, { category: isBreakfastBlock(nextDayBlock) ? 'breakfast' : null });
+        
+        if (!validateDefaultBlock(todayBlock, index)) return;
+        if (!validateDefaultBlock(nextDayBlock, index)) return;
+        
+        blocksToSave.push(todayBlock, nextDayBlock);
+    } else {
+        if (!validateDefaultBlock(newBlock, index)) {
+            return;
+        }
+        blocksToSave.push(newBlock);
+    }
     
     if (index >= 0) {
-        // Edit existing
-        scheduleData.defaultBlocks[index] = newBlock;
+        // Edit existing - replace selected index with first piece, insert second (if any)
+        scheduleData.defaultBlocks.splice(index, 1, blocksToSave[0]);
+        if (blocksToSave[1]) {
+            scheduleData.defaultBlocks.splice(index + 1, 0, blocksToSave[1]);
+        }
     } else {
         // Add new
         if (!scheduleData.defaultBlocks) {
             scheduleData.defaultBlocks = [];
         }
-        scheduleData.defaultBlocks.push(newBlock);
+        blocksToSave.forEach(b => {
+            b.id = b.id || `db_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+            scheduleData.defaultBlocks.push(b);
+        });
     }
     
     saveToLocalStorage();
@@ -3292,7 +3813,8 @@ function saveDefaultBlock(event) {
     closeAddEditDefaultModal();
     
     const action = index >= 0 ? 'updated' : 'added';
-    alert(`✅ Default block ${action}!`);
+    const splitMsg = blocksToSave.length > 1 ? ' (split overnight into two blocks)' : '';
+    alert(`✅ Default block ${action}${splitMsg}!`);
 }
 
 function editDefaultBlock(index) {
@@ -3325,6 +3847,14 @@ function toggleDefaultBlock(index) {
     if (!block) return;
     
     block.enabled = !block.enabled;
+    
+    if (block.enabled && !validateDefaultBlock(block, index)) {
+        block.enabled = false;
+        saveToLocalStorage();
+        renderDefaultBlocksList();
+        return;
+    }
+    
     saveToLocalStorage();
     renderDefaultBlocksList();
     
@@ -3388,23 +3918,77 @@ function renderDefaultBlocksList() {
         return;
     }
     
+    const dayTabs = DAYS_OF_WEEK.map(day => {
+        const isActive = day === activeDefaultDay;
+        return `
+            <button 
+                onclick="setActiveDefaultDay('${day}')" 
+                style="
+                    padding: 10px 14px;
+                    border-radius: 10px;
+                    border: 2px solid ${isActive ? '#4f46e5' : '#e5e7eb'};
+                    background: ${isActive ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#ffffff'};
+                    color: ${isActive ? 'white' : '#374151'};
+                    font-weight: 700;
+                    cursor: pointer;
+                    min-width: 90px;
+                ">
+                ${day}
+            </button>
+        `;
+    }).join('');
+    
+    const entriesForDay = expandDefaultBlocksForDay(activeDefaultDay, true)
+        .map(entry => ({ ...entry, range: getBlockTimeRange(entry.block) }))
+        .sort((a, b) => {
+            const aStart = isNaN(a.range.start) ? Infinity : a.range.start;
+            const bStart = isNaN(b.range.start) ? Infinity : b.range.start;
+            return aStart - bStart;
+        });
+    
     if (!scheduleData.defaultBlocks || scheduleData.defaultBlocks.length === 0) {
         container.innerHTML = `
+            <div style="margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 8px;">${dayTabs}</div>
             <div style="text-align: center; padding: 40px 20px; background: #f8f9fa; border-radius: 12px; border: 2px dashed #ddd;">
                 <div style="font-size: 48px; margin-bottom: 10px;">📋</div>
                 <p style="color: #999; font-size: 16px; margin: 0;">No default blocks yet.</p>
-                <p style="color: #999; font-size: 14px; margin: 10px 0 0 0;">Click "Add New Default Block" above to create one.</p>
+                <p style="color: #999; font-size: 14px; margin: 10px 0 0 0;">Pick a day above and click "Add New Default Block" to start.</p>
             </div>
         `;
         return;
     }
     
-    let html = '';
-    scheduleData.defaultBlocks.forEach((block, index) => {
+    if (entriesForDay.length === 0) {
+        container.innerHTML = `
+            <div style="margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 8px;">${dayTabs}</div>
+            <div style="text-align: center; padding: 32px 20px; background: #f8f9fa; border-radius: 12px; border: 2px dashed #ddd;">
+                <p style="color: #4f46e5; font-weight: 700; font-size: 16px;">No default blocks for ${activeDefaultDay} yet.</p>
+                <p style="color: #6b7280; font-size: 14px; margin: 6px 0 0 0;">Add one to prefill this day when creating weeks.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const totalMinutes = entriesForDay
+        .filter(entry => entry.block.enabled !== false)
+        .reduce((sum, entry) => sum + getBlockDurationMinutes(entry.block), 0);
+    const totalHours = `${Math.floor(totalMinutes / 60)}h ${String(totalMinutes % 60).padStart(2, '0')}m`;
+    
+    let html = `
+        <div style="margin-bottom: 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+            ${dayTabs}
+            <div style="margin-left: auto; font-weight: 700; color: ${totalMinutes > 1440 ? '#dc2626' : '#065f46'};">
+                Enabled total for ${activeDefaultDay}: ${totalHours}
+            </div>
+        </div>
+    `;
+    
+    entriesForDay.forEach(({ block, index, range, fromPrev }) => {
         const isEnabled = block.enabled !== false; // Default to true if not specified
-        const days = block.days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+        const days = block.days || DAYS_OF_WEEK;
         const daysShort = days.map(d => d.substring(0, 3)).join(', ');
         const override = block.dayStartOverride ? `<div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Day start override: ${block.dayStartOverride}</div>` : '';
+        const carryBadge = fromPrev ? `<span style="background: #eef2ff; color: #4f46e5; padding: 4px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; margin-left: 6px;">from prev day</span>` : '';
         
         html += `
             <div style="background: ${isEnabled ? '#ffffff' : '#f5f5f5'}; padding: 18px; border-radius: 12px; margin-bottom: 12px; border: 2px solid ${isEnabled ? '#667eea' : '#ddd'}; position: relative; ${!isEnabled ? 'opacity: 0.6;' : ''}">
@@ -3418,7 +4002,7 @@ function renderDefaultBlocksList() {
                 
                 <!-- Block Info -->
                 <div style="margin-right: 100px;">
-                    <div style="font-weight: 700; color: #667eea; font-size: 16px; margin-bottom: 8px;">${block.time}</div>
+                    <div style="font-weight: 700; color: #667eea; font-size: 16px; margin-bottom: 8px;">${block.time} ${carryBadge}</div>
                     <div style="font-size: 18px; font-weight: 600; margin-bottom: 8px;">${block.title}</div>
                     ${override}
                     ${block.tasks && block.tasks.length > 0 ? `<div style="font-size: 14px; color: #666; margin-bottom: 8px;">Tasks: ${block.tasks.join(', ')}</div>` : ''}
@@ -3442,6 +4026,8 @@ function renderDefaultBlocksList() {
     });
     
     container.innerHTML = html;
+
+    renderDefaultGroupControls();
 }
 
 function removeDefaultBlock(index) {
@@ -3450,6 +4036,107 @@ function removeDefaultBlock(index) {
         renderDefaultBlocksList();
         saveToLocalStorage();
         showToast('Default block deleted');
+    }
+}
+
+// ========================================
+// DEFAULT GROUPS
+// ========================================
+
+function renderDefaultGroupControls() {
+    const memberContainer = document.getElementById('defaultGroupMembers');
+    const listContainer = document.getElementById('defaultGroupsList');
+    if (!memberContainer || !listContainer) return;
+    
+    ensureDefaultBlockIds();
+    
+    // Member choices
+    const blocks = scheduleData.defaultBlocks || [];
+    const sortedBlocks = [...blocks].sort((a, b) => {
+        const ar = getBlockTimeRange(a);
+        const br = getBlockTimeRange(b);
+        const as = isNaN(ar.start) ? Infinity : ar.start;
+        const bs = isNaN(br.start) ? Infinity : br.start;
+        return as - bs;
+    });
+    if (blocks.length === 0) {
+        memberContainer.innerHTML = `<div style="color: #6b7280; font-size: 14px;">No default blocks available.</div>`;
+    } else {
+        memberContainer.innerHTML = sortedBlocks.map((block) => {
+            const label = `${block.time || '??'} — ${block.title || 'Untitled'}`;
+            return `
+                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px;">
+                    <input type="checkbox" class="default-group-member" value="${block.id}" style="width: 16px; height: 16px;">
+                    <span>${label}</span>
+                </label>
+            `;
+        }).join('');
+    }
+    
+    // Groups list
+    const groups = scheduleData.defaultGroups || [];
+    if (groups.length === 0) {
+        listContainer.innerHTML = `<div style="color: #6b7280; font-size: 14px;">No groups yet.</div>`;
+        return;
+    }
+    
+    let html = '';
+    groups.forEach((group, idx) => {
+        const members = (group.memberIds || [])
+            .map(id => blocks.find(b => b.id === id))
+            .filter(Boolean)
+            .map(b => `${b.time || '??'} — ${b.title || 'Untitled'}`);
+        html += `
+            <div style="margin-top: 10px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 10px; background: white;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div style="font-weight: 700; color: #1f2937;">${group.name}</div>
+                        <div style="font-size: 12px; color: #6b7280;">${members.length} item(s)</div>
+                    </div>
+                    <button onclick="deleteDefaultGroup(${idx})" style="background: #ef4444; color: white; border: none; padding: 6px 10px; border-radius: 8px; font-size: 12px; cursor: pointer;">Delete</button>
+                </div>
+                <div style="margin-top: 8px; font-size: 13px; color: #374151;">
+                    ${members.length ? members.join('<br>') : '<span style="color:#9ca3af;">Members missing</span>'}
+                </div>
+            </div>
+        `;
+    });
+    listContainer.innerHTML = html;
+}
+
+function saveDefaultGroup() {
+    const nameInput = document.getElementById('defaultGroupName');
+    const memberChecks = document.querySelectorAll('.default-group-member:checked');
+    const name = (nameInput?.value || '').trim();
+    if (!name) {
+        alert('Please enter a group name.');
+        return;
+    }
+    const memberIds = Array.from(memberChecks).map(cb => cb.value);
+    if (memberIds.length === 0) {
+        alert('Select at least one default block to include.');
+        return;
+    }
+    const newGroup = {
+        id: `dg_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
+        name,
+        memberIds
+    };
+    if (!scheduleData.defaultGroups) scheduleData.defaultGroups = [];
+    scheduleData.defaultGroups.push(newGroup);
+    saveToLocalStorage();
+    if (nameInput) nameInput.value = '';
+    document.querySelectorAll('.default-group-member').forEach(cb => cb.checked = false);
+    renderDefaultGroupControls();
+    showToast('Default group saved');
+}
+
+function deleteDefaultGroup(index) {
+    if (!scheduleData.defaultGroups || !scheduleData.defaultGroups[index]) return;
+    if (confirm('Delete this default group?')) {
+        scheduleData.defaultGroups.splice(index, 1);
+        saveToLocalStorage();
+        renderDefaultGroupControls();
     }
 }
 
@@ -4715,6 +5402,8 @@ function switchAddType(type) {
     const addWorkScheduleNew = document.getElementById('addWorkScheduleNew');
     const addCommuteNew = document.getElementById('addCommuteNew');
     const commuteSettingsNew = document.getElementById('commuteSettingsNew');
+    const commutePrepRowNew = document.getElementById('commutePrepRowNew');
+    const addCommutePrepNew = document.getElementById('addCommutePrepNew');
     
     if (type === 'day') {
         // Style buttons - Single Day selected (blue)
@@ -4735,10 +5424,12 @@ function switchAddType(type) {
         if (workScheduleCheckboxSection) workScheduleCheckboxSection.style.display = 'none';
         if (workDaysSection) workDaysSection.style.display = 'none';
         if (commuteSettingsNew) commuteSettingsNew.style.display = 'none';
+        if (commutePrepRowNew) commutePrepRowNew.style.display = 'none';
         
         // Uncheck checkboxes
         if (addWorkScheduleNew) addWorkScheduleNew.checked = false;
         if (addCommuteNew) addCommuteNew.checked = false;
+        if (addCommutePrepNew) addCommutePrepNew.checked = false;
         
         // Trigger existing logic
         if (dayRadio.onchange) dayRadio.onchange();
@@ -4925,13 +5616,32 @@ document.addEventListener('DOMContentLoaded', function() {
     // Sync commute duration
     const commuteDurationNew = document.getElementById('commuteDurationNew');
     const commuteDuration = document.getElementById('commuteDuration');
+    const commutePrepRowNew = document.getElementById('commutePrepRowNew');
+    const addCommutePrepNew = document.getElementById('addCommutePrepNew');
+    const commutePrepDurationNew = document.getElementById('commutePrepDurationNew');
     
     if (commuteDurationNew && commuteDuration) {
         commuteDurationNew.addEventListener('input', function() {
             commuteDuration.value = this.value;
         });
     }
-
+    
+    if (addCommuteNew && addCommutePrepNew) {
+        const updatePrepVisibility = () => {
+            if (commutePrepRowNew) {
+                commutePrepRowNew.style.display = (addCommuteNew.checked && addCommutePrepNew.checked) ? 'block' : 'none';
+            }
+        };
+        addCommuteNew.addEventListener('change', () => {
+            if (!addCommuteNew.checked && addCommutePrepNew.checked) {
+                addCommutePrepNew.checked = false;
+            }
+            updatePrepVisibility();
+        });
+        addCommutePrepNew.addEventListener('change', updatePrepVisibility);
+        updatePrepVisibility();
+    }
+    
     renderHomeInventoryTable();
     populatePreferredShopSelect();
     setTimeout(populatePreferredShopSelect, 400);
