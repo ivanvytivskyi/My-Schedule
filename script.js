@@ -175,12 +175,32 @@ function isWorkBlock(block) {
     return (block.title || '').toLowerCase().includes('work');
 }
 
+function isCommuteToWorkBlock(block) {
+    const title = (block.title || '').toLowerCase();
+    return title.includes('commute to work');
+}
+
+function isLunchBlock(block) {
+    return (block.title || '').toLowerCase().includes('lunch');
+}
+
+function isDinnerBlock(block) {
+    return (block.title || '').toLowerCase().includes('dinner');
+}
+
+function timeToHourFloat(timeStr) {
+    if (!timeStr || !timeStr.includes(':')) return NaN;
+    const [h, m] = timeStr.split(':').map(Number);
+    if (isNaN(h) || isNaN(m)) return NaN;
+    return h + m / 60;
+}
+
 function packMorningBlocksBeforeWork(blocks, workStartTime) {
     if (!workStartTime) return blocks;
     const workStartMins = timeStrToMinutes(workStartTime);
     if (isNaN(workStartMins)) return blocks;
     
-    const candidates = blocks.filter(b => !isWorkBlock(b) && isMorningCandidate(b));
+    const candidates = blocks.filter(b => (isCommuteToWorkBlock(b) || !isWorkBlock(b)) && isMorningCandidate(b));
     if (candidates.length === 0) return blocks;
     
     const available = workStartMins;
@@ -191,16 +211,28 @@ function packMorningBlocksBeforeWork(blocks, workStartTime) {
     const otherBlocks = candidates.filter(b => !sleepBlocks.includes(b));
     const descriptors = [];
     const removeSet = new Set();
+    const MIN_RATIO = 2 / 3; // allow trimming to ~66.7% (e.g., 30min -> 20min)
     
     if (sleepBlocks.length > 0) {
         const totalSleepDur = sleepBlocks.reduce((sum, b) => sum + getBlockDurationMinutes(b), 0);
         const primarySleep = sleepBlocks[0];
         sleepBlocks.slice(1).forEach(b => removeSet.add(b)); // drop extra sleep blocks
-        descriptors.push({ ref: primarySleep, title: primarySleep.title || '', duration: totalSleepDur });
+        descriptors.push({ ref: primarySleep, title: primarySleep.title || '', duration: totalSleepDur, minDuration: 0 });
     }
     
     otherBlocks.forEach(b => {
-        descriptors.push({ ref: b, title: b.title || '', duration: getBlockDurationMinutes(b) });
+        const duration = getBlockDurationMinutes(b);
+        const title = (b.title || '').toLowerCase();
+        const isMorningRoutine = title.includes('morning');
+        const isBreakfast = title.includes('breakfast');
+        
+        let minDuration = 0;
+        if (isMorningRoutine || isBreakfast) {
+            // Trim down to 66.7% (30 -> 20 minutes) automatically
+            minDuration = Math.max(1, Math.round(duration * MIN_RATIO));
+        }
+        
+        descriptors.push({ ref: b, title: b.title || '', duration, minDuration });
     });
     
     const priority = ['commute to work', 'commute prep', 'breakfast', 'morning', 'sleep'];
@@ -222,10 +254,14 @@ function packMorningBlocksBeforeWork(blocks, workStartTime) {
         for (const name of trimOrder) {
             const target = descriptors.find(d => d.duration > 0 && d.title.toLowerCase().includes(name));
             if (target) {
-                const cut = Math.min(overflow, target.duration);
-                target.duration -= cut;
-                overflow -= cut;
-                trimmed = true;
+                const minDuration = typeof target.minDuration === 'number' ? target.minDuration : 0;
+                const trimCapacity = Math.max(0, target.duration - minDuration);
+                if (trimCapacity > 0) {
+                    const cut = Math.min(overflow, trimCapacity);
+                    target.duration -= cut;
+                    overflow -= cut;
+                    trimmed = true;
+                }
                 if (overflow <= 0) break;
             }
         }
@@ -1191,11 +1227,15 @@ function addWeek() {
     // Use the selected date as the actual start of the week (no Monday adjustment)
     const weekStart = new Date(startDate);
     
+    const orderedDays = Array.from({ length: 7 }, (_, idx) => {
+        const date = new Date(weekStart);
+        date.setDate(weekStart.getDate() + idx);
+        return { date, key: getDayName(date).toLowerCase() };
+    });
+    
     // Check for duplicate dates before creating the week
     const duplicates = [];
-    for (let i = 0; i < 7; i++) {
-        const date = new Date(weekStart);
-        date.setDate(weekStart.getDate() + i);
+    orderedDays.forEach(({ date }) => {
         const dateKey = date.toISOString().split('T')[0];
         
         // Check if this date already exists
@@ -1205,7 +1245,7 @@ function addWeek() {
                 break;
             }
         }
-    }
+    });
     
     // If any duplicates found, alert and stop
     if (duplicates.length > 0) {
@@ -1220,16 +1260,13 @@ function addWeek() {
     const workSchedule = {}; // Map of dayOfWeek -> {start, end, date}
     
     if (addWorkSchedule) {
-        const dayKeys = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
-        dayKeys.forEach((dayKey, idx) => {
-            const startInput = document.querySelector(`.day-work-start[data-day="${dayKey}"]`);
-            const endInput = document.querySelector(`.day-work-end[data-day="${dayKey}"]`);
-            const dateForDay = new Date(weekStart);
-            dateForDay.setDate(weekStart.getDate() + idx);
-            const dayOfWeek = dateForDay.getDay();
+        orderedDays.forEach(({ key, date }) => {
+            const startInput = document.querySelector(`.day-work-start[data-day="${key}"]`);
+            const endInput = document.querySelector(`.day-work-end[data-day="${key}"]`);
+            const dayOfWeek = date.getDay();
             
             if (startInput?.value && endInput?.value) {
-                workSchedule[dayOfWeek] = { start: startInput.value, end: endInput.value, date: new Date(dateForDay) };
+                workSchedule[dayOfWeek] = { start: startInput.value, end: endInput.value, date: new Date(date) };
             }
         });
     }
@@ -1264,10 +1301,7 @@ function addWeek() {
     weeklyBreakfastQueue = buildBreakfastQueue();
     weeklyBreakfastUsed = new Set();
     
-    for (let i = 0; i < 7; i++) {
-        const date = new Date(weekStart);
-        date.setDate(weekStart.getDate() + i);
-        
+    orderedDays.forEach(({ date }, i) => {
         const dayKey = `day_${date.getTime()}`;
         const dayName = getDayName(date);
         const dayOfWeek = date.getDay();
@@ -1351,7 +1385,7 @@ function addWeek() {
                     }
                     blocks.push(copyToday);
                     
-                    if (nextDayBlock && i + 1 < 7) {
+                    if (nextDayBlock && i + 1 < orderedDays.length) {
                         const copyNext = { ...nextDayBlock };
                         if (isBreakfastBlock(copyNext)) {
                             assignRecipeToMealBlock(copyNext, {
@@ -1392,10 +1426,41 @@ function addWeek() {
             });
         }
         
-        // Fit morning blocks before work if enabled
-        const fitMorning = document.getElementById('fitMorningBeforeWork')?.checked;
-        if (fitMorning && isWorkDay) {
-            blocks = packMorningBlocksBeforeWork(blocks, workSchedule[dayOfWeek].start);
+        // Fit morning blocks before work (default ON for work days; checkbox can opt out)
+        const fitMorningToggle = document.getElementById('fitMorningBeforeWork');
+        const fitMorning = fitMorningToggle ? fitMorningToggle.checked : true;
+        if (isWorkDay && fitMorning) {
+            const startMins = timeStrToMinutes(workSchedule[dayOfWeek].start);
+            const isMorningShift = !isNaN(startMins) && startMins < (12 * 60); // only repack for true morning shifts
+            if (isMorningShift) {
+                blocks = packMorningBlocksBeforeWork(blocks, workSchedule[dayOfWeek].start);
+            }
+        }
+
+        // Skip lunch/dinner on work days based on shift timing
+        if (isWorkDay) {
+            const startHour = timeToHourFloat(workSchedule[dayOfWeek].start);
+            let endHour = timeToHourFloat(workSchedule[dayOfWeek].end);
+            if (!isNaN(startHour) && !isNaN(endHour)) {
+                if (endHour < startHour) endHour += 24; // handle overnight shifts
+
+                // Meal skip rules:
+                // - Very early shifts ending by early afternoon: skip lunch
+                // - Midday starts (before late afternoon) running into evening: skip lunch + dinner
+                // - Late afternoon/evening starts: skip dinner only
+                const skipLunchOnly = startHour <= 5 && endHour <= 14;
+                const skipLunchAndDinner = startHour >= 12 && startHour < 16 && endHour >= 19;
+                const skipDinnerOnly = startHour >= 16 && endHour >= 20;
+
+                blocks = blocks.filter(block => {
+                    const lunch = isLunchBlock(block);
+                    const dinner = isDinnerBlock(block);
+                    if (skipLunchAndDinner) return !lunch && !dinner;
+                    if (skipLunchOnly) return !lunch;
+                    if (skipDinnerOnly) return !dinner;
+                    return true;
+                });
+            }
         }
         
         scheduleData.days[dayKey] = {
@@ -1406,14 +1471,14 @@ function addWeek() {
             motivation: '✨ Make today count!',
             blocks: blocks
         };
-    }
+    });
     
     renderDayTabs();
     renderSchedule();
     saveToLocalStorage();
     
     // Show first day of new week
-    const firstDayKey = `day_${weekStart.getTime()}`;
+    const firstDayKey = `day_${orderedDays[0].date.getTime()}`;
     showDay(firstDayKey);
     
     // Set active tab and scroll to it
@@ -5477,6 +5542,12 @@ function switchAddType(type) {
 
 // Sync new inputs with old ones
 document.addEventListener('DOMContentLoaded', function() {
+    // Default to fitting morning blocks before work so early shifts auto-trim/pack
+    const fitMorningCheckbox = document.getElementById('fitMorningBeforeWork');
+    if (fitMorningCheckbox) {
+        fitMorningCheckbox.checked = true;
+    }
+
     // Sync single day date
     const singleDayDateInput = document.getElementById('singleDayDateInput');
     const oldDayDate = document.getElementById('dayDate');
@@ -5516,7 +5587,6 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Function to update manual work days based on selected start date
     function updateManualWorkDays(startDate) {
-        const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
         const workDaysSection = document.getElementById('workDaysSection');
         
         if (!workDaysSection) return;
@@ -5525,21 +5595,33 @@ document.addEventListener('DOMContentLoaded', function() {
         const grid = workDaysSection.querySelector('div[style*="display: grid"]');
         if (!grid) return;
         
+        // Preserve any values the user has already entered, keyed by the day name
+        const existingValues = {};
+        grid.querySelectorAll('.day-work-start').forEach(startInput => {
+            const dayKey = startInput.dataset.day;
+            const endInput = grid.querySelector(`.day-work-end[data-day="${dayKey}"]`);
+            existingValues[dayKey] = {
+                start: startInput.value,
+                end: endInput?.value || ''
+            };
+        });
+        
         let html = '';
         for (let i = 0; i < 7; i++) {
             const currentDate = new Date(startDate);
             currentDate.setDate(startDate.getDate() + i);
             const dayName = getDayName(currentDate);
             const dateStr = currentDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-            const dayKey = days[i];
+            const dayKey = dayName.toLowerCase();
+            const saved = existingValues[dayKey] || {};
             
             html += `
                 <div style="display: grid; grid-template-columns: 100px auto; align-items: center; gap: 10px;">
                     <span style="font-weight: 500; color: #333;">${dayName} <span style="font-size: 12px; color: #999;">${dateStr}</span></span>
                     <div style="display: flex; align-items: center; gap: 8px;">
-                        <input type="time" class="day-work-start" data-day="${dayKey}" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" />
+                        <input type="time" class="day-work-start" data-day="${dayKey}" value="${saved.start || ''}" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" />
                         <span>to</span>
-                        <input type="time" class="day-work-end" data-day="${dayKey}" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" />
+                        <input type="time" class="day-work-end" data-day="${dayKey}" value="${saved.end || ''}" style="padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" />
                     </div>
                 </div>
             `;
