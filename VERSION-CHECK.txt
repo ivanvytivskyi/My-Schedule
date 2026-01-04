@@ -1,0 +1,37 @@
+===============================================
+SLEEP FIX VERSION CHECK - 2025-01-01-B
+===============================================
+
+HOW TO VERIFY YOU HAVE THE CORRECT FILE:
+
+1. Download script.js from this chat
+2. COMPLETELY CLOSE your browser (all windows)
+3. Replace your old script.js file with the new one
+4. Open your app again
+5. Press F12 to open console
+6. Look for this message at the TOP:
+
+   🔧 VERSION CHECK: Sleep Fix 2025-01-01-B loaded successfully!
+      If you see this message, you have the CORRECT updated file.
+
+IF YOU SEE THIS MESSAGE:
+✓ Correct file is loaded
+✓ Regenerate your schedule
+✓ Console should show "estimated morning start at 05:25"
+
+IF YOU DON'T SEE THIS MESSAGE:
+✗ You're still running the OLD file
+✗ Check you replaced the correct script.js
+✗ Make sure browser is completely closed before reopening
+
+===============================================
+WHAT THE CONSOLE SHOULD SHOW:
+===============================================
+
+CORRECT (NEW VERSION):
+🌅 Tomorrow (Friday) has morning shift at 07:00, estimated morning start at 05:25
+
+WRONG (OLD VERSION):
+🌅 Tomorrow (Friday) has morning shift at 07:00, morning routine starts at 06:00
+
+===============================================
