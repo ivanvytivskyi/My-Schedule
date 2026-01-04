@@ -1711,38 +1711,6 @@ function addSingleDay() {
         });
     }
 
-    // Apply default groups (skip duplicates by time+title)
-    if (scheduleData.defaultGroups && scheduleData.defaultGroups.length > 0) {
-        const existing = [...blocks];
-        scheduleData.defaultGroups.forEach(group => {
-            (group.memberIds || []).forEach(id => {
-                const block = (scheduleData.defaultBlocks || []).find(b => b.id === id);
-                if (!block) return;
-                if (!block.days || block.days.includes(dayName)) {
-                    const copy = { ...block };
-                    
-                    // Clear any pre-existing recipe
-                    delete copy.recipeID;
-                    delete copy.recipeName;
-                    
-                    if (isBreakfastBlock(copy)) {
-                        assignRecipeToMealBlock(copy, {
-                            category: 'breakfast',
-                            queue: weeklyBreakfastQueue,
-                            usedSet: weeklyBreakfastUsed
-                        });
-                    } else if (isLunchBlock(copy) || isDinnerBlock(copy)) {
-                        // Auto-assign lunch/dinner recipes from the main queue
-                        assignRecipeToMealBlock(copy);
-                    }
-                    if (!isDuplicateBlock(existing, copy)) {
-                        blocks.push(copy);
-                        existing.push(copy);
-                    }
-                }
-            });
-        });
-    }
     
     scheduleData.days[dayKey] = {
         name: dayName,
@@ -2274,31 +2242,6 @@ async function addWeek() {
                     console.log(`🌙 First day morning sleep added: 00:00-${formatMinutesToTime(todayWakeTime)} for ${dayName}`);
                 }
             }
-        }
-        
-        // Apply default groups (skip duplicates by time+title)
-        if (scheduleData.defaultGroups && scheduleData.defaultGroups.length > 0) {
-            const existing = [...blocks];
-            scheduleData.defaultGroups.forEach(group => {
-                (group.memberIds || []).forEach(id => {
-                    const block = (scheduleData.defaultBlocks || []).find(b => b.id === id);
-                    if (!block) return;
-                    if (!block.days || block.days.includes(dayName)) {
-                        const copy = { ...block };
-                        if (isBreakfastBlock(copy)) {
-                            assignRecipeToMealBlock(copy, {
-                                category: 'breakfast',
-                                queue: weeklyBreakfastQueue,
-                                usedSet: weeklyBreakfastUsed
-                            });
-                        }
-                        if (!isDuplicateBlock(existing, copy)) {
-                            blocks.push(copy);
-                            existing.push(copy);
-                        }
-                    }
-                });
-            });
         }
         
         // INSERT COOKING BLOCKS BEFORE PACKING
@@ -2944,9 +2887,13 @@ function renderTimeBlock(dayKey, block, index) {
         html += `<div class="note">${block.note}</div>`;
     }
 
-    if (block.tasks && block.tasks.length > 0) {
+    const tasksToRender = Array.isArray(block.tasks) 
+        ? (isCooking ? block.tasks.filter(task => task !== 'Cook') : block.tasks)
+        : [];
+
+    if (tasksToRender.length > 0) {
         html += '<div class="tasks">';
-        block.tasks.forEach((task, taskIndex) => {
+        tasksToRender.forEach((task, taskIndex) => {
             const taskId = `${blockId}-task-${taskIndex}`;
             const isChecked = localStorage.getItem(taskId) === 'true' ? 'checked' : '';
             html += `
@@ -2961,7 +2908,7 @@ function renderTimeBlock(dayKey, block, index) {
         // Add Cook Smart checkbox to cooking blocks (in same row)
         if (isCooking && block.recipeID && !block.isLeftover && typeof getCookingCheckboxHTML === 'function') {
             html += `
-                <div class="task-item" style="display: flex; align-items: center; width: fit-content;">
+                <div class="task-item cook-action">
                     ${getCookingCheckboxHTML(blockId, block.recipeID, block.recipeName || 'Recipe')}
                 </div>
             `;
@@ -2972,7 +2919,7 @@ function renderTimeBlock(dayKey, block, index) {
         // If no tasks but it's a cooking block, still show the Cook Smart checkbox
         html += '<div class="tasks">';
         html += `
-            <div class="task-item" style="display: flex; align-items: center; width: fit-content;">
+            <div class="task-item cook-action">
                 ${getCookingCheckboxHTML(blockId, block.recipeID, block.recipeName || 'Recipe')}
             </div>
         `;
@@ -4878,7 +4825,6 @@ function loadFromLocalStorage() {
                     events: Array.isArray(parsed.events) ? parsed.events : [],
                     days: parsed.days && typeof parsed.days === 'object' ? parsed.days : {},
                     defaultBlocks: Array.isArray(parsed.defaultBlocks) ? parsed.defaultBlocks : [],
-                    defaultGroups: Array.isArray(parsed.defaultGroups) ? parsed.defaultGroups : [],
                     dayWindow: parsed.dayWindow && parsed.dayWindow.start && parsed.dayWindow.end ? parsed.dayWindow : { start: '07:00', end: '23:00' },
                     shopping: Array.isArray(parsed.shopping) ? parsed.shopping : [],
                     recipes: Array.isArray(parsed.recipes) ? parsed.recipes : []
@@ -5719,8 +5665,6 @@ function renderDefaultBlocksList() {
     });
     
     container.innerHTML = html;
-
-    renderDefaultGroupControls();
 }
 
 function removeDefaultBlock(index) {
@@ -5729,107 +5673,6 @@ function removeDefaultBlock(index) {
         renderDefaultBlocksList();
         saveToLocalStorage();
         showToast('Default block deleted');
-    }
-}
-
-// ========================================
-// DEFAULT GROUPS
-// ========================================
-
-function renderDefaultGroupControls() {
-    const memberContainer = document.getElementById('defaultGroupMembers');
-    const listContainer = document.getElementById('defaultGroupsList');
-    if (!memberContainer || !listContainer) return;
-    
-    ensureDefaultBlockIds();
-    
-    // Member choices
-    const blocks = scheduleData.defaultBlocks || [];
-    const sortedBlocks = [...blocks].sort((a, b) => {
-        const ar = getBlockTimeRange(a);
-        const br = getBlockTimeRange(b);
-        const as = isNaN(ar.start) ? Infinity : ar.start;
-        const bs = isNaN(br.start) ? Infinity : br.start;
-        return as - bs;
-    });
-    if (blocks.length === 0) {
-        memberContainer.innerHTML = `<div style="color: #6b7280; font-size: 14px;">No default blocks available.</div>`;
-    } else {
-        memberContainer.innerHTML = sortedBlocks.map((block) => {
-            const label = `${block.time || '??'} — ${block.title || 'Untitled'}`;
-            return `
-                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px;">
-                    <input type="checkbox" class="default-group-member" value="${block.id}" style="width: 16px; height: 16px;">
-                    <span>${label}</span>
-                </label>
-            `;
-        }).join('');
-    }
-    
-    // Groups list
-    const groups = scheduleData.defaultGroups || [];
-    if (groups.length === 0) {
-        listContainer.innerHTML = `<div style="color: #6b7280; font-size: 14px;">No groups yet.</div>`;
-        return;
-    }
-    
-    let html = '';
-    groups.forEach((group, idx) => {
-        const members = (group.memberIds || [])
-            .map(id => blocks.find(b => b.id === id))
-            .filter(Boolean)
-            .map(b => `${b.time || '??'} — ${b.title || 'Untitled'}`);
-        html += `
-            <div style="margin-top: 10px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 10px; background: white;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <div style="font-weight: 700; color: #1f2937;">${group.name}</div>
-                        <div style="font-size: 12px; color: #6b7280;">${members.length} item(s)</div>
-                    </div>
-                    <button onclick="deleteDefaultGroup(${idx})" style="background: #ef4444; color: white; border: none; padding: 6px 10px; border-radius: 8px; font-size: 12px; cursor: pointer;">Delete</button>
-                </div>
-                <div style="margin-top: 8px; font-size: 13px; color: #374151;">
-                    ${members.length ? members.join('<br>') : '<span style="color:#9ca3af;">Members missing</span>'}
-                </div>
-            </div>
-        `;
-    });
-    listContainer.innerHTML = html;
-}
-
-function saveDefaultGroup() {
-    const nameInput = document.getElementById('defaultGroupName');
-    const memberChecks = document.querySelectorAll('.default-group-member:checked');
-    const name = (nameInput?.value || '').trim();
-    if (!name) {
-        alert('Please enter a group name.');
-        return;
-    }
-    const memberIds = Array.from(memberChecks).map(cb => cb.value);
-    if (memberIds.length === 0) {
-        alert('Select at least one default block to include.');
-        return;
-    }
-    const newGroup = {
-        id: `dg_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
-        name,
-        memberIds
-    };
-    if (!scheduleData.defaultGroups) scheduleData.defaultGroups = [];
-    scheduleData.defaultGroups.push(newGroup);
-    saveToLocalStorage();
-    if (nameInput) nameInput.value = '';
-    document.querySelectorAll('.default-group-member').forEach(cb => cb.checked = false);
-    renderDefaultGroupControls();
-    showToast('Default group saved');
-}
-
-function deleteDefaultGroup(index) {
-    if (!scheduleData.defaultGroups || !scheduleData.defaultGroups[index]) return;
-    if (confirm('Delete this default group?')) {
-        scheduleData.defaultGroups.splice(index, 1);
-        saveToLocalStorage();
-        renderDefaultGroupControls();
     }
 }
 

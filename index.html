@@ -353,24 +353,6 @@
             <div id="defaultBlocksList">
                 <!-- Default blocks will be listed here -->
             </div>
-
-            <!-- Default Groups Section -->
-            <div style="margin-top: 24px; padding: 16px; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 12px;">
-                <h3 style="margin: 0 0 12px 0; color: #1f2937;">🧩 Default Block Groups</h3>
-                <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 14px;">Create groups of defaults so you can apply them together. Group members will skip duplicates when added.</p>
-                
-                <div style="display: grid; gap: 8px; margin-bottom: 12px;">
-                    <input id="defaultGroupName" type="text" placeholder="Group name (e.g., Morning Pack)" style="padding: 10px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
-                    <div id="defaultGroupMembers" style="display: grid; gap: 6px; max-height: 200px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; background: white;">
-                        <!-- Member checkboxes populated by script -->
-                    </div>
-                    <button type="button" onclick="saveDefaultGroup()" style="padding: 10px 14px; background: #10b981; color: white; border: none; border-radius: 8px; font-weight: 700; cursor: pointer;">➕ Save Group</button>
-                </div>
-                
-                <div id="defaultGroupsList">
-                    <!-- Groups render here -->
-                </div>
-            </div>
         </div>
     </div>
 
@@ -1445,11 +1427,24 @@ The app will parse and beautify automatically!" style="width: 100%; height: 300p
                 </div>
                 
                 <p style="margin: 15px 0 10px 0; font-weight: 600; color: #333;">
-                    Select a time slot:
+                    Select an available time slot:
                 </p>
                 
                 <div id="availableSlotsContainer" style="max-height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 8px; padding: 10px;">
                     <!-- Radio buttons for available slots will be inserted here -->
+                </div>
+
+                <div id="slotStartTimeSection" style="display: none; margin-top: 16px; padding: 12px; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
+                    <label for="slotStartTimeInput" style="display: block; font-weight: 600; color: #333; margin-bottom: 8px;">
+                        Choose a start time inside the selected slot:
+                    </label>
+                    <input type="time" id="slotStartTimeInput" class="custom-time-input" style="width: 160px;" />
+                    <div id="slotPreview" class="slot-preview-text" style="margin-top: 10px; font-size: 14px; color: #374151;">
+                        Task will run: --:-- – --:--
+                    </div>
+                    <div id="freeTimeRemaining" class="slot-free-time" style="margin-top: 6px; font-size: 13px; color: #1f2937; font-weight: 600;">
+                        Free time remaining today: --
+                    </div>
                 </div>
                 
                 <div style="display: flex; gap: 12px; margin-top: 20px;">
