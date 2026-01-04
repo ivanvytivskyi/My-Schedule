@@ -440,6 +440,19 @@ body.edit-mode .add-day-btn {
     margin-bottom: 10px;
 }
 
+.day-free-time {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: #eef2ff;
+    color: #1f2937;
+    padding: 8px 12px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 13px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
 .day-header-edit {
     display: none;
 }
@@ -604,6 +617,10 @@ body.edit-mode .youtube-btn {
     gap: 10px;
 }
 
+.task-item.cook-action {
+    align-items: center;
+}
+
 .task-item input[type="checkbox"] {
     margin-top: 3px;
     width: 18px;
@@ -637,6 +654,42 @@ body.edit-mode .youtube-btn {
 
 body.edit-mode .edit-controls {
     display: flex;
+}
+
+.slot-preview-text {
+    font-weight: 600;
+}
+
+.overlap-tasks-container {
+    display: grid;
+    gap: 12px;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.overlap-task-card {
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 12px;
+    background: #f9fafb;
+    display: grid;
+    gap: 8px;
+}
+
+.overlap-task-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.overlap-task-actions {
+    display: grid;
+    gap: 8px;
+}
+
+.slot-preview-text {
+    color: #111827;
 }
 
 .edit-btn, .delete-btn {
