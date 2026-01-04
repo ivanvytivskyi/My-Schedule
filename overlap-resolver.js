@@ -74,6 +74,15 @@ function findSlotsForDuration(blocks, duration, dayStartMins = 0, dayEndMins = 2
     return gaps.filter(gap => gap.duration >= duration);
 }
 
+function formatMinutesAsHoursAndMinutes(totalMinutes) {
+    const minutes = Math.max(0, Math.round(totalMinutes));
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (hours > 0 && mins > 0) return `${hours}h ${mins}m`;
+    if (hours > 0) return `${hours}h`;
+    return `${mins}m`;
+}
+
 // Start the overlap resolution process
 function resolveWorkOverlaps(dayIndex, dayData, blocks, workRange) {
     return new Promise((resolve, reject) => {
@@ -119,11 +128,13 @@ function showOverlapChoice() {
     const choiceStep = document.getElementById('overlapChoiceStep');
     const slotPickerStep = document.getElementById('overlapSlotPickerStep');
     const splitModeStep = document.getElementById('overlapSplitModeStep');
+    const startTimeSection = document.getElementById('slotStartTimeSection');
     
     // Hide all steps except choice
     choiceStep.style.display = 'block';
     slotPickerStep.style.display = 'none';
     splitModeStep.style.display = 'none';
+    if (startTimeSection) startTimeSection.style.display = 'none';
     
     // Update choice info
     document.getElementById('overlapDayName').textContent = overlapResolverState.dayData.name;
@@ -164,6 +175,7 @@ function showSlotPicker() {
     
     // Find available slots
     const availableSlots = findSlotsForDuration(blocksForGapCalculation, duration);
+    overlapResolverState.availableSlots = availableSlots;
     
     if (availableSlots.length === 0) {
         // No full slots available - offer to split
@@ -175,10 +187,12 @@ function showSlotPicker() {
     const choiceStep = document.getElementById('overlapChoiceStep');
     const slotPickerStep = document.getElementById('overlapSlotPickerStep');
     const splitModeStep = document.getElementById('overlapSplitModeStep');
+    const startTimeSection = document.getElementById('slotStartTimeSection');
     
     choiceStep.style.display = 'none';
     slotPickerStep.style.display = 'block';
     splitModeStep.style.display = 'none';
+    if (startTimeSection) startTimeSection.style.display = 'block';
     
     // Update task info
     document.getElementById('currentTaskTitle').textContent = currentBlock.title || 'Untitled';
@@ -218,11 +232,13 @@ function showSlotPicker() {
             });
             label.style.background = '#e7f3ff';
             label.style.borderColor = '#0066cc';
+            overlapResolverState.selectedSlot = slot;
+            updateStartTimeControls(slot, duration);
         };
         
         const text = document.createElement('span');
         text.style.cssText = 'font-size: 15px; font-weight: 500; color: #333;';
-        text.textContent = `${formatMinutesToTime(slot.start)} – ${formatMinutesToTime(slot.end)} (${slot.duration} min available)`;
+        text.textContent = `${formatMinutesToTime(slot.start)} – ${formatMinutesToTime(slot.end)} (Available)`;
         
         label.appendChild(radio);
         label.appendChild(text);
@@ -235,6 +251,80 @@ function showSlotPicker() {
         firstRadio.checked = true;
         firstRadio.dispatchEvent(new Event('change'));
     }
+
+    const startTimeInput = document.getElementById('slotStartTimeInput');
+    if (startTimeInput) {
+        startTimeInput.oninput = () => updateStartTimePreview(duration);
+    }
+}
+
+function updateStartTimeControls(slot, duration) {
+    const startTimeInput = document.getElementById('slotStartTimeInput');
+    if (!startTimeInput || !slot) return;
+    
+    const minStart = slot.start;
+    const maxStart = Math.max(slot.start, slot.end - duration);
+    startTimeInput.min = formatMinutesToTime(minStart);
+    startTimeInput.max = formatMinutesToTime(maxStart);
+    
+    let selectedStart = timeStrToMinutes(startTimeInput.value);
+    if (isNaN(selectedStart) || selectedStart < minStart || selectedStart > maxStart) {
+        selectedStart = minStart;
+    }
+    startTimeInput.value = formatMinutesToTime(selectedStart);
+    overlapResolverState.selectedSlot = slot;
+    updateStartTimePreview(duration);
+}
+
+function updateStartTimePreview(duration) {
+    const startTimeInput = document.getElementById('slotStartTimeInput');
+    const preview = document.getElementById('slotPreview');
+    if (!startTimeInput || !preview) return;
+
+    const slot = overlapResolverState.selectedSlot;
+    if (!slot) return;
+
+    const minStart = slot.start;
+    const maxStart = Math.max(slot.start, slot.end - duration);
+    let startMins = timeStrToMinutes(startTimeInput.value);
+    if (isNaN(startMins)) startMins = minStart;
+    startMins = Math.min(Math.max(startMins, minStart), maxStart);
+    startTimeInput.value = formatMinutesToTime(startMins);
+    
+    const endMins = startMins + duration;
+    preview.textContent = `Task will run: ${formatMinutesToTime(startMins)} – ${formatMinutesToTime(endMins)}`;
+    updateFreeTimeRemaining(startMins, duration);
+}
+
+function updateFreeTimeRemaining(startMins, duration) {
+    const freeTimeEl = document.getElementById('freeTimeRemaining');
+    if (!freeTimeEl) return;
+
+    const totalFree = calculateRemainingFreeTime(startMins, duration);
+    freeTimeEl.textContent = `Free time remaining today: ${formatMinutesAsHoursAndMinutes(totalFree)}`;
+}
+
+function calculateRemainingFreeTime(startMins, duration) {
+    const endMins = startMins + duration;
+    const currentBlock = overlapResolverState.overlappingBlocks[overlapResolverState.currentBlockIndex];
+    const updatedBlock = {
+        ...currentBlock,
+        time: `${formatMinutesToTime(startMins)}-${formatMinutesToTime(endMins)}`
+    };
+
+    const updatedBlocks = overlapResolverState.allBlocks.map(block => 
+        block === currentBlock ? updatedBlock : block
+    );
+
+    const dayStartRaw = scheduleData?.dayWindow?.start || '00:00';
+    const dayEndRaw = scheduleData?.dayWindow?.end || '23:59';
+    const dayStartValue = timeStrToMinutes(dayStartRaw);
+    const dayEndValue = timeStrToMinutes(dayEndRaw);
+    const dayStart = isNaN(dayStartValue) ? 0 : dayStartValue;
+    const dayEnd = isNaN(dayEndValue) ? 24 * 60 : dayEndValue;
+
+    const gaps = findAvailableGaps(updatedBlocks, dayStart, dayEnd);
+    return gaps.reduce((sum, gap) => sum + gap.duration, 0);
 }
 
 // Confirm slot pick and move to next overlapping block
@@ -254,12 +344,20 @@ function confirmSlotPick() {
         block => !overlapResolverState.overlappingBlocks.includes(block)
     );
     
-    const availableSlots = findSlotsForDuration(blocksForGapCalculation, duration);
+    const availableSlots = overlapResolverState.availableSlots || findSlotsForDuration(blocksForGapCalculation, duration);
     const selectedSlot = availableSlots[slotIndex];
+    overlapResolverState.selectedSlot = selectedSlot;
+
+    const startTimeInput = document.getElementById('slotStartTimeInput');
+    const minStart = selectedSlot ? selectedSlot.start : 0;
+    const maxStart = selectedSlot ? Math.max(selectedSlot.start, selectedSlot.end - duration) : minStart;
+    let chosenStart = timeStrToMinutes(startTimeInput?.value);
+    if (isNaN(chosenStart)) chosenStart = minStart;
+    chosenStart = Math.min(Math.max(chosenStart, minStart), maxStart);
     
     // Move the block to the selected slot
-    const newStartTime = formatMinutesToTime(selectedSlot.start);
-    const newEndTime = formatMinutesToTime(selectedSlot.start + duration);
+    const newStartTime = formatMinutesToTime(chosenStart);
+    const newEndTime = formatMinutesToTime(chosenStart + duration);
     currentBlock.time = `${newStartTime}-${newEndTime}`;
     
     // Update startDateTime and endDateTime if they exist
@@ -288,6 +386,8 @@ function confirmSlotPick() {
 function showSplitMode() {
     const currentBlock = overlapResolverState.overlappingBlocks[overlapResolverState.currentBlockIndex];
     const duration = getBlockDurationMinutes(currentBlock);
+    const startTimeSection = document.getElementById('slotStartTimeSection');
+    if (startTimeSection) startTimeSection.style.display = 'none';
     
     // Get blocks excluding overlapping blocks
     const blocksForGapCalculation = overlapResolverState.allBlocks.filter(

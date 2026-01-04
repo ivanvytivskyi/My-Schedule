@@ -604,6 +604,10 @@ body.edit-mode .youtube-btn {
     gap: 10px;
 }
 
+.task-item.cook-action {
+    align-items: center;
+}
+
 .task-item input[type="checkbox"] {
     margin-top: 3px;
     width: 18px;
@@ -637,6 +641,14 @@ body.edit-mode .youtube-btn {
 
 body.edit-mode .edit-controls {
     display: flex;
+}
+
+.slot-preview-text {
+    font-weight: 600;
+}
+
+.slot-free-time {
+    color: #0f172a;
 }
 
 .edit-btn, .delete-btn {
