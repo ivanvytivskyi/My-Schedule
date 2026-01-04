@@ -2,7 +2,7 @@
 // WORK-OVERLAP RESOLVER - V2.1.0
 // ================================================
 // Handles conflicts when default blocks overlap with work hours
-// User can choose to Remove or Move overlapping tasks
+// User can choose to Remove or Move overlapping tasks in one friendly list
 // Move supports same-day slot picking with optional task splitting
 
 // State for overlap resolution
@@ -10,11 +10,13 @@ let overlapResolverState = {
     dayIndex: 0,
     dayData: null,
     overlappingBlocks: [],
-    currentBlockIndex: 0,
     workRange: null,
     allBlocks: [],
     resolveCallback: null,
-    rejectCallback: null
+    rejectCallback: null,
+    taskStates: [],
+    dayStart: 0,
+    dayEnd: 24 * 60
 };
 
 // Check if a block is allowed during work hours
@@ -25,46 +27,82 @@ function allowedDuringWork(block) {
            title.includes('sleep');
 }
 
+function formatMinutesAsHoursAndMinutes(totalMinutes) {
+    const minutes = Math.max(0, Math.round(totalMinutes));
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (hours > 0 && mins > 0) return `${hours}h ${mins}m`;
+    if (hours > 0) return `${hours}h`;
+    return `${mins}m`;
+}
+
+function getBlockIntervalsWithinWindow(block, dayStartMins = 0, dayEndMins = 24 * 60) {
+    const { start, end } = getBlockTimeRange(block);
+    if (isNaN(start) || isNaN(end)) return [];
+    if (start === end) return [];
+
+    const parts = end < start ? [[start, 24 * 60], [0, end]] : [[start, end]];
+    const intervals = [];
+
+    parts.forEach(([s, e]) => {
+        const clampedStart = Math.max(s, dayStartMins);
+        const clampedEnd = Math.min(e, dayEndMins);
+        if (clampedEnd > clampedStart) {
+            intervals.push({ start: clampedStart, end: clampedEnd });
+        }
+    });
+
+    return intervals;
+}
+
+function mergeIntervals(intervals) {
+    if (!intervals.length) return [];
+    const sorted = intervals.slice().sort((a, b) => a.start - b.start);
+    const merged = [sorted[0]];
+
+    for (let i = 1; i < sorted.length; i++) {
+        const last = merged[merged.length - 1];
+        const current = sorted[i];
+        if (current.start <= last.end) {
+            last.end = Math.max(last.end, current.end);
+        } else {
+            merged.push({ ...current });
+        }
+    }
+
+    return merged;
+}
+
 // Find all gaps in the schedule on a given day
 function findAvailableGaps(blocks, dayStartMins = 0, dayEndMins = 24 * 60) {
-    // Sort blocks by start time
-    const sortedBlocks = blocks.slice().sort((a, b) => {
-        const aStart = getBlockTimeRange(a).start;
-        const bStart = getBlockTimeRange(b).start;
-        return aStart - bStart;
+    const busy = [];
+    blocks.forEach(block => {
+        busy.push(...getBlockIntervalsWithinWindow(block, dayStartMins, dayEndMins));
     });
-    
+
+    const mergedBusy = mergeIntervals(busy);
     const gaps = [];
-    let lastEnd = dayStartMins;
-    
-    sortedBlocks.forEach(block => {
-        const { start, end } = getBlockTimeRange(block);
-        if (isNaN(start) || isNaN(end)) return;
-        
-        // Skip blocks outside our day window
-        if (end <= dayStartMins || start >= dayEndMins) return;
-        
-        // Check if there's a gap before this block
-        if (start > lastEnd) {
+    let cursor = dayStartMins;
+
+    mergedBusy.forEach(interval => {
+        if (interval.start > cursor) {
             gaps.push({
-                start: lastEnd,
-                end: start,
-                duration: start - lastEnd
+                start: cursor,
+                end: interval.start,
+                duration: interval.start - cursor
             });
         }
-        
-        lastEnd = Math.max(lastEnd, end);
+        cursor = Math.max(cursor, interval.end);
     });
-    
-    // Check for gap after last block
-    if (lastEnd < dayEndMins) {
+
+    if (cursor < dayEndMins) {
         gaps.push({
-            start: lastEnd,
+            start: cursor,
             end: dayEndMins,
-            duration: dayEndMins - lastEnd
+            duration: dayEndMins - cursor
         });
     }
-    
+
     return gaps;
 }
 
@@ -101,421 +139,373 @@ function resolveWorkOverlaps(dayIndex, dayData, blocks, workRange) {
             dayIndex,
             dayData,
             overlappingBlocks: overlapping,
-            currentBlockIndex: 0,
             workRange,
             allBlocks: blocks,
             resolveCallback: resolve,
-            rejectCallback: reject
+            rejectCallback: reject,
+            taskStates: [],
+            dayStart: (() => {
+                const val = timeStrToMinutes(scheduleData?.dayWindow?.start || '00:00');
+                return isNaN(val) ? 0 : val;
+            })(),
+            dayEnd: (() => {
+                const val = timeStrToMinutes(scheduleData?.dayWindow?.end || '23:59');
+                return isNaN(val) ? 24 * 60 : val;
+            })()
         };
         
         // Show choice modal
-        showOverlapChoice();
+        prepareOverlapTaskStates();
+        showOverlapList();
     });
 }
 
-// Show the initial choice: Remove or Move
-function showOverlapChoice() {
-    const modal = document.getElementById('workOverlapModal');
-    const choiceStep = document.getElementById('overlapChoiceStep');
-    const slotPickerStep = document.getElementById('overlapSlotPickerStep');
-    const splitModeStep = document.getElementById('overlapSplitModeStep');
-    
-    // Hide all steps except choice
-    choiceStep.style.display = 'block';
-    slotPickerStep.style.display = 'none';
-    splitModeStep.style.display = 'none';
-    
-    // Update choice info
-    document.getElementById('overlapDayName').textContent = overlapResolverState.dayData.name;
-    document.getElementById('overlapCount').textContent = overlapResolverState.overlappingBlocks.length;
-    
-    modal.classList.add('active');
-}
-
-// Handle user choice: Remove or Move
-function handleOverlapChoice(choice) {
-    if (choice === 'remove') {
-        // Remove all overlapping blocks
-        const newBlocks = overlapResolverState.allBlocks.filter(
-            block => !overlapResolverState.overlappingBlocks.includes(block)
+function prepareOverlapTaskStates() {
+    const baseBlocks = overlapResolverState.allBlocks.filter(
+        block => !overlapResolverState.overlappingBlocks.includes(block)
+    );
+    overlapResolverState.taskStates = overlapResolverState.overlappingBlocks.map(block => {
+        const duration = getBlockDurationMinutes(block);
+        const slots = findSlotsForDuration(
+            baseBlocks,
+            duration,
+            overlapResolverState.dayStart,
+            overlapResolverState.dayEnd
         );
-        
-        closeOverlapModal();
-        overlapResolverState.resolveCallback(newBlocks);
-        return;
-    }
-    
-    if (choice === 'move') {
-        // Start slot picking for first overlapping block
-        overlapResolverState.currentBlockIndex = 0;
-        showSlotPicker();
-    }
-}
-
-// Show slot picker for current overlapping block
-function showSlotPicker() {
-    const currentBlock = overlapResolverState.overlappingBlocks[overlapResolverState.currentBlockIndex];
-    const duration = getBlockDurationMinutes(currentBlock);
-    
-    // Get blocks excluding current overlapping block and other overlapping blocks
-    const blocksForGapCalculation = overlapResolverState.allBlocks.filter(
-        block => !overlapResolverState.overlappingBlocks.includes(block)
-    );
-    
-    // Find available slots
-    const availableSlots = findSlotsForDuration(blocksForGapCalculation, duration);
-    
-    if (availableSlots.length === 0) {
-        // No full slots available - offer to split
-        showSplitMode();
-        return;
-    }
-    
-    // Show slot picker
-    const choiceStep = document.getElementById('overlapChoiceStep');
-    const slotPickerStep = document.getElementById('overlapSlotPickerStep');
-    const splitModeStep = document.getElementById('overlapSplitModeStep');
-    
-    choiceStep.style.display = 'none';
-    slotPickerStep.style.display = 'block';
-    splitModeStep.style.display = 'none';
-    
-    // Update task info
-    document.getElementById('currentTaskTitle').textContent = currentBlock.title || 'Untitled';
-    document.getElementById('currentTaskDuration').textContent = duration + ' minutes';
-    document.getElementById('currentTaskDay').textContent = overlapResolverState.dayData.name;
-    
-    // Populate slots
-    const container = document.getElementById('availableSlotsContainer');
-    container.innerHTML = '';
-    
-    availableSlots.forEach((slot, index) => {
-        const label = document.createElement('label');
-        label.style.cssText = 'display: flex; align-items: center; gap: 10px; padding: 12px; margin-bottom: 8px; background: #f8f9fa; border: 2px solid #dee2e6; border-radius: 6px; cursor: pointer; transition: all 0.2s;';
-        label.onmouseover = function() {
-            if (!this.querySelector('input').checked) {
-                this.style.background = '#e9ecef';
-                this.style.borderColor = '#0066cc';
-            }
+        return {
+            block,
+            selected: true,
+            slots,
+            chosenSlotIndex: slots.length ? 0 : -1,
+            chosenStart: slots.length ? slots[0].start : null,
+            splitSelection: [],
+            splitTotal: 0
         };
-        label.onmouseout = function() {
-            if (!this.querySelector('input').checked) {
-                this.style.background = '#f8f9fa';
-                this.style.borderColor = '#dee2e6';
-            }
-        };
-        
-        const radio = document.createElement('input');
-        radio.type = 'radio';
-        radio.name = 'slotChoice';
-        radio.value = index;
-        radio.style.cssText = 'width: 18px; height: 18px; cursor: pointer;';
-        radio.onchange = function() {
-            // Update visual selection
-            container.querySelectorAll('label').forEach(l => {
-                l.style.background = '#f8f9fa';
-                l.style.borderColor = '#dee2e6';
-            });
-            label.style.background = '#e7f3ff';
-            label.style.borderColor = '#0066cc';
-        };
-        
-        const text = document.createElement('span');
-        text.style.cssText = 'font-size: 15px; font-weight: 500; color: #333;';
-        text.textContent = `${formatMinutesToTime(slot.start)} – ${formatMinutesToTime(slot.end)} (${slot.duration} min available)`;
-        
-        label.appendChild(radio);
-        label.appendChild(text);
-        container.appendChild(label);
     });
-    
-    // Auto-select first slot
-    if (availableSlots.length > 0) {
-        const firstRadio = container.querySelector('input[type="radio"]');
-        firstRadio.checked = true;
-        firstRadio.dispatchEvent(new Event('change'));
-    }
+    overlapResolverState.baseBlocks = baseBlocks;
 }
 
-// Confirm slot pick and move to next overlapping block
-function confirmSlotPick() {
-    const selected = document.querySelector('input[name="slotChoice"]:checked');
-    if (!selected) {
-        alert('Please select a time slot');
-        return;
-    }
-    
-    const slotIndex = parseInt(selected.value);
-    const currentBlock = overlapResolverState.overlappingBlocks[overlapResolverState.currentBlockIndex];
-    const duration = getBlockDurationMinutes(currentBlock);
-    
-    // Get blocks excluding overlapping blocks
-    const blocksForGapCalculation = overlapResolverState.allBlocks.filter(
-        block => !overlapResolverState.overlappingBlocks.includes(block)
-    );
-    
-    const availableSlots = findSlotsForDuration(blocksForGapCalculation, duration);
-    const selectedSlot = availableSlots[slotIndex];
-    
-    // Move the block to the selected slot
-    const newStartTime = formatMinutesToTime(selectedSlot.start);
-    const newEndTime = formatMinutesToTime(selectedSlot.start + duration);
-    currentBlock.time = `${newStartTime}-${newEndTime}`;
-    
-    // Update startDateTime and endDateTime if they exist
-    if (currentBlock.startDateTime && overlapResolverState.dayData.date) {
-        const date = new Date(overlapResolverState.dayData.date);
-        currentBlock.startDateTime = createDateTimeFromTimeStr(date, newStartTime).toISOString();
-        currentBlock.endDateTime = createDateTimeFromTimeStr(date, newEndTime).toISOString();
-    }
-    
-    // Remove current block from overlapping list and add to allBlocks in new position
-    overlapResolverState.overlappingBlocks.splice(overlapResolverState.currentBlockIndex, 1);
-    
-    // Check if more blocks to process
-    if (overlapResolverState.overlappingBlocks.length > 0) {
-        // Reset index and show picker for next block
-        overlapResolverState.currentBlockIndex = 0;
-        showSlotPicker();
-    } else {
-        // All blocks resolved
-        closeOverlapModal();
-        overlapResolverState.resolveCallback(overlapResolverState.allBlocks);
-    }
-}
+function showOverlapList() {
+    const modal = document.getElementById('workOverlapModal');
+    const summary = document.getElementById('overlapSummary');
+    const dayName = overlapResolverState.dayData?.name || 'this day';
+    const count = overlapResolverState.overlappingBlocks.length;
+    summary.textContent = `Some blocks overlap your work hours for ${dayName}. Choose what you’d like to do.`;
 
-// Show split mode when no single slot fits
-function showSplitMode() {
-    const currentBlock = overlapResolverState.overlappingBlocks[overlapResolverState.currentBlockIndex];
-    const duration = getBlockDurationMinutes(currentBlock);
-    
-    // Get blocks excluding overlapping blocks
-    const blocksForGapCalculation = overlapResolverState.allBlocks.filter(
-        block => !overlapResolverState.overlappingBlocks.includes(block)
-    );
-    
-    // Find ALL gaps (even if they don't fit the full duration)
-    const allGaps = findAvailableGaps(blocksForGapCalculation);
-    
-    if (allGaps.length === 0) {
-        // No gaps at all - must remove this task
-        alert(`No available time slots for "${currentBlock.title}". This task will be removed.`);
-        cancelSplitMode();
-        return;
-    }
-    
-    // Show split mode
-    const choiceStep = document.getElementById('overlapChoiceStep');
-    const slotPickerStep = document.getElementById('overlapSlotPickerStep');
-    const splitModeStep = document.getElementById('overlapSplitModeStep');
-    
-    choiceStep.style.display = 'none';
-    slotPickerStep.style.display = 'none';
-    splitModeStep.style.display = 'block';
-    
-    // Update task info
-    document.getElementById('splitTaskTitle').textContent = currentBlock.title || 'Untitled';
-    document.getElementById('splitTaskDuration').textContent = duration + ' minutes';
-    document.getElementById('splitRequiredTime').textContent = duration + ' minutes';
-    document.getElementById('splitSelectedTime').textContent = '0 minutes';
-    
-    // Populate gap checkboxes
-    const container = document.getElementById('splitSlotsContainer');
-    container.innerHTML = '';
-    
-    allGaps.forEach((gap, index) => {
-        const label = document.createElement('label');
-        label.style.cssText = 'display: flex; align-items: center; gap: 10px; padding: 12px; margin-bottom: 8px; background: #f8f9fa; border: 2px solid #dee2e6; border-radius: 6px; cursor: pointer; transition: all 0.2s;';
-        label.dataset.duration = gap.duration;
-        
-        label.onmouseover = function() {
-            if (!this.querySelector('input').checked) {
-                this.style.background = '#e9ecef';
-            }
-        };
-        label.onmouseout = function() {
-            if (!this.querySelector('input').checked) {
-                this.style.background = '#f8f9fa';
-            }
-        };
-        
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.value = index;
-        checkbox.className = 'split-slot-check';
-        checkbox.style.cssText = 'width: 18px; height: 18px; cursor: pointer;';
-        checkbox.onchange = function() {
-            // Update visual selection
-            if (this.checked) {
-                label.style.background = '#e7f3ff';
-                label.style.borderColor = '#0066cc';
-            } else {
-                label.style.background = '#f8f9fa';
-                label.style.borderColor = '#dee2e6';
-            }
-            updateSplitSelection();
-        };
-        
-        const text = document.createElement('span');
-        text.style.cssText = 'font-size: 15px; font-weight: 500; color: #333;';
-        text.textContent = `${formatMinutesToTime(gap.start)} – ${formatMinutesToTime(gap.end)} (${gap.duration} min)`;
-        
-        label.appendChild(checkbox);
-        label.appendChild(text);
-        container.appendChild(label);
-    });
-}
+    overlapResolverState.mode = 'select';
+    const applyBtn = document.getElementById('applyMoveBtn');
+    const startBtn = document.getElementById('startMoveBtn');
+    if (applyBtn) applyBtn.style.display = 'none';
+    if (startBtn) startBtn.style.display = 'inline-flex';
 
-// Update split selection totals
-function updateSplitSelection() {
-    const checkboxes = document.querySelectorAll('.split-slot-check:checked');
-    let totalTime = 0;
-    
-    checkboxes.forEach(cb => {
-        const label = cb.closest('label');
-        totalTime += parseInt(label.dataset.duration);
-    });
-    
-    document.getElementById('splitSelectedTime').textContent = totalTime + ' minutes';
-    
-    const currentBlock = overlapResolverState.overlappingBlocks[overlapResolverState.currentBlockIndex];
-    const requiredTime = getBlockDurationMinutes(currentBlock);
-    
-    const confirmBtn = document.getElementById('confirmSplitBtn');
-    if (totalTime >= requiredTime) {
-        confirmBtn.disabled = false;
-        confirmBtn.style.opacity = '1';
-    } else {
-        confirmBtn.disabled = true;
-        confirmBtn.style.opacity = '0.5';
-    }
-}
-
-// Confirm split and create multiple parts
-function confirmSplit() {
-    const currentBlock = overlapResolverState.overlappingBlocks[overlapResolverState.currentBlockIndex];
-    const requiredTime = getBlockDurationMinutes(currentBlock);
-    
-    const checkboxes = document.querySelectorAll('.split-slot-check:checked');
-    if (checkboxes.length === 0) {
-        alert('Please select at least one time slot');
-        return;
-    }
-    
-    // Get selected gaps in order
-    const blocksForGapCalculation = overlapResolverState.allBlocks.filter(
-        block => !overlapResolverState.overlappingBlocks.includes(block)
-    );
-    const allGaps = findAvailableGaps(blocksForGapCalculation);
-    
-    const selectedGaps = Array.from(checkboxes)
-        .map(cb => allGaps[parseInt(cb.value)])
-        .sort((a, b) => a.start - b.start);
-    
-    // Calculate total selected time
-    let totalSelectedTime = selectedGaps.reduce((sum, gap) => sum + gap.duration, 0);
-    
-    if (totalSelectedTime < requiredTime) {
-        alert('Not enough time selected. Please select more slots.');
-        return;
-    }
-    
-    // Remove original block from overlapping list
-    overlapResolverState.overlappingBlocks.splice(overlapResolverState.currentBlockIndex, 1);
-    
-    // Remove original block from allBlocks
-    const originalIndex = overlapResolverState.allBlocks.indexOf(currentBlock);
-    if (originalIndex !== -1) {
-        overlapResolverState.allBlocks.splice(originalIndex, 1);
-    }
-    
-    // Create split parts
-    let remainingTime = requiredTime;
-    let partNumber = 1;
-    
-    selectedGaps.forEach((gap, index) => {
-        if (remainingTime <= 0) return;
-        
-        const partDuration = Math.min(gap.duration, remainingTime);
-        const partStart = gap.start;
-        const partEnd = gap.start + partDuration;
-        
-        const partBlock = {
-            ...currentBlock,
-            title: `${currentBlock.title} (Part ${partNumber})`,
-            time: `${formatMinutesToTime(partStart)}-${formatMinutesToTime(partEnd)}`
-        };
-        
-        // Update datetime fields if they exist
-        if (currentBlock.startDateTime && overlapResolverState.dayData.date) {
-            const date = new Date(overlapResolverState.dayData.date);
-            partBlock.startDateTime = createDateTimeFromTimeStr(date, formatMinutesToTime(partStart)).toISOString();
-            partBlock.endDateTime = createDateTimeFromTimeStr(date, formatMinutesToTime(partEnd)).toISOString();
-        }
-        
-        overlapResolverState.allBlocks.push(partBlock);
-        remainingTime -= partDuration;
-        partNumber++;
-    });
-    
-    // Check if more blocks to process
-    if (overlapResolverState.overlappingBlocks.length > 0) {
-        overlapResolverState.currentBlockIndex = 0;
-        showSlotPicker();
-    } else {
-        closeOverlapModal();
-        overlapResolverState.resolveCallback(overlapResolverState.allBlocks);
-    }
-}
-
-// Cancel slot picker - remove this task and continue
-function cancelSlotPicker() {
-    const currentBlock = overlapResolverState.overlappingBlocks[overlapResolverState.currentBlockIndex];
-    
-    if (confirm(`Remove "${currentBlock.title}" from this day?`)) {
-        // Remove current block
-        const blockIndex = overlapResolverState.allBlocks.indexOf(currentBlock);
-        if (blockIndex !== -1) {
-            overlapResolverState.allBlocks.splice(blockIndex, 1);
-        }
-        overlapResolverState.overlappingBlocks.splice(overlapResolverState.currentBlockIndex, 1);
-        
-        // Continue with next block or finish
-        if (overlapResolverState.overlappingBlocks.length > 0) {
-            overlapResolverState.currentBlockIndex = 0;
-            showSlotPicker();
-        } else {
-            closeOverlapModal();
-            overlapResolverState.resolveCallback(overlapResolverState.allBlocks);
-        }
-    }
-}
-
-// Cancel split mode - remove this task
-function cancelSplitMode() {
-    const currentBlock = overlapResolverState.overlappingBlocks[overlapResolverState.currentBlockIndex];
-    
-    // Remove current block
-    const blockIndex = overlapResolverState.allBlocks.indexOf(currentBlock);
-    if (blockIndex !== -1) {
-        overlapResolverState.allBlocks.splice(blockIndex, 1);
-    }
-    overlapResolverState.overlappingBlocks.splice(overlapResolverState.currentBlockIndex, 1);
-    
-    // Continue with next block or finish
-    if (overlapResolverState.overlappingBlocks.length > 0) {
-        overlapResolverState.currentBlockIndex = 0;
-        showSlotPicker();
-    } else {
-        closeOverlapModal();
-        overlapResolverState.resolveCallback(overlapResolverState.allBlocks);
-    }
+    renderOverlapTasks();
+    modal.classList.add('active');
 }
 
 // Close modal
 function closeOverlapModal() {
     const modal = document.getElementById('workOverlapModal');
     modal.classList.remove('active');
+}
+
+function renderOverlapTasks() {
+    const container = document.getElementById('overlapTasksContainer');
+    if (!container) return;
+    container.innerHTML = '';
+
+    overlapResolverState.taskStates.forEach((state, index) => {
+        const block = state.block;
+        const duration = getBlockDurationMinutes(block);
+        const card = document.createElement('div');
+        card.className = 'overlap-task-card';
+        card.dataset.index = index;
+
+        const header = document.createElement('div');
+        header.className = 'overlap-task-header';
+        header.innerHTML = `
+            <label style="display:flex; align-items:center; gap:8px; flex:1; cursor:pointer;">
+                <input type="checkbox" class="overlap-select" data-index="${index}" ${state.selected ? 'checked' : ''} style="width:18px; height:18px;">
+                <span style="font-weight:700; color:#111827;">${block.title || 'Untitled'}</span>
+            </label>
+            <span style="font-size:13px; color:#4b5563;">${formatMinutesAsHoursAndMinutes(duration)}</span>
+        `;
+        card.appendChild(header);
+
+        const moveControls = document.createElement('div');
+        moveControls.className = 'overlap-task-actions';
+        moveControls.id = `move-controls-${index}`;
+        moveControls.style.display = overlapResolverState.mode === 'move' ? 'grid' : 'none';
+
+        if (state.slots.length > 0) {
+            const options = state.slots.map((slot, i) => `<option value="${i}">${formatMinutesToTime(slot.start)} – ${formatMinutesToTime(slot.end)} (Available)</option>`).join('');
+            moveControls.innerHTML = `
+                <div style="display:grid; gap:8px;">
+                    <label style="font-size:13px; color:#374151;">Select a slot:</label>
+                    <select id="task-slot-${index}" data-index="${index}" style="padding:8px; border:1px solid #d1d5db; border-radius:8px;">
+                        ${options}
+                    </select>
+                </div>
+                <div style="display:grid; gap:6px;">
+                    <label style="font-size:13px; color:#374151;">Pick a start time within the slot:</label>
+                    <input type="time" id="task-start-${index}" data-index="${index}" class="custom-time-input" style="width: 150px;">
+                    <div id="task-preview-${index}" class="slot-preview-text">Will run: --:-- – --:--</div>
+                </div>
+            `;
+        } else {
+            moveControls.innerHTML = `
+                <div class="slot-preview-text" style="color:#1f2937;">No single slot fits. Split into parts?</div>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button type="button" class="btn btn-secondary" data-action="split" data-index="${index}" style="background:#e0f2fe; color:#0f172a;">Split</button>
+                    <button type="button" class="btn btn-secondary" data-action="remove-one" data-index="${index}" style="background:#fee2e2; color:#991b1b;">Remove this task</button>
+                </div>
+                <div id="split-options-${index}" style="display:none; border:1px dashed #cbd5e1; padding:10px; border-radius:8px; background:#f8fafc;">
+                    <div id="split-gaps-${index}" style="display:grid; gap:6px; max-height:180px; overflow-y:auto;"></div>
+                    <div id="split-total-${index}" style="font-size:12px; color:#4b5563; margin-top:6px;">Total selected: 0m</div>
+                    <button type="button" class="btn btn-primary" data-action="confirm-split" data-index="${index}" style="margin-top:8px; background:#10b981; color:white;">Use selected gaps</button>
+                </div>
+                <div id="split-preview-${index}" class="slot-preview-text"></div>
+            `;
+        }
+
+        card.appendChild(moveControls);
+        container.appendChild(card);
+    });
+
+    attachTaskEventHandlers();
+    if (overlapResolverState.mode === 'move') {
+        overlapResolverState.taskStates.forEach((_, idx) => updateTaskStartControls(idx));
+    }
+}
+
+function attachTaskEventHandlers() {
+    document.querySelectorAll('.overlap-select').forEach(cb => {
+        cb.onchange = () => {
+            const idx = parseInt(cb.dataset.index);
+            overlapResolverState.taskStates[idx].selected = cb.checked;
+        };
+    });
+
+    document.querySelectorAll('select[id^="task-slot-"]').forEach(sel => {
+        sel.onchange = () => {
+            const idx = parseInt(sel.dataset.index);
+            overlapResolverState.taskStates[idx].chosenSlotIndex = parseInt(sel.value);
+            const slot = overlapResolverState.taskStates[idx].slots[overlapResolverState.taskStates[idx].chosenSlotIndex];
+            overlapResolverState.taskStates[idx].chosenStart = slot ? slot.start : null;
+            updateTaskStartControls(idx);
+        };
+    });
+
+    document.querySelectorAll('input[id^="task-start-"]').forEach(input => {
+        input.oninput = () => {
+            const idx = parseInt(input.dataset.index);
+            const mins = timeStrToMinutes(input.value);
+            overlapResolverState.taskStates[idx].chosenStart = mins;
+            updateTaskStartControls(idx);
+        };
+    });
+
+    document.querySelectorAll('[data-action="split"]').forEach(btn => {
+        btn.onclick = () => {
+            const idx = parseInt(btn.dataset.index);
+            renderSplitOptions(idx);
+        };
+    });
+
+    document.querySelectorAll('[data-action="remove-one"]').forEach(btn => {
+        btn.onclick = () => {
+            const idx = parseInt(btn.dataset.index);
+            overlapResolverState.taskStates[idx].selected = true;
+            overlapResolverState.taskStates[idx].slots = [];
+            overlapResolverState.taskStates[idx].splitSelection = [];
+            overlapResolverState.taskStates[idx].removeInstead = true;
+            document.querySelector(`.overlap-select[data-index="${idx}"]`).checked = true;
+            const preview = document.getElementById(`split-preview-${idx}`);
+            if (preview) preview.textContent = 'This task will be removed from this day.';
+        };
+    });
+
+    document.querySelectorAll('[data-action="confirm-split"]').forEach(btn => {
+        btn.onclick = () => {
+            const idx = parseInt(btn.dataset.index);
+            confirmSplitSelection(idx);
+        };
+    });
+}
+
+function renderSplitOptions(index) {
+    const gapsContainer = document.getElementById(`split-gaps-${index}`);
+    const splitBox = document.getElementById(`split-options-${index}`);
+    if (!gapsContainer || !splitBox) return;
+
+    gapsContainer.innerHTML = '';
+    const gaps = findAvailableGaps(overlapResolverState.baseBlocks, overlapResolverState.dayStart, overlapResolverState.dayEnd);
+    gaps.forEach((gap, gapIndex) => {
+        const label = document.createElement('label');
+        label.style.cssText = 'display:flex; align-items:center; gap:8px; font-size:13px;';
+        label.innerHTML = `
+            <input type="checkbox" class="split-gap-check" data-index="${index}" data-gap="${gapIndex}" data-duration="${gap.duration}" style="width:16px; height:16px;">
+            <span>${formatMinutesToTime(gap.start)} – ${formatMinutesToTime(gap.end)} (${formatMinutesAsHoursAndMinutes(gap.duration)})</span>
+        `;
+        gapsContainer.appendChild(label);
+    });
+
+    document.querySelectorAll(`.split-gap-check[data-index="${index}"]`).forEach(cb => {
+        cb.onchange = () => updateSplitTotal(index);
+    });
+
+    splitBox.style.display = 'block';
+    updateSplitTotal(index);
+}
+
+function updateSplitTotal(index) {
+    const totalEl = document.getElementById(`split-total-${index}`);
+    const checkboxes = document.querySelectorAll(`.split-gap-check[data-index="${index}"]:checked`);
+    let total = 0;
+    checkboxes.forEach(cb => total += parseInt(cb.dataset.duration));
+    if (totalEl) totalEl.textContent = `Total selected: ${formatMinutesAsHoursAndMinutes(total)}`;
+}
+
+function confirmSplitSelection(index) {
+    const checkboxes = Array.from(document.querySelectorAll(`.split-gap-check[data-index="${index}"]:checked`));
+    const gaps = findAvailableGaps(overlapResolverState.baseBlocks, overlapResolverState.dayStart, overlapResolverState.dayEnd);
+    const selectedGaps = checkboxes.map(cb => gaps[parseInt(cb.dataset.gap)]).filter(Boolean).sort((a, b) => a.start - b.start);
+    const total = selectedGaps.reduce((sum, g) => sum + g.duration, 0);
+    const state = overlapResolverState.taskStates[index];
+    state.splitSelection = selectedGaps;
+    state.splitTotal = total;
+    state.removeInstead = false;
+
+    const preview = document.getElementById(`split-preview-${index}`);
+    if (preview) {
+        const duration = getBlockDurationMinutes(state.block);
+        preview.textContent = total >= duration
+            ? `Will split across ${selectedGaps.length} gap(s).`
+            : `Selected ${formatMinutesAsHoursAndMinutes(total)} (need ${formatMinutesAsHoursAndMinutes(duration)}).`;
+    }
+}
+
+function updateTaskStartControls(index) {
+    const state = overlapResolverState.taskStates[index];
+    if (!state || !state.slots.length) return;
+
+    const slot = state.slots[state.chosenSlotIndex] || state.slots[0];
+    const startInput = document.getElementById(`task-start-${index}`);
+    const preview = document.getElementById(`task-preview-${index}`);
+    const slotSelect = document.getElementById(`task-slot-${index}`);
+
+    if (slotSelect && state.chosenSlotIndex >= 0) {
+        slotSelect.value = state.chosenSlotIndex;
+    }
+
+    if (!slot || !startInput || !preview) return;
+
+    const duration = getBlockDurationMinutes(state.block);
+    const minStart = slot.start;
+    const maxStart = Math.max(slot.start, slot.end - duration);
+    startInput.min = formatMinutesToTime(minStart);
+    startInput.max = formatMinutesToTime(maxStart);
+
+    let chosen = state.chosenStart;
+    if (isNaN(chosen) || chosen < minStart || chosen > maxStart) {
+        chosen = minStart;
+    }
+    state.chosenStart = chosen;
+    startInput.value = formatMinutesToTime(chosen);
+
+    const endMins = chosen + duration;
+    preview.textContent = `Will run: ${formatMinutesToTime(chosen)} – ${formatMinutesToTime(endMins)}`;
+}
+
+function syncSelectionsFromUI() {
+    document.querySelectorAll('.overlap-select').forEach(cb => {
+        const idx = parseInt(cb.dataset.index);
+        overlapResolverState.taskStates[idx].selected = cb.checked;
+    });
+}
+
+function removeSelectedOverlaps() {
+    syncSelectionsFromUI();
+    const toRemove = new Set(
+        overlapResolverState.taskStates.filter(t => t.selected).map(t => t.block)
+    );
+    const newBlocks = overlapResolverState.allBlocks.filter(b => !toRemove.has(b));
+    closeOverlapModal();
+    overlapResolverState.resolveCallback(newBlocks);
+}
+
+function startMoveSelected() {
+    syncSelectionsFromUI();
+    overlapResolverState.mode = 'move';
+    const applyBtn = document.getElementById('applyMoveBtn');
+    const startBtn = document.getElementById('startMoveBtn');
+    if (applyBtn) applyBtn.style.display = 'inline-flex';
+    if (startBtn) startBtn.style.display = 'none';
+    renderOverlapTasks();
+}
+
+function applyMoveSelections() {
+    syncSelectionsFromUI();
+    const selectedTasks = overlapResolverState.taskStates.filter(t => t.selected);
+    if (selectedTasks.length === 0) {
+        alert('Select at least one task to move.');
+        return;
+    }
+
+    const newBlocks = overlapResolverState.baseBlocks.slice();
+    overlapResolverState.taskStates.forEach(state => {
+        if (!state.selected) {
+            newBlocks.push(state.block);
+            return;
+        }
+
+        const duration = getBlockDurationMinutes(state.block);
+
+        if (state.removeInstead) {
+            return;
+        }
+
+        if (state.slots.length > 0) {
+            const slot = state.slots[state.chosenSlotIndex >= 0 ? state.chosenSlotIndex : 0];
+            const start = Math.min(Math.max(state.chosenStart ?? slot.start, slot.start), slot.end - duration);
+            const end = start + duration;
+            const updatedBlock = { ...state.block, time: `${formatMinutesToTime(start)}-${formatMinutesToTime(end)}` };
+            if (state.block.startDateTime && overlapResolverState.dayData.date) {
+                const date = new Date(overlapResolverState.dayData.date);
+                updatedBlock.startDateTime = createDateTimeFromTimeStr(date, formatMinutesToTime(start)).toISOString();
+                updatedBlock.endDateTime = createDateTimeFromTimeStr(date, formatMinutesToTime(end)).toISOString();
+            }
+            newBlocks.push(updatedBlock);
+            return;
+        }
+
+        if (state.splitSelection && state.splitSelection.length > 0 && state.splitTotal >= duration) {
+            let remaining = duration;
+            let part = 1;
+            state.splitSelection.forEach(gap => {
+                if (remaining <= 0) return;
+                const partDuration = Math.min(gap.duration, remaining);
+                const partStart = gap.start;
+                const partEnd = gap.start + partDuration;
+                const partBlock = {
+                    ...state.block,
+                    title: `${state.block.title} (Part ${part})`,
+                    time: `${formatMinutesToTime(partStart)}-${formatMinutesToTime(partEnd)}`
+                };
+                if (state.block.startDateTime && overlapResolverState.dayData.date) {
+                    const date = new Date(overlapResolverState.dayData.date);
+                    partBlock.startDateTime = createDateTimeFromTimeStr(date, formatMinutesToTime(partStart)).toISOString();
+                    partBlock.endDateTime = createDateTimeFromTimeStr(date, formatMinutesToTime(partEnd)).toISOString();
+                }
+                newBlocks.push(partBlock);
+                remaining -= partDuration;
+                part++;
+            });
+            return;
+        }
+    });
+
+    closeOverlapModal();
+    overlapResolverState.resolveCallback(newBlocks);
 }
 
 // Helper to create DateTime from date and time string
