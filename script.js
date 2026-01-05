@@ -5218,65 +5218,76 @@ function applyWorkMealRules(blocks, workRange, daySummary) {
         return blockStart < workEnd && blockEnd > workStart;
     };
 
-    const mealFailures = { lunch: false, dinner: false };
-    const mealReasons = { lunch: 'KEPT', dinner: 'KEPT' };
-    const getCookingBlockFor = (mealBlock) => {
-        const mealType = mealTypeOf(mealBlock);
-        if (!mealType) return null;
-        return blocks.find(b => b.isCookingBlock && mealTypeOf(b) === mealType);
+    const mealState = {
+        lunch: { mealBlock: null, cookingBlocks: [], remove: false, reason: 'KEPT' },
+        dinner: { mealBlock: null, cookingBlocks: [], remove: false, reason: 'KEPT' }
     };
 
+    blocks.forEach(block => {
+        const type = mealTypeOf(block);
+        if (!type || !mealState[type]) return;
+        if (block.isCookingBlock) {
+            mealState[type].cookingBlocks.push(block);
+        } else if (!mealState[type].mealBlock) {
+            mealState[type].mealBlock = block;
+        }
+    });
+
     const record = (type, status, reason) => {
-        mealReasons[type] = reason;
+        mealState[type].reason = reason;
         if (daySummary) {
             daySummary[type] = { status, reason };
         }
     };
 
-    blocks.forEach(block => {
-        const type = mealTypeOf(block);
-        if (!type) return;
-        const defaultOnly = !!block.fromDefault;
+    ['lunch', 'dinner'].forEach(type => {
+        const state = mealState[type];
+        const mealBlock = state.mealBlock;
+
+        if (!mealBlock) {
+            record(type, 'none', 'NO_MEAL_BLOCK');
+            state.remove = true;
+            return;
+        }
+
+        const { start } = getBlockTimeRange(mealBlock);
         const saneTime = type === 'lunch'
-            ? (getBlockTimeRange(block).start >= timeStrToMinutes('11:00') && getBlockTimeRange(block).start <= timeStrToMinutes('15:00'))
-            : (getBlockTimeRange(block).start >= timeStrToMinutes('17:00') && getBlockTimeRange(block).start <= timeStrToMinutes('21:30'));
-        const cookingBlock = getCookingBlockFor(block);
-        const cookingOverlap = cookingBlock ? overlapsWork(cookingBlock) : false;
-        const mealOverlap = overlapsWork(block);
-        if (!defaultOnly) {
-            mealFailures[type] = true;
+            ? (start >= timeStrToMinutes('11:00') && start <= timeStrToMinutes('15:00'))
+            : (start >= timeStrToMinutes('17:00') && start <= timeStrToMinutes('21:30'));
+
+        if (!mealBlock.fromDefault) {
+            state.remove = true;
             record(type, 'removed', 'NOT_DEFAULT');
-            if (MEAL_DEBUG) mealLog(`[${type}] mealOverlapsWork=${mealOverlap} cookOverlapsWork=${cookingOverlap} finalDecision=REMOVE reason=NOT_DEFAULT`);
             return;
         }
+
         if (!saneTime) {
-            mealFailures[type] = true;
+            state.remove = true;
             record(type, 'removed', 'INVALID_MEAL_TIME');
-            if (MEAL_DEBUG) mealLog(`[${type}] mealOverlapsWork=${mealOverlap} cookOverlapsWork=${cookingOverlap} finalDecision=REMOVE reason=INVALID_MEAL_TIME`);
             return;
         }
-        if (mealOverlap) {
-            mealFailures[type] = true;
-            record(type, 'removed', 'MEAL_OVERLAPS_WORK');
-            if (MEAL_DEBUG) mealLog(`[${type}] mealOverlapsWork=${mealOverlap} cookOverlapsWork=${cookingOverlap} finalDecision=REMOVE reason=MEAL_OVERLAPS_WORK`);
+
+        const mealOverlap = overlapsWork(mealBlock);
+        const cookingOverlap = state.cookingBlocks.some(overlapsWork);
+
+        if (mealOverlap || cookingOverlap) {
+            state.remove = true;
+            const reason = mealOverlap && cookingOverlap
+                ? 'MEAL_AND_COOK_OVERLAP_WORK'
+                : (mealOverlap ? 'MEAL_OVERLAPS_WORK' : 'COOKING_OVERLAPS_WORK');
+            record(type, 'removed', reason);
+            if (MEAL_DEBUG) mealLog(`[${type}] mealOverlapsWork=${mealOverlap} cookOverlapsWork=${cookingOverlap} finalDecision=REMOVE reason=${reason}`);
             return;
         }
-        if (cookingOverlap) {
-            mealFailures[type] = true;
-            record(type, 'removed', 'COOKING_OVERLAPS_WORK');
-            if (MEAL_DEBUG) mealLog(`[${type}] mealOverlapsWork=${mealOverlap} cookOverlapsWork=${cookingOverlap} finalDecision=REMOVE reason=COOKING_OVERLAPS_WORK`);
-            return;
-        }
+
         record(type, 'kept', 'KEPT_NO_OVERLAP');
         if (MEAL_DEBUG) mealLog(`[${type}] mealOverlapsWork=${mealOverlap} cookOverlapsWork=${cookingOverlap} finalDecision=KEEP reason=KEPT_NO_OVERLAP`);
     });
 
-    if (!mealFailures.lunch && !mealFailures.dinner) return blocks;
-
     return blocks.filter(block => {
         const type = mealTypeOf(block);
-        if (!type) return true;
-        return !mealFailures[type];
+        if (!type || !mealState[type]) return true;
+        return !mealState[type].remove;
     });
 }
 
