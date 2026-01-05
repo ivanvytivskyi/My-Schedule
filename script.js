@@ -3,8 +3,12 @@
 // SLEEP FIX VERSION: 2025-01-01-B
 // ========================================
 
-console.log('🔧 VERSION CHECK: Sleep Fix 2025-01-01-B loaded successfully!');
-console.log('   If you see this message, you have the CORRECT updated file.');
+const MEAL_DEBUG = true; // set false to silence meal logs
+const BASE_LOG = console.log;
+const GENERAL_LOG_ENABLED = false;
+console.log = (...args) => {
+    if (GENERAL_LOG_ENABLED) BASE_LOG(...args);
+};
 
 // Common title suggestions
 const commonTitles = [
@@ -72,6 +76,10 @@ const emojiMap = {
 
 const DAYS_OF_WEEK = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
+function mealLog(...args) {
+    if (MEAL_DEBUG) BASE_LOG(...args);
+}
+
 // Month-specific emojis
 function getMonthEmoji(monthName) {
     const monthEmojis = {
@@ -132,6 +140,7 @@ let activeDefaultDay = localStorage.getItem('defaultBlocksActiveDay') || 'Monday
 let mealRecipeQueues = null;
 let weeklyBreakfastQueue = [];
 let weeklyBreakfastUsed = new Set();
+let mealDebugSummary = [];
 
 // Track cooked recipes this week (for leftover detection)
 let cookedRecipesThisWeek = new Set();
@@ -197,6 +206,22 @@ function isLunchBlock(block) {
 
 function isDinnerBlock(block) {
     return (block.title || '').toLowerCase().includes('dinner');
+}
+
+function isWorkMealBlock(block) {
+    const title = (block.title || '').toLowerCase();
+    const cookingMealType = (block.mealType || '').toLowerCase();
+    const isLunch = isLunchBlock(block) || title.includes('cook lunch') || cookingMealType === 'lunch';
+    const isDinner = isDinnerBlock(block) || title.includes('cook dinner') || cookingMealType === 'dinner';
+    return isLunch || isDinner;
+}
+
+function mealTypeOf(block) {
+    const title = (block.title || '').toLowerCase();
+    const mealType = (block.mealType || '').toLowerCase();
+    if (isLunchBlock(block) || mealType === 'lunch' || title.includes('cook lunch')) return 'lunch';
+    if (isDinnerBlock(block) || mealType === 'dinner' || title.includes('cook dinner')) return 'dinner';
+    return null;
 }
 
 function timeToHourFloat(timeStr) {
@@ -328,10 +353,11 @@ function insertCookingBlocksForMeals(blocks, dayKey) {
                         recipeName: block.recipeName,
                         isCookingBlock: true,
                         mealType: category, // Track which meal this cooking block is for
-                        isLeftover: false
+                        isLeftover: false,
+                        fromDefault: !!block.fromDefault,
+                        sourceDefaultId: block.sourceDefaultId
                     };
                     
-                    console.log(`🍳 Inserted cooking block: ${cookingBlock.time} ${cookingBlock.title} (${cookingMins} mins)`);
                     result.push(cookingBlock);
                 }
             }
@@ -346,7 +372,7 @@ function insertCookingBlocksForMeals(blocks, dayKey) {
 
 // Fix Cook → Breakfast ordering by pushing breakfast forward if needed
 function pushForwardBreakfastChain(blocks, date) {
-    console.log('🔧 Fixing breakfast cooking order...');
+    
     
     // Find morning routine, cook breakfast, and breakfast
     let morningRoutine = null;
@@ -368,7 +394,7 @@ function pushForwardBreakfastChain(blocks, date) {
     });
     
     if (!cookBreakfast || !breakfast) {
-        console.log('  ℹ️ No cooking/breakfast blocks - skipping');
+        
         return blocks;
     }
     
@@ -377,7 +403,7 @@ function pushForwardBreakfastChain(blocks, date) {
     const cookDuration = cookRange.end - cookRange.start;
     const breakfastDuration = breakfastRange.end - breakfastRange.start;
     
-    console.log(`  Cook: ${cookBreakfast.time}, Breakfast: ${breakfast.time}`);
+    
     
     // Strategy: Ensure Cook ends exactly when Breakfast starts
     // If there's overlap with Morning Routine, push breakfast forward
@@ -392,7 +418,7 @@ function pushForwardBreakfastChain(blocks, date) {
         if (cookWouldStart < morningEnd) {
             // Push breakfast forward so cooking starts after morning routine
             targetBreakfastStart = morningEnd + cookDuration;
-            console.log(`  ⚠️ Cooking would overlap Morning Routine - pushing breakfast to ${formatMinutesToTime(targetBreakfastStart)}`);
+            
         }
     }
     
@@ -424,7 +450,7 @@ function pushForwardBreakfastChain(blocks, date) {
         cookBreakfast.endDateTime = endDT.toISOString();
     }
     
-    console.log(`  ✅ Final: Cook ${cookBreakfast.time}, Breakfast ${breakfast.time}`);
+    
     
     return blocks;
 }
@@ -659,7 +685,7 @@ function pushSleepAfterEvening(blocks, anchorMinutes = NaN, currentDate = null) 
     const minutesInDay = 24 * 60;
     let latestEveningEnd = isNaN(anchorMinutes) ? NaN : anchorMinutes;
     
-    console.log(`📍 pushSleepAfterEvening called with ${blocks.length} blocks, anchor: ${isNaN(anchorMinutes) ? 'none' : formatMinutesToTime(anchorMinutes)}`);
+    
     
     // Find ALL evening blocks (including carryover blocks in early morning)
     blocks.forEach(block => {
@@ -671,12 +697,12 @@ function pushSleepAfterEvening(blocks, anchorMinutes = NaN, currentDate = null) 
             const { start, end } = getBlockTimeRange(block);
             if (isNaN(start) || isNaN(end)) return;
             
-            console.log(`  Found evening block: "${block.title}" at ${formatMinutesToTime(start)}-${formatMinutesToTime(end)}`);
+            
             
             // For blocks in early morning (00:00-06:00), treat as carryover from previous day
             if (start < 360 && end <= 360) {
                 // This is a carryover block - use its end time directly
-                console.log(`    → Carryover block detected, end time: ${formatMinutesToTime(end)}`);
+                
                 if (isNaN(latestEveningEnd) || end > latestEveningEnd) {
                     latestEveningEnd = end;
                 }
@@ -684,14 +710,14 @@ function pushSleepAfterEvening(blocks, anchorMinutes = NaN, currentDate = null) 
             // For blocks that cross midnight (end < start)
             else if (end < start) {
                 const adjustedEnd = end + minutesInDay;
-                console.log(`    → Overnight block, adjusted end: ${formatMinutesToTime(adjustedEnd % minutesInDay)} (+24h = ${adjustedEnd} mins)`);
+                
                 if (isNaN(latestEveningEnd) || adjustedEnd > latestEveningEnd) {
                     latestEveningEnd = adjustedEnd;
                 }
             }
             // Normal evening blocks
             else {
-                console.log(`    → Normal evening block, end: ${formatMinutesToTime(end)}`);
+                
                 if (isNaN(latestEveningEnd) || end > latestEveningEnd) {
                     latestEveningEnd = end;
                 }
@@ -701,11 +727,11 @@ function pushSleepAfterEvening(blocks, anchorMinutes = NaN, currentDate = null) 
     
     // If no evening blocks found, can't position sleep
     if (isNaN(latestEveningEnd)) {
-        console.log(`⚠️ No evening blocks found, cannot position sleep`);
+        
         return blocks;
     }
     
-    console.log(`✅ Latest evening end: ${formatMinutesToTime(latestEveningEnd % minutesInDay)} (${latestEveningEnd} mins)`);
+    
     
     // Find earliest morning block to ensure sleep doesn't overlap
     let earliestMorningStart = NaN;
@@ -715,7 +741,7 @@ function pushSleepAfterEvening(blocks, anchorMinutes = NaN, currentDate = null) 
         if (isMorning) {
             const { start } = getBlockTimeRange(block);
             if (!isNaN(start) && start >= 360 && start < 720) { // Between 6am and 12pm
-                console.log(`  Found morning block: "${block.title}" at ${formatMinutesToTime(start)}`);
+                
                 if (isNaN(earliestMorningStart) || start < earliestMorningStart) {
                     earliestMorningStart = start;
                 }
@@ -724,7 +750,7 @@ function pushSleepAfterEvening(blocks, anchorMinutes = NaN, currentDate = null) 
     });
     
     if (!isNaN(earliestMorningStart)) {
-        console.log(`✅ Earliest morning start: ${formatMinutesToTime(earliestMorningStart)}`);
+        
     }
     
     // Update sleep blocks
@@ -735,12 +761,12 @@ function pushSleepAfterEvening(blocks, anchorMinutes = NaN, currentDate = null) 
         let sleepStart = latestEveningEnd;
         let sleepEnd = sleepStart + getBlockDurationMinutes(block);
         
-        console.log(`💤 Original sleep: ${block.time}, duration: ${getBlockDurationMinutes(block)} mins`);
-        console.log(`💤 Calculated sleep: ${formatMinutesToTime(sleepStart)}-${formatMinutesToTime(sleepEnd)}`);
+        
+        
         
         // If sleep would go past morning routine, trim it
         if (!isNaN(earliestMorningStart) && sleepEnd > earliestMorningStart) {
-            console.log(`  → Trimming sleep to end before morning routine`);
+            
             sleepEnd = earliestMorningStart;
         }
         
@@ -748,7 +774,7 @@ function pushSleepAfterEvening(blocks, anchorMinutes = NaN, currentDate = null) 
         const startTime = formatMinutesToTime(sleepStart);
         const endTime = formatMinutesToTime(sleepEnd);
         
-        console.log(`💤 Final sleep: ${startTime}-${endTime}`);
+        
         
         const updatedBlock = {
             ...block,
@@ -782,7 +808,7 @@ function pushSleepAfterEvening(blocks, anchorMinutes = NaN, currentDate = null) 
                 updatedBlock.startDateTime = startDate.toISOString();
                 updatedBlock.endDateTime = endDate.toISOString();
                 
-                console.log(`  ⏰ Updated datetime: ${updatedBlock.startDateTime} → ${updatedBlock.endDateTime}`);
+                
             } catch (err) {
                 console.error(`  ⚠️ Failed to create datetime: ${err.message}`);
             }
@@ -849,7 +875,7 @@ function initializeApp() {
     try {
         // Don't auto-create a week - let user import or manually add days
         if (!scheduleData.days || Object.keys(scheduleData.days).length === 0) {
-            console.log('No days loaded - schedule is empty. Use Import or Add Day to get started.');
+    
             scheduleData.days = {};
         }
 
@@ -871,7 +897,7 @@ function initializeApp() {
             }
         }, 60000);
         
-        console.log('App initialized successfully!');
+        
     } catch (error) {
         console.error('Initialization error:', error);
         showErrorScreen(error.message);
@@ -1470,7 +1496,7 @@ function renderDayTabs() {
         return new Date(a[1].date) - new Date(b[1].date);
     });
     
-    console.log('Rendering', sortedDays.length, 'day tabs');
+    
 
     sortedDays.forEach(([dayKey, day]) => {
         html += `
@@ -1652,10 +1678,11 @@ function addSingleDay() {
     
     // Start with empty blocks
     const blocks = [];
-    console.log('🥞 Building breakfast queue for single day...');
+    
     weeklyBreakfastQueue = buildBreakfastQueue();
     weeklyBreakfastUsed = new Set();
-    console.log(`🥞 Breakfast queue built: ${weeklyBreakfastQueue.length} recipes available`);
+    mealDebugSummary = [];
+    
     
     // Add default blocks if any (only enabled ones that match this day)
     if (scheduleData.defaultBlocks && scheduleData.defaultBlocks.length > 0) {
@@ -1669,7 +1696,7 @@ function addSingleDay() {
             
             if (isEnabled && appliesToThisDay) {
                 const { todayBlock, nextDayBlock } = splitOvernightBlock(defaultBlock);
-                const copyToday = { ...todayBlock };
+                const copyToday = { ...todayBlock, fromDefault: true, sourceDefaultId: defaultBlock.id };
                 
                 // CRITICAL FIX: Clear any pre-existing recipe from the default block
                 delete copyToday.recipeID;
@@ -1689,7 +1716,7 @@ function addSingleDay() {
                 
                 // For single-day add, if overnight, append the next-day piece into the same day so data isn't lost
                 if (nextDayBlock) {
-                    const copyNext = { ...nextDayBlock };
+                    const copyNext = { ...nextDayBlock, fromDefault: true, sourceDefaultId: defaultBlock.id };
                     
                     // Clear recipe from next day block too
                     delete copyNext.recipeID;
@@ -1711,38 +1738,6 @@ function addSingleDay() {
         });
     }
 
-    // Apply default groups (skip duplicates by time+title)
-    if (scheduleData.defaultGroups && scheduleData.defaultGroups.length > 0) {
-        const existing = [...blocks];
-        scheduleData.defaultGroups.forEach(group => {
-            (group.memberIds || []).forEach(id => {
-                const block = (scheduleData.defaultBlocks || []).find(b => b.id === id);
-                if (!block) return;
-                if (!block.days || block.days.includes(dayName)) {
-                    const copy = { ...block };
-                    
-                    // Clear any pre-existing recipe
-                    delete copy.recipeID;
-                    delete copy.recipeName;
-                    
-                    if (isBreakfastBlock(copy)) {
-                        assignRecipeToMealBlock(copy, {
-                            category: 'breakfast',
-                            queue: weeklyBreakfastQueue,
-                            usedSet: weeklyBreakfastUsed
-                        });
-                    } else if (isLunchBlock(copy) || isDinnerBlock(copy)) {
-                        // Auto-assign lunch/dinner recipes from the main queue
-                        assignRecipeToMealBlock(copy);
-                    }
-                    if (!isDuplicateBlock(existing, copy)) {
-                        blocks.push(copy);
-                        existing.push(copy);
-                    }
-                }
-            });
-        });
-    }
     
     scheduleData.days[dayKey] = {
         name: dayName,
@@ -1777,7 +1772,7 @@ async function addWeek() {
     // Reset weekly cooked recipes tracker and leftover allowances for new week
     cookedRecipesThisWeek = new Set();
     leftoversAllowance = {};
-    console.log('🔄 Reset weekly cooked recipes tracker and leftover allowances for new week');
+    
     
     const dateInputNew = document.getElementById('weekStartDateInput')?.value;
     const dateStr = dateInputNew || document.getElementById('weekStartDate').value;
@@ -1857,7 +1852,7 @@ async function addWeek() {
         }
         
         // Delete the duplicate days
-        console.log(`🗑️ Removing ${duplicateKeys.length} duplicate days before creating new week`);
+        
         duplicateKeys.forEach(key => {
             delete scheduleData.days[key];
         });
@@ -1981,10 +1976,10 @@ async function addWeek() {
     
     // Create 7 days starting from the selected date
     const nextDayCarry = {};
-    console.log('🥞 Building weekly breakfast queue...');
+    
     weeklyBreakfastQueue = buildBreakfastQueue();
     weeklyBreakfastUsed = new Set();
-    console.log(`🥞 Breakfast queue built: ${weeklyBreakfastQueue.length} recipes available`);
+    
     
     for (let i = 0; i < orderedDays.length; i++) {
         const { date } = orderedDays[i];
@@ -1992,15 +1987,22 @@ async function addWeek() {
         const dayName = getDayName(date);
         const dayOfWeek = date.getDay();
         let workShiftEndMins = NaN;
+        const dayLabel = `${dayName} ${date.toISOString().split('T')[0]}`;
+        const daySummary = { day: dayLabel, work: false, lunch: { status: 'none', reason: 'NOT_DEFAULT' }, dinner: { status: 'none', reason: 'NOT_DEFAULT' } };
         
         // Start with any overnight carry from previous day
         let blocks = nextDayCarry[i] ? [...nextDayCarry[i]] : [];
         
         // Check if this is a work day
         const isWorkDay = addWorkSchedule && workSchedule[dayOfWeek];
+        daySummary.work = !!isWorkDay;
         
         if (isWorkDay) {
             const workTimes = workSchedule[dayOfWeek];
+            if (MEAL_DEBUG) {
+                console.groupCollapsed(`🍽️ Meal Debug — ${dayLabel}`);
+                mealLog(`Work: yes (${workTimes.start}-${workTimes.end})`);
+            }
             
             // Add pre-commute prep if enabled
             if (addCommute && addCommutePrep && commutePrepDuration > 0) {
@@ -2061,10 +2063,25 @@ async function addWeek() {
                 });
             }
         }
+        if (!isWorkDay && MEAL_DEBUG) {
+            console.groupCollapsed(`🍽️ Meal Debug — ${dayLabel}`);
+            mealLog('Work: no');
+        }
         
         // ALWAYS add default blocks (for both work and non-work days)
         if (scheduleData.defaultBlocks && scheduleData.defaultBlocks.length > 0) {
-            scheduleData.defaultBlocks.forEach(defaultBlock => {
+            const defaultTimes = scheduleData.defaultBlocks.filter(db => {
+                const isEnabled = db.enabled !== false;
+                const days = db.days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                return isEnabled && days.includes(dayName);
+            });
+            const defaultLunch = defaultTimes.find(db => (db.title || '').toLowerCase().includes('lunch'));
+            const defaultDinner = defaultTimes.find(db => (db.title || '').toLowerCase().includes('dinner'));
+            if (MEAL_DEBUG) {
+                mealLog(`Default lunch: ${defaultLunch ? defaultLunch.time : 'none'}`);
+                mealLog(`Default dinner: ${defaultDinner ? defaultDinner.time : 'none'}`);
+            }
+            defaultTimes.forEach(defaultBlock => {
                 // Check if enabled (default to true for old blocks)
                 const isEnabled = defaultBlock.enabled !== false;
                 
@@ -2085,7 +2102,7 @@ async function addWeek() {
                     const alreadyHasSleep = hasSleepBlockCovering(blocks, date, "00:00", "08:00");
                     
                     if (alreadyHasSleep) {
-                        console.log(`⏭️ Skipping default sleep ${defaultBlock.time} - already sleeping from yesterday`);
+                        
                         return;
                     }
                     
@@ -2096,7 +2113,7 @@ async function addWeek() {
                     });
                     
                     if (todaySleepExists) {
-                        console.log(`⏭️ Skipping default sleep ${defaultBlock.time} - already created for today`);
+                        
                         return;
                     }
                     
@@ -2105,12 +2122,12 @@ async function addWeek() {
                     const sleepBlock = createSleepBlock(bedTime, wakeTime, date);
                     blocks.push(sleepBlock);
                     allSleepBlocks.push(sleepBlock);
-                    console.log(`✅ Created sleep block for ${dayName}: ${sleepBlock.time} (${sleepBlock.startDateTime} → ${sleepBlock.endDateTime})`);
+                    
                     return;
                 }
                 
                 // For non-sleep blocks, add normally
-                const copyToday = { ...defaultBlock };
+                const copyToday = { ...defaultBlock, fromDefault: true, sourceDefaultId: defaultBlock.id };
                 
                 // CRITICAL FIX: Clear any pre-existing recipe from the default block
                 // so a fresh recipe can be assigned each day
@@ -2143,7 +2160,7 @@ async function addWeek() {
                 }
                 
                 blocks.push(copyToday);
-                console.log(`✅ Added default block: ${copyToday.title} ${copyToday.time}`);
+                
             });
         }
 
@@ -2202,7 +2219,7 @@ async function addWeek() {
                         
                         if (tomorrowMorningStart < defaultMorningStart) {
                             wakeTime = formatMinutesToTime(tomorrowMorningStart);
-                            console.log(`🌙 Tomorrow has early shift at ${tomorrowWorkStart}, adjusting wake time to ${wakeTime}`);
+                            
                         }
                     }
                 }
@@ -2212,7 +2229,7 @@ async function addWeek() {
             const sleepBlock = createSleepBlock("23:00", wakeTime, date);
             blocks.push(sleepBlock);
             allSleepBlocks.push(sleepBlock);
-            console.log(`🌙 Auto-created sleep: 23:00-${wakeTime} for ${dayName}`);
+            
         }
         
         // FIRST DAY ONLY: Add morning sleep (since there's no "yesterday")
@@ -2271,41 +2288,48 @@ async function addWeek() {
                     };
                     
                     blocks.push(morningSleep);
-                    console.log(`🌙 First day morning sleep added: 00:00-${formatMinutesToTime(todayWakeTime)} for ${dayName}`);
+                    
                 }
             }
         }
         
-        // Apply default groups (skip duplicates by time+title)
-        if (scheduleData.defaultGroups && scheduleData.defaultGroups.length > 0) {
-            const existing = [...blocks];
-            scheduleData.defaultGroups.forEach(group => {
-                (group.memberIds || []).forEach(id => {
-                    const block = (scheduleData.defaultBlocks || []).find(b => b.id === id);
-                    if (!block) return;
-                    if (!block.days || block.days.includes(dayName)) {
-                        const copy = { ...block };
-                        if (isBreakfastBlock(copy)) {
-                            assignRecipeToMealBlock(copy, {
-                                category: 'breakfast',
-                                queue: weeklyBreakfastQueue,
-                                usedSet: weeklyBreakfastUsed
-                            });
-                        }
-                        if (!isDuplicateBlock(existing, copy)) {
-                            blocks.push(copy);
-                            existing.push(copy);
-                        }
-                    }
-                });
-            });
-        }
-        
         // INSERT COOKING BLOCKS BEFORE PACKING
         // This ensures the packing system can adjust all morning blocks including cooking
-        console.log(`🍳 Before cooking insertion: ${blocks.length} blocks`);
+        
         blocks = insertCookingBlocksForMeals(blocks, dayKey);
-        console.log(`🍳 After cooking insertion: ${blocks.length} blocks`);
+        
+        if (MEAL_DEBUG) {
+            const cookLunch = blocks.find(b => b.isCookingBlock && mealTypeOf(b) === 'lunch');
+            const cookDinner = blocks.find(b => b.isCookingBlock && mealTypeOf(b) === 'dinner');
+            if (cookLunch) mealLog(`Cook Lunch: ${cookLunch.time} (${getBlockDurationMinutes(cookLunch)}m)`);
+            if (cookDinner) mealLog(`Cook Dinner: ${cookDinner.time} (${getBlockDurationMinutes(cookDinner)}m)`);
+        }
+        
+        if (isWorkDay) {
+            const workBlock = blocks.find(b => (b.title || '').toLowerCase().includes('work'));
+            const workRange = workBlock ? getBlockTimeRange(workBlock) : null;
+            blocks = applyWorkMealRules(blocks, workRange, daySummary);
+        }
+        
+        const finalLunch = blocks.find(b => mealTypeOf(b) === 'lunch' && !b.isCookingBlock);
+        const finalDinner = blocks.find(b => mealTypeOf(b) === 'dinner' && !b.isCookingBlock);
+        const finalCookLunch = blocks.find(b => b.isCookingBlock && mealTypeOf(b) === 'lunch');
+        const finalCookDinner = blocks.find(b => b.isCookingBlock && mealTypeOf(b) === 'dinner');
+        daySummary.lunch = finalLunch ? { status: 'kept', reason: daySummary.lunch?.reason || (isWorkDay ? 'NEAR_WORK_WINDOW' : 'NO_WORK_DAY') } : daySummary.lunch;
+        daySummary.dinner = finalDinner ? { status: 'kept', reason: daySummary.dinner?.reason || (isWorkDay ? 'NEAR_WORK_WINDOW' : 'NO_WORK_DAY') } : daySummary.dinner;
+        if (MEAL_DEBUG) {
+            if (finalLunch) mealLog(`Lunch scheduled: ${finalLunch.time}`);
+            if (finalCookLunch) mealLog(`Cook Lunch scheduled: ${finalCookLunch.time}`);
+            if (finalDinner) mealLog(`Dinner scheduled: ${finalDinner.time}`);
+            if (finalCookDinner) mealLog(`Cook Dinner scheduled: ${finalCookDinner.time}`);
+            console.groupEnd();
+        }
+        mealDebugSummary.push({
+            day: dayLabel,
+            work: isWorkDay ? 'yes' : 'no',
+            lunch: `${daySummary.lunch?.status || 'none'} (${daySummary.lunch?.reason || 'N/A'})`,
+            dinner: `${daySummary.dinner?.status || 'none'} (${daySummary.dinner?.reason || 'N/A'})`
+        });
         
         // Fit morning blocks before work (always enabled)
         if (isWorkDay) {
@@ -2695,7 +2719,6 @@ async function addWeek() {
                         
                         const sleepStart = formatMinutesToTime(latestEnd);
                         const sleepEnd = formatMinutesToTime(morningStart);
-                        console.log(`  → Carryover sleep repositioned: ${sleepStart}-${sleepEnd}`);
                         return { ...block, time: `${sleepStart}-${sleepEnd}` };
                     }
                 }
@@ -2704,7 +2727,6 @@ async function addWeek() {
                 return block;
             });
             
-            console.log(`✅ Carryover sleep repositioned on day ${i}, default evening/sleep kept for tonight`);
         }
         
         // Include sleep blocks from previous days that overlap with current day
@@ -2745,7 +2767,6 @@ async function addWeek() {
                     if (carryoverEveningBlocks.length > 0) {
                         const latestEnd = Math.max(...carryoverEveningBlocks.map(b => getBlockTimeRange(b).end));
                         actualStartMinutes = latestEnd;
-                        console.log(`  💤 Adjusting sleep start to ${formatMinutesToTime(latestEnd)} (after carryover evening blocks)`);
                     }
                     
                     const displayStartTime = formatMinutesToTime(actualStartMinutes);
@@ -2755,8 +2776,6 @@ async function addWeek() {
                         ...sleepBlock,
                         time: `${displayStartTime}-${displayEndTime}`  // Update display time for today
                     };
-                    
-                    console.log(`💤 Including yesterday's sleep on today: ${displayStartTime}-${displayEndTime} (from ${sleepBlock.time})`);
                     blocks.push(todayPortion);
                 }
             }
@@ -2766,6 +2785,7 @@ async function addWeek() {
         // Ensures: Morning Routine → Cook Breakfast → Breakfast → Commute prep → Commute → Work
         // Never moves Work start time, compresses blocks if needed
         blocks = pushForwardBreakfastChain(blocks, date);
+        blocks = enforceMealWindows(blocks, isWorkDay, date);
         
         // *** WORK-OVERLAP RESOLUTION ***
         // Check for conflicts with work hours and resolve them
@@ -2778,6 +2798,8 @@ async function addWeek() {
             
             if (workBlock) {
                 const workRange = getBlockTimeRange(workBlock);
+                
+                blocks = applyWorkMealRules(blocks, workRange, daySummary);
                 
                 if (!isNaN(workRange.start) && !isNaN(workRange.end)) {
                     // Check for overlaps and resolve them (this will pause until user responds)
@@ -2799,6 +2821,16 @@ async function addWeek() {
             motivation: '✨ Make today count!',
             blocks: dedupeSleepBlocks(blocks)
         };
+    }
+    
+    if (MEAL_DEBUG && typeof mealDebugSummary !== 'undefined') {
+        try {
+            console.groupCollapsed('🍽️ Meal Decisions — Weekly Summary');
+            console.table(mealDebugSummary);
+            console.groupEnd();
+        } catch (e) {
+            // ignore logging errors
+        }
     }
     
     renderDayTabs();
@@ -2832,9 +2864,18 @@ function renderSchedule() {
 
     for (const dayKey in scheduleData.days) {
         const day = scheduleData.days[dayKey];
+        const dayStartMins = timeStrToMinutes(scheduleData?.dayWindow?.start || '00:00');
+        const dayEndMins = timeStrToMinutes(scheduleData?.dayWindow?.end || '23:59');
+        const safeDayStart = isNaN(dayStartMins) ? 0 : dayStartMins;
+        const safeDayEnd = isNaN(dayEndMins) ? 24 * 60 : dayEndMins;
+        const workBlock = day.blocks.find(b => (b.title || '').toLowerCase().includes('work'));
+        const workRange = workBlock ? getBlockTimeRange(workBlock) : { start: NaN, end: NaN };
+        const sleepRanges = (day.blocks || []).filter(b => (b.title || '').toLowerCase().includes('sleep'))
+            .flatMap(b => getBlockIntervalsWithinWindow(b, 0, 24 * 60));
         html += `
             <div class="day-content" id="${dayKey}Content">
                 <div class="day-header">
+                    <div class="day-free-time" id="freeTime-${dayKey}">✨Available time today: --</div>
                     <div class="day-header-display">
                         <h2>${day.name} ${day.displayDate}</h2>
                         <div class="subtitle">${day.subtitle}</div>
@@ -2860,19 +2901,41 @@ function renderSchedule() {
             return aStartTime.localeCompare(bStartTime);
         });
 
-        // Add button at the beginning
-        html += `<div class="add-block-container">
-            <button class="add-block-btn" onclick="addNewBlock('${dayKey}', -1)">➕</button>
-        </div>`;
-
+        let previousEnd = safeDayStart;
+        let lastOriginalIndex = -1;
         blocksWithIndices.forEach((item, displayIndex) => {
+            const range = getBlockTimeRange(item.block);
+            let blockStart = range.start;
+            let blockEnd = range.end;
+            if (!isNaN(blockStart) && !isNaN(blockEnd) && blockEnd < blockStart) {
+                blockEnd += 24 * 60;
+            }
+            if (blockStart < previousEnd) {
+                blockStart += 24 * 60;
+                blockEnd += 24 * 60;
+            }
+
+            if (!isNaN(blockStart) && !isNaN(previousEnd)) {
+                if (shouldRenderAddButton(previousEnd, blockStart, workRange, sleepRanges, { start: safeDayStart, end: safeDayEnd })) {
+                    html += `<div class="add-block-container">
+                        <button class="add-block-btn" onclick="addNewBlock('${dayKey}', ${lastOriginalIndex})">➕</button>
+                    </div>`;
+                }
+            }
+
             // Pass original index for editing/deleting
             html += renderTimeBlock(dayKey, item.block, item.originalIndex);
-            // Add button between blocks - use original index for insertion
-            html += `<div class="add-block-container">
-                <button class="add-block-btn" onclick="addNewBlock('${dayKey}', ${item.originalIndex})">➕</button>
-            </div>`;
+            previousEnd = blockEnd;
+            lastOriginalIndex = item.originalIndex;
         });
+
+        if (previousEnd < safeDayStart) previousEnd += 24 * 60;
+        const adjustedDayEnd = safeDayEnd < safeDayStart ? safeDayEnd + 24 * 60 : safeDayEnd;
+        if (!isNaN(previousEnd) && shouldRenderAddButton(previousEnd, adjustedDayEnd, workRange, sleepRanges, { start: safeDayStart, end: safeDayEnd })) {
+            html += `<div class="add-block-container">
+                <button class="add-block-btn" onclick="addNewBlock('${dayKey}', ${lastOriginalIndex})">➕</button>
+            </div>`;
+        }
 
         html += `</div>`;
     }
@@ -2883,6 +2946,65 @@ function renderSchedule() {
     if (window.updateDateDisplayFromCalendar) {
         window.updateDateDisplayFromCalendar();
     }
+
+    updateAllDayFreeTime();
+}
+
+function calculateDayFreeTime(dayKey) {
+    const day = scheduleData.days[dayKey];
+    if (!day) return 0;
+    const windowStart = timeStrToMinutes(scheduleData?.dayWindow?.start || '00:00');
+    const windowEnd = timeStrToMinutes(scheduleData?.dayWindow?.end || '23:59');
+    const dayStart = isNaN(windowStart) ? 0 : windowStart;
+    const dayEnd = isNaN(windowEnd) ? 24 * 60 : windowEnd;
+    return calculateFreeMinutes(day.blocks || [], dayStart, dayEnd);
+}
+
+function updateAllDayFreeTime() {
+    for (const dayKey in scheduleData.days) {
+        const el = document.getElementById(`freeTime-${dayKey}`);
+        if (!el) continue;
+        const freeMins = calculateDayFreeTime(dayKey);
+        el.textContent = `✨Available time today: ${formatMinutesAsHoursAndMinutes(freeMins)}`;
+    }
+}
+
+function gapOverlapsIntervals(start, end, intervals) {
+    for (const interval of intervals) {
+        const s = interval.start;
+        const e = interval.end;
+        if (end > s && start < e) return true;
+    }
+    return false;
+}
+
+function shouldRenderAddButton(gapStart, gapEnd, workRange, sleepRanges, dayWindow) {
+    if (isNaN(gapStart) || isNaN(gapEnd)) return false;
+    let end = gapEnd;
+    if (end < gapStart) end += 24 * 60;
+    const gap = end - gapStart;
+    const minGap = 5;
+    if (gap < minGap) return false;
+    if (dayWindow && !isNaN(dayWindow.start) && !isNaN(dayWindow.end)) {
+        const wStart = dayWindow.start;
+        const wEnd = dayWindow.end < wStart ? dayWindow.end + 24 * 60 : dayWindow.end;
+        if (end <= wStart || gapStart >= wEnd) return false;
+        gapStart = Math.max(gapStart, wStart);
+        end = Math.min(end, wEnd);
+        if (end - gapStart < minGap) return false;
+    }
+    const workStart = workRange?.start;
+    const workEnd = workRange?.end;
+    const forbidden = [];
+    if (!isNaN(workStart) && !isNaN(workEnd)) {
+        const wEnd = workEnd < workStart ? workEnd + 24 * 60 : workEnd;
+        forbidden.push({ start: workStart, end: wEnd });
+    }
+    if (Array.isArray(sleepRanges)) {
+        forbidden.push(...sleepRanges);
+    }
+    if (gapOverlapsIntervals(gapStart, end, forbidden)) return false;
+    return true;
 }
 
 function populateBlockRecipeSelect() {
@@ -2944,9 +3066,13 @@ function renderTimeBlock(dayKey, block, index) {
         html += `<div class="note">${block.note}</div>`;
     }
 
-    if (block.tasks && block.tasks.length > 0) {
+    const tasksToRender = Array.isArray(block.tasks) 
+        ? (isCooking ? block.tasks.filter(task => task !== 'Cook') : block.tasks)
+        : [];
+
+    if (tasksToRender.length > 0) {
         html += '<div class="tasks">';
-        block.tasks.forEach((task, taskIndex) => {
+        tasksToRender.forEach((task, taskIndex) => {
             const taskId = `${blockId}-task-${taskIndex}`;
             const isChecked = localStorage.getItem(taskId) === 'true' ? 'checked' : '';
             html += `
@@ -2961,7 +3087,7 @@ function renderTimeBlock(dayKey, block, index) {
         // Add Cook Smart checkbox to cooking blocks (in same row)
         if (isCooking && block.recipeID && !block.isLeftover && typeof getCookingCheckboxHTML === 'function') {
             html += `
-                <div class="task-item" style="display: flex; align-items: center; width: fit-content;">
+                <div class="task-item cook-action">
                     ${getCookingCheckboxHTML(blockId, block.recipeID, block.recipeName || 'Recipe')}
                 </div>
             `;
@@ -2972,7 +3098,7 @@ function renderTimeBlock(dayKey, block, index) {
         // If no tasks but it's a cooking block, still show the Cook Smart checkbox
         html += '<div class="tasks">';
         html += `
-            <div class="task-item" style="display: flex; align-items: center; width: fit-content;">
+            <div class="task-item cook-action">
                 ${getCookingCheckboxHTML(blockId, block.recipeID, block.recipeName || 'Recipe')}
             </div>
         `;
@@ -4878,7 +5004,6 @@ function loadFromLocalStorage() {
                     events: Array.isArray(parsed.events) ? parsed.events : [],
                     days: parsed.days && typeof parsed.days === 'object' ? parsed.days : {},
                     defaultBlocks: Array.isArray(parsed.defaultBlocks) ? parsed.defaultBlocks : [],
-                    defaultGroups: Array.isArray(parsed.defaultGroups) ? parsed.defaultGroups : [],
                     dayWindow: parsed.dayWindow && parsed.dayWindow.start && parsed.dayWindow.end ? parsed.dayWindow : { start: '07:00', end: '23:00' },
                     shopping: Array.isArray(parsed.shopping) ? parsed.shopping : [],
                     recipes: Array.isArray(parsed.recipes) ? parsed.recipes : []
@@ -4925,6 +5050,15 @@ function timeStrToMinutes(timeStr) {
     return hours * 60 + mins;
 }
 
+function formatMinutesAsHoursAndMinutes(totalMinutes) {
+    const minutes = Math.max(0, Math.round(totalMinutes));
+    const hours = Math.floor(minutes / 60);
+    const mins = minutes % 60;
+    if (hours > 0 && mins > 0) return `${hours}h ${mins}m`;
+    if (hours > 0) return `${hours}h`;
+    return `${mins}m`;
+}
+
 function parseTimeRangeToMinutes(range) {
     if (!range || !range.includes('-')) return { start: NaN, end: NaN };
     const [start, end] = range.split('-');
@@ -4941,6 +5075,229 @@ function getBlockDurationMinutes(block) {
     if (end >= start) return Math.max(0, end - start);
     // Overnight: wrap to next day
     return (24 * 60 - start) + end;
+}
+
+function getBlockIntervalsWithinWindow(block, dayStartMins = 0, dayEndMins = 24 * 60) {
+    const { start, end } = getBlockTimeRange(block);
+    if (isNaN(start) || isNaN(end)) return [];
+    if (start === end) return [];
+
+    const parts = end < start ? [[start, 24 * 60], [0, end]] : [[start, end]];
+    const intervals = [];
+
+    parts.forEach(([s, e]) => {
+        const clampedStart = Math.max(s, dayStartMins);
+        const clampedEnd = Math.min(e, dayEndMins);
+        if (clampedEnd > clampedStart) {
+            intervals.push({ start: clampedStart, end: clampedEnd });
+        }
+    });
+
+    return intervals;
+}
+
+function mergeIntervals(intervals) {
+    if (!intervals.length) return [];
+    const sorted = intervals.slice().sort((a, b) => a.start - b.start);
+    const merged = [sorted[0]];
+    for (let i = 1; i < sorted.length; i++) {
+        const last = merged[merged.length - 1];
+        const current = sorted[i];
+        if (current.start <= last.end) {
+            last.end = Math.max(last.end, current.end);
+        } else {
+            merged.push({ ...current });
+        }
+    }
+    return merged;
+}
+
+function calculateFreeMinutes(blocks, dayStartMins = 0, dayEndMins = 24 * 60) {
+    const busyIntervals = [];
+    blocks.forEach(block => {
+        busyIntervals.push(...getBlockIntervalsWithinWindow(block, dayStartMins, dayEndMins));
+    });
+    const mergedBusy = mergeIntervals(busyIntervals);
+    let cursor = dayStartMins;
+    let freeTotal = 0;
+    mergedBusy.forEach(interval => {
+        if (interval.start > cursor) {
+            freeTotal += interval.start - cursor;
+        }
+        cursor = Math.max(cursor, interval.end);
+    });
+    if (cursor < dayEndMins) {
+        freeTotal += dayEndMins - cursor;
+    }
+    return freeTotal;
+}
+
+function findAvailableGapsInDay(blocks, dayStartMins = 0, dayEndMins = 24 * 60) {
+    const busyIntervals = [];
+    blocks.forEach(block => {
+        busyIntervals.push(...getBlockIntervalsWithinWindow(block, dayStartMins, dayEndMins));
+    });
+    const mergedBusy = mergeIntervals(busyIntervals);
+    const gaps = [];
+    let cursor = dayStartMins;
+    mergedBusy.forEach(interval => {
+        if (interval.start > cursor) {
+            gaps.push({
+                start: cursor,
+                end: interval.start,
+                duration: interval.start - cursor
+            });
+        }
+        cursor = Math.max(cursor, interval.end);
+    });
+    if (cursor < dayEndMins) {
+        gaps.push({
+            start: cursor,
+            end: dayEndMins,
+            duration: dayEndMins - cursor
+        });
+    }
+    return gaps;
+}
+
+function enforceMealWindows(blocks, isWorkDay, currentDate) {
+    if (isWorkDay) return blocks;
+    const lunchWindow = { start: timeStrToMinutes('11:00'), end: timeStrToMinutes('15:00') };
+    const dinnerWindow = { start: timeStrToMinutes('17:00'), end: timeStrToMinutes('21:00') };
+
+    return blocks.map((block, idx, arr) => {
+        if (!isWorkMealBlock(block)) return block;
+        const { start, end } = getBlockTimeRange(block);
+        const targetWindow = isLunchBlock(block) || (block.mealType || '').toLowerCase() === 'lunch'
+            ? lunchWindow
+            : dinnerWindow;
+
+        const startInside = start >= targetWindow.start && end <= targetWindow.end;
+        if (startInside) return block;
+
+        const others = arr.filter((_, i) => i !== idx);
+        const gaps = findAvailableGapsInDay(others, targetWindow.start, targetWindow.end);
+        const duration = getBlockDurationMinutes(block);
+        const slot = gaps.find(g => g.duration >= duration);
+        if (!slot) {
+            return { ...block, removeForWindow: true };
+        }
+
+        const newStart = slot.start;
+        const newEnd = newStart + duration;
+        const updated = { ...block, time: `${formatMinutesToTime(newStart)}-${formatMinutesToTime(newEnd)}` };
+        if (block.startDateTime && currentDate) {
+            const date = new Date(currentDate);
+            updated.startDateTime = createDateTimeFromTimeStr(date, formatMinutesToTime(newStart)).toISOString();
+            updated.endDateTime = createDateTimeFromTimeStr(date, formatMinutesToTime(newEnd)).toISOString();
+        }
+        return updated;
+    }).filter(block => !block.removeForWindow);
+}
+
+function applyWorkMealRules(blocks, workRange, daySummary) {
+    if (!workRange || isNaN(workRange.start) || isNaN(workRange.end)) {
+        if (daySummary) {
+            const mealBlocks = {
+                lunch: blocks.find(b => mealTypeOf(b) === 'lunch' && !b.isCookingBlock),
+                dinner: blocks.find(b => mealTypeOf(b) === 'dinner' && !b.isCookingBlock)
+            };
+            daySummary.lunch = mealBlocks.lunch ? { status: 'kept', reason: 'NO_WORK_DAY' } : { status: 'none', reason: 'NO_WORK_DAY' };
+            daySummary.dinner = mealBlocks.dinner ? { status: 'kept', reason: 'NO_WORK_DAY' } : { status: 'none', reason: 'NO_WORK_DAY' };
+        }
+        return blocks;
+    }
+    const workStart = workRange.start;
+    const workEnd = workRange.end;
+
+    const lunchWindow = { start: timeStrToMinutes('11:00'), end: timeStrToMinutes('15:00') };
+    const dinnerWindow = { start: timeStrToMinutes('17:00'), end: timeStrToMinutes('21:30') };
+
+    const shouldKeepLunch = (block) => {
+        const { start, end } = getBlockTimeRange(block);
+        if (isNaN(start) || isNaN(end)) return false;
+        if (!block.fromDefault) return false;
+        if (start < lunchWindow.start || start > lunchWindow.end) return false;
+        return start >= (workStart - 60) && start <= workStart;
+    };
+
+    const shouldKeepDinner = (block) => {
+        const { start } = getBlockTimeRange(block);
+        if (isNaN(start)) return false;
+        if (!block.fromDefault) return false;
+        if (start < dinnerWindow.start || start > dinnerWindow.end) return false;
+        const afterWorkAllowance = block.isLeftover ? 90 : 60;
+        return start >= workEnd && start <= workEnd + afterWorkAllowance;
+    };
+
+    const overlapsWork = (block) => {
+        const { start, end } = getBlockTimeRange(block);
+        if (isNaN(start) || isNaN(end)) return false;
+        const blockEnd = end < start ? end + 24 * 60 : end;
+        const blockStart = start;
+        return blockStart < workEnd && blockEnd > workStart;
+    };
+
+    const mealFailures = { lunch: false, dinner: false };
+    const mealReasons = { lunch: 'KEPT', dinner: 'KEPT' };
+    const getCookingBlockFor = (mealBlock) => {
+        const mealType = mealTypeOf(mealBlock);
+        if (!mealType) return null;
+        return blocks.find(b => b.isCookingBlock && mealTypeOf(b) === mealType);
+    };
+
+    const record = (type, status, reason) => {
+        mealReasons[type] = reason;
+        if (daySummary) {
+            daySummary[type] = { status, reason };
+        }
+    };
+
+    blocks.forEach(block => {
+        const type = mealTypeOf(block);
+        if (!type) return;
+        const keep = type === 'lunch' ? shouldKeepLunch(block) : shouldKeepDinner(block);
+        const defaultOnly = !!block.fromDefault;
+        const saneTime = type === 'lunch'
+            ? (getBlockTimeRange(block).start >= timeStrToMinutes('11:00') && getBlockTimeRange(block).start <= timeStrToMinutes('15:00'))
+            : (getBlockTimeRange(block).start >= timeStrToMinutes('17:00') && getBlockTimeRange(block).start <= timeStrToMinutes('21:30'));
+        const cookingBlock = getCookingBlockFor(block);
+        const cookingOverlap = cookingBlock ? overlapsWork(cookingBlock) : false;
+        if (!defaultOnly) {
+            mealFailures[type] = true;
+            record(type, 'removed', 'NOT_DEFAULT');
+            return;
+        }
+        if (!saneTime) {
+            mealFailures[type] = true;
+            record(type, 'removed', 'INVALID_MEAL_TIME');
+            return;
+        }
+        if (!keep) {
+            mealFailures[type] = true;
+            record(type, 'removed', 'OUTSIDE_NEAR_WORK_WINDOW');
+            return;
+        }
+        if (overlapsWork(block)) {
+            mealFailures[type] = true;
+            record(type, 'removed', 'MEAL_OVERLAPS_WORK');
+            return;
+        }
+        if (cookingOverlap) {
+            mealFailures[type] = true;
+            record(type, 'removed', 'COOKING_OVERLAPS_WORK');
+            return;
+        }
+        record(type, 'kept', 'NEAR_WORK_WINDOW');
+    });
+
+    if (!mealFailures.lunch && !mealFailures.dinner) return blocks;
+
+    return blocks.filter(block => {
+        const type = mealTypeOf(block);
+        if (!type) return true;
+        return !mealFailures[type];
+    });
 }
 
 function formatMinutesToTime(mins) {
@@ -5097,16 +5454,14 @@ function dedupeSleepBlocks(blocks) {
             const existingIsEveningSleep = existingRange.start >= 1200;
             
             if (isEveningSleep && !existingIsEveningSleep) {
-                console.log(`🔄 Replacing morning sleep ${existing.time} with evening sleep ${block.time}`);
                 sleepBlocks[existingIndex] = block;
             } else if (!isEveningSleep && existingIsEveningSleep) {
-                console.log(`🔄 Keeping evening sleep ${existing.time}`);
+                // keep existing
             } else {
                 if (duration > existingDuration) {
-                    console.log(`🔄 Replacing shorter sleep with longer ${block.time}`);
                     sleepBlocks[existingIndex] = block;
                 } else {
-                    console.log(`🔄 Keeping longer sleep ${existing.time}`);
+                    // keep existing
                 }
             }
         }
@@ -5719,8 +6074,6 @@ function renderDefaultBlocksList() {
     });
     
     container.innerHTML = html;
-
-    renderDefaultGroupControls();
 }
 
 function removeDefaultBlock(index) {
@@ -5729,107 +6082,6 @@ function removeDefaultBlock(index) {
         renderDefaultBlocksList();
         saveToLocalStorage();
         showToast('Default block deleted');
-    }
-}
-
-// ========================================
-// DEFAULT GROUPS
-// ========================================
-
-function renderDefaultGroupControls() {
-    const memberContainer = document.getElementById('defaultGroupMembers');
-    const listContainer = document.getElementById('defaultGroupsList');
-    if (!memberContainer || !listContainer) return;
-    
-    ensureDefaultBlockIds();
-    
-    // Member choices
-    const blocks = scheduleData.defaultBlocks || [];
-    const sortedBlocks = [...blocks].sort((a, b) => {
-        const ar = getBlockTimeRange(a);
-        const br = getBlockTimeRange(b);
-        const as = isNaN(ar.start) ? Infinity : ar.start;
-        const bs = isNaN(br.start) ? Infinity : br.start;
-        return as - bs;
-    });
-    if (blocks.length === 0) {
-        memberContainer.innerHTML = `<div style="color: #6b7280; font-size: 14px;">No default blocks available.</div>`;
-    } else {
-        memberContainer.innerHTML = sortedBlocks.map((block) => {
-            const label = `${block.time || '??'} — ${block.title || 'Untitled'}`;
-            return `
-                <label style="display: flex; align-items: center; gap: 8px; font-size: 13px;">
-                    <input type="checkbox" class="default-group-member" value="${block.id}" style="width: 16px; height: 16px;">
-                    <span>${label}</span>
-                </label>
-            `;
-        }).join('');
-    }
-    
-    // Groups list
-    const groups = scheduleData.defaultGroups || [];
-    if (groups.length === 0) {
-        listContainer.innerHTML = `<div style="color: #6b7280; font-size: 14px;">No groups yet.</div>`;
-        return;
-    }
-    
-    let html = '';
-    groups.forEach((group, idx) => {
-        const members = (group.memberIds || [])
-            .map(id => blocks.find(b => b.id === id))
-            .filter(Boolean)
-            .map(b => `${b.time || '??'} — ${b.title || 'Untitled'}`);
-        html += `
-            <div style="margin-top: 10px; padding: 10px; border: 1px solid #e5e7eb; border-radius: 10px; background: white;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <div style="font-weight: 700; color: #1f2937;">${group.name}</div>
-                        <div style="font-size: 12px; color: #6b7280;">${members.length} item(s)</div>
-                    </div>
-                    <button onclick="deleteDefaultGroup(${idx})" style="background: #ef4444; color: white; border: none; padding: 6px 10px; border-radius: 8px; font-size: 12px; cursor: pointer;">Delete</button>
-                </div>
-                <div style="margin-top: 8px; font-size: 13px; color: #374151;">
-                    ${members.length ? members.join('<br>') : '<span style="color:#9ca3af;">Members missing</span>'}
-                </div>
-            </div>
-        `;
-    });
-    listContainer.innerHTML = html;
-}
-
-function saveDefaultGroup() {
-    const nameInput = document.getElementById('defaultGroupName');
-    const memberChecks = document.querySelectorAll('.default-group-member:checked');
-    const name = (nameInput?.value || '').trim();
-    if (!name) {
-        alert('Please enter a group name.');
-        return;
-    }
-    const memberIds = Array.from(memberChecks).map(cb => cb.value);
-    if (memberIds.length === 0) {
-        alert('Select at least one default block to include.');
-        return;
-    }
-    const newGroup = {
-        id: `dg_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
-        name,
-        memberIds
-    };
-    if (!scheduleData.defaultGroups) scheduleData.defaultGroups = [];
-    scheduleData.defaultGroups.push(newGroup);
-    saveToLocalStorage();
-    if (nameInput) nameInput.value = '';
-    document.querySelectorAll('.default-group-member').forEach(cb => cb.checked = false);
-    renderDefaultGroupControls();
-    showToast('Default group saved');
-}
-
-function deleteDefaultGroup(index) {
-    if (!scheduleData.defaultGroups || !scheduleData.defaultGroups[index]) return;
-    if (confirm('Delete this default group?')) {
-        scheduleData.defaultGroups.splice(index, 1);
-        saveToLocalStorage();
-        renderDefaultGroupControls();
     }
 }
 
