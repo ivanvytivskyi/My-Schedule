@@ -230,7 +230,6 @@ function getCookingCheckboxHTML(blockId, recipeId, recipeName) {
             width: fit-content;
             max-width: fit-content;
             flex: 0 0 auto;
-            align-self: flex-start;
         ">
             <input type="checkbox" 
                    class="cooking-checkbox"
