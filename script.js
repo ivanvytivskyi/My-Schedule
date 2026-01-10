@@ -6383,7 +6383,7 @@ function addShoppingBlocks(orderedDays, dayIndex, startTime, travelMins = 15, sh
     
     // Create blocks
     const travelToBlock = {
-        name: "🚗 Travel to Shop",
+        title: "🚗 Travel to Shop",
         time: `${formatMinutesToTime(travelToStart)}-${formatMinutesToTime(travelToEnd)}`,
         tasks: ["Travel to supermarket"],
         color: "#FF9800",
@@ -6391,7 +6391,7 @@ function addShoppingBlocks(orderedDays, dayIndex, startTime, travelMins = 15, sh
     };
     
     const shoppingBlock = {
-        name: "🛒 Shopping",
+        title: "🛒 Shopping",
         time: `${formatMinutesToTime(shopStart)}-${formatMinutesToTime(shopEnd)}`,
         tasks: ["Pick up groceries", "Follow shopping list", "Pay at checkout"],
         color: "#4CAF50",
@@ -6400,7 +6400,7 @@ function addShoppingBlocks(orderedDays, dayIndex, startTime, travelMins = 15, sh
     };
     
     const travelHomeBlock = {
-        name: "🚗 Travel Home",
+        title: "🚗 Travel Home",
         time: `${formatMinutesToTime(travelHomeStart)}-${formatMinutesToTime(travelHomeEnd)}`,
         tasks: ["Return home", "Store groceries"],
         color: "#FF9800",
