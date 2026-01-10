@@ -147,6 +147,7 @@ let mealRecipeQueues = null;
 let weeklyBreakfastQueue = [];
 let weeklyBreakfastUsed = new Set();
 let mealDebugSummary = [];
+let isAddingWeek = false;
 
 // Track cooked recipes this week (for leftover detection)
 let cookedRecipesThisWeek = new Set();
@@ -1782,9 +1783,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.log('🎯 Calling addSingleDay()');
                 success = addSingleDay();
             } else {
-                console.log('🎯 Calling addWeek()');
-                success = await addWeek();
-                console.log('🎯 addWeek() returned:', success);
+                if (isAddingWeek) {
+                    console.log('⏳ addWeek already in progress, ignoring duplicate submit.');
+                    return;
+                }
+                isAddingWeek = true;
+                try {
+                    console.log('🎯 Calling addWeek()');
+                    success = await addWeek();
+                    console.log('🎯 addWeek() returned:', success);
+                } finally {
+                    isAddingWeek = false;
+                }
             }
             
             // Only close modal if operation succeeded
@@ -2215,6 +2225,7 @@ async function addWeek() {
     
     // Analyze stock coverage
     const stockAnalysis = analyzeStockCoverage(assignedRecipes);
+    const shoppingBlocksByDay = {};
     
     // Check if shopping is needed
     let shoppingData = null;
@@ -2267,7 +2278,7 @@ async function addWeek() {
                 console.log(`   ✓ User selected: ${shoppingData.slot.dayName} at ${shoppingData.slot.startTime}`);
                 
                 // Add shopping blocks to selected day
-                const success = addShoppingBlocks(
+                const shoppingBlocks = addShoppingBlocks(
                     orderedDays,
                     shoppingData.slot.dayIndex,
                     shoppingData.slot.startTime,
@@ -2275,7 +2286,8 @@ async function addWeek() {
                     shoppingData.shopMins
                 );
                 
-                if (success) {
+                if (shoppingBlocks && shoppingBlocks.length > 0) {
+                    shoppingBlocksByDay[shoppingData.slot.dayIndex] = shoppingBlocks.map(block => ({ ...block }));
                     // Generate shopping list
                     const shoppingList = generateShoppingListFromRecipes(stockAnalysis.needsShoppingRecipes);
                     console.log(`   ✓ Shopping list generated: ${shoppingList.items.length} items to buy`);
@@ -2312,6 +2324,10 @@ async function addWeek() {
         
         // Start with any overnight carry from previous day
         let blocks = nextDayCarry[i] ? [...nextDayCarry[i]] : [];
+        const shoppingBlocks = shoppingBlocksByDay[i] || [];
+        if (shoppingBlocks.length > 0) {
+            blocks = blocks.concat(shoppingBlocks.map(block => ({ ...block })));
+        }
         
         // Check if this is a work day
         const isWorkDay = addWorkSchedule && workSchedule[dayOfWeek];
@@ -3166,7 +3182,11 @@ async function addWeek() {
                         date: date.toISOString().split('T')[0]
                     };
                     
-                    blocks = await resolveWorkOverlaps(i, dayData, blocks, workRange);
+                    if (typeof resolveWorkOverlaps === 'function') {
+                        blocks = await resolveWorkOverlaps(i, dayData, blocks, workRange);
+                    } else {
+                        console.warn('⚠️ resolveWorkOverlaps unavailable, skipping overlap resolution.');
+                    }
                 }
             }
         }
@@ -6368,7 +6388,7 @@ function addShoppingBlocks(orderedDays, dayIndex, startTime, travelMins = 15, sh
     const day = orderedDays[dayIndex];
     if (!day) {
         console.error('❌ Day not found');
-        return false;
+        return null;
     }
     
     const startMins = timeStrToMinutes(startTime);
@@ -6382,17 +6402,37 @@ function addShoppingBlocks(orderedDays, dayIndex, startTime, travelMins = 15, sh
     const travelHomeEnd = shopEnd + travelMins;
     
     // Create blocks
+    const createBlockTimes = (start, end) => {
+        const date = day.date;
+        if (!date) return {};
+        const [startHours, startMinutes] = formatMinutesToTime(start).split(':').map(Number);
+        const [endHours, endMinutes] = formatMinutesToTime(end).split(':').map(Number);
+        const startDateTime = new Date(date);
+        startDateTime.setHours(startHours, startMinutes, 0, 0);
+        const endDateTime = new Date(date);
+        endDateTime.setHours(endHours, endMinutes, 0, 0);
+        if (end < start) {
+            endDateTime.setDate(endDateTime.getDate() + 1);
+        }
+        return {
+            startDateTime: startDateTime.toISOString(),
+            endDateTime: endDateTime.toISOString()
+        };
+    };
+    
     const travelToBlock = {
-        name: "🚗 Travel to Shop",
+        title: "🚗 Travel to Shop",
         time: `${formatMinutesToTime(travelToStart)}-${formatMinutesToTime(travelToEnd)}`,
+        ...createBlockTimes(travelToStart, travelToEnd),
         tasks: ["Travel to supermarket"],
         color: "#FF9800",
         type: "travel-shopping"
     };
     
     const shoppingBlock = {
-        name: "🛒 Shopping",
+        title: "🛒 Shopping",
         time: `${formatMinutesToTime(shopStart)}-${formatMinutesToTime(shopEnd)}`,
+        ...createBlockTimes(shopStart, shopEnd),
         tasks: ["Pick up groceries", "Follow shopping list", "Pay at checkout"],
         color: "#4CAF50",
         type: "shopping",
@@ -6400,8 +6440,9 @@ function addShoppingBlocks(orderedDays, dayIndex, startTime, travelMins = 15, sh
     };
     
     const travelHomeBlock = {
-        name: "🚗 Travel Home",
+        title: "🚗 Travel Home",
         time: `${formatMinutesToTime(travelHomeStart)}-${formatMinutesToTime(travelHomeEnd)}`,
+        ...createBlockTimes(travelHomeStart, travelHomeEnd),
         tasks: ["Return home", "Store groceries"],
         color: "#FF9800",
         type: "travel-shopping"
@@ -6409,9 +6450,8 @@ function addShoppingBlocks(orderedDays, dayIndex, startTime, travelMins = 15, sh
     
     // Add blocks to day
     if (!day.blocks) day.blocks = [];
-    day.blocks.push(travelToBlock);
-    day.blocks.push(shoppingBlock);
-    day.blocks.push(travelHomeBlock);
+    const createdBlocks = [travelToBlock, shoppingBlock, travelHomeBlock];
+    day.blocks.push(...createdBlocks);
     
     // Sort blocks by time
     day.blocks.sort((a, b) => {
@@ -6421,7 +6461,7 @@ function addShoppingBlocks(orderedDays, dayIndex, startTime, travelMins = 15, sh
     });
     
     console.log(`   ✓ Added 3 blocks: Travel → Shopping → Travel`);
-    return true;
+    return createdBlocks;
 }
 
 // Generate shopping list from selected recipes
@@ -6730,9 +6770,17 @@ function canCookRecipeWithStock(recipe) {
         const canonicalKey = ing.canonicalKey;
         if (!canonicalKey) continue; // Skip ingredients without canonical keys
         
-        // Parse quantity from display (e.g., "500g Penne pasta" → 500)
-        const qtyMatch = ing.display.match(/^([\d.]+)/);
-        const qtyNeeded = qtyMatch ? parseFloat(qtyMatch[1]) : 0;
+        let qtyNeeded = 0;
+        if (typeof ing.qty === 'number' && ing.qty > 0) {
+            if (typeof convertToBase === 'function') {
+                qtyNeeded = convertToBase(ing.qty, ing.unit, canonicalKey);
+            } else {
+                qtyNeeded = ing.qty;
+            }
+        } else if (ing.display) {
+            const qtyMatch = ing.display.match(/^([\d.]+)/);
+            qtyNeeded = qtyMatch ? parseFloat(qtyMatch[1]) : 0;
+        }
         
         if (qtyNeeded > 0 && !hasEnoughInStock(canonicalKey, qtyNeeded)) {
             return false; // Missing ingredient or not enough
