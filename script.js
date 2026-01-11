@@ -1021,7 +1021,9 @@ function initializeApp() {
         renderSchedule();
         
         // CRITICAL: Re-apply splitting for important blocks after loading from storage
-        reapplySplittingToAllDays();
+        if (typeof window.reapplySplittingToAllDays === 'function') {
+            window.reapplySplittingToAllDays();
+        }
         
         renderEvents();
         renderShopping();
@@ -1924,6 +1926,7 @@ function addSingleDay() {
                     // Auto-assign lunch/dinner recipes from the main queue
                     assignRecipeToMealBlock(copyToday);
                 }
+                blocks.push(...buildPrepTravelBlocks(copyToday, date));
                 blocks.push(copyToday); // Copy the block
                 
                 // For single-day add, if overnight, append the next-day piece into the same day so data isn't lost
@@ -2562,6 +2565,7 @@ async function addWeek() {
                     }
                 }
                 
+                blocks.push(...buildPrepTravelBlocks(copyToday, date));
                 blocks.push(copyToday);
                 
             });
@@ -6520,6 +6524,80 @@ function formatMinutesToTime(mins) {
     const h = Math.floor(mins / 60);
     const m = mins % 60;
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+function buildPrepTravelBlocks(baseBlock, date) {
+    if (!baseBlock?.hasPrepTravel) return [];
+    const prepDuration = Number(baseBlock.prepDuration) || 0;
+    const travelDuration = Number(baseBlock.travelDuration) || 0;
+    if (!baseBlock.time || (!prepDuration && !travelDuration)) return [];
+    const [startTime, endTime] = baseBlock.time.split('-');
+    const startMins = timeStrToMinutes(startTime);
+    const endMins = timeStrToMinutes(endTime);
+    if (isNaN(startMins) || isNaN(endMins)) return [];
+
+    const blocks = [];
+    const baseTitle = baseBlock.title || 'Event';
+    const sharedMeta = {
+        fromDefault: baseBlock.fromDefault,
+        sourceDefaultId: baseBlock.sourceDefaultId,
+        linkedBlockId: baseBlock.id
+    };
+
+    const applyDateTime = (block, blockStart, blockEnd) => {
+        if (!date) return block;
+        const startDateTime = new Date(date);
+        const endDateTime = new Date(date);
+        const [startH, startM] = blockStart.split(':').map(Number);
+        const [endH, endM] = blockEnd.split(':').map(Number);
+        startDateTime.setHours(startH, startM, 0, 0);
+        endDateTime.setHours(endH, endM, 0, 0);
+        if (timeStrToMinutes(blockEnd) < timeStrToMinutes(blockStart)) {
+            endDateTime.setDate(endDateTime.getDate() + 1);
+        }
+        return {
+            ...block,
+            startDateTime: startDateTime.toISOString(),
+            endDateTime: endDateTime.toISOString()
+        };
+    };
+
+    if (prepDuration > 0) {
+        const prepStart = formatMinutesToTime(startMins - travelDuration - prepDuration);
+        const prepEnd = formatMinutesToTime(startMins - travelDuration);
+        const prepBlock = applyDateTime({
+            ...sharedMeta,
+            time: `${prepStart}-${prepEnd}`,
+            title: `🧰 Prep for ${baseTitle}`,
+            tasks: ['Get ready', 'Gather items']
+        }, prepStart, prepEnd);
+        blocks.push(prepBlock);
+    }
+
+    if (travelDuration > 0) {
+        const travelToStart = formatMinutesToTime(startMins - travelDuration);
+        const travelToEnd = startTime;
+        const travelHomeStart = endTime;
+        const travelHomeEnd = formatMinutesToTime(endMins + travelDuration);
+
+        const travelToBlock = applyDateTime({
+            ...sharedMeta,
+            time: `${travelToStart}-${travelToEnd}`,
+            title: `🚗 Travel to ${baseTitle}`,
+            tasks: ['Travel']
+        }, travelToStart, travelToEnd);
+        blocks.push(travelToBlock);
+
+        const travelHomeBlock = applyDateTime({
+            ...sharedMeta,
+            time: `${travelHomeStart}-${travelHomeEnd}`,
+            title: `🚗 Travel home`,
+            tasks: ['Travel back']
+        }, travelHomeStart, travelHomeEnd);
+        blocks.push(travelHomeBlock);
+    }
+
+    return blocks;
 }
 
 function isWorkBlock(block) {
@@ -10794,6 +10872,7 @@ function reapplySplittingToAllDays() {
         saveToLocalStorage();
     }
 }
+window.reapplySplittingToAllDays = reapplySplittingToAllDays;
 
 if (originalCopyDefaults) {
     window.copyDefaultsToDay = function(dayKey, dayName) {
