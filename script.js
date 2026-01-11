@@ -1021,7 +1021,9 @@ function initializeApp() {
         renderSchedule();
         
         // CRITICAL: Re-apply splitting for important blocks after loading from storage
-        reapplySplittingToAllDays();
+        if (typeof window.reapplySplittingToAllDays === 'function') {
+            window.reapplySplittingToAllDays();
+        }
         
         renderEvents();
         renderShopping();
@@ -1782,6 +1784,8 @@ document.addEventListener('change', (e) => {
 });
 
 // Attach form submit handler when DOM is ready
+let isAddingSchedule = false;
+
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🔍 DOM LOADED: Setting up form handlers');
     
@@ -1792,19 +1796,35 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('🔍 INIT CHECK: Attaching submit event listener to addDayForm');
         addDayFormElement.addEventListener('submit', async (e) => {
             e.preventDefault();
+            if (isAddingSchedule) {
+                console.warn('⚠️ Schedule creation already in progress');
+                return;
+            }
             console.log('🎯 FORM SUBMITTED');
             
             const addType = document.querySelector('input[name="addType"]:checked').value;
             console.log('🎯 Add type:', addType);
             
+            const submitButton = addDayFormElement.querySelector('button[type="submit"]');
+            if (submitButton) submitButton.disabled = true;
+
             let success = false;
-            if (addType === 'day') {
-                console.log('🎯 Calling addSingleDay()');
-                success = addSingleDay();
-            } else {
-                console.log('🎯 Calling addWeek()');
-                success = await addWeek();
-                console.log('🎯 addWeek() returned:', success);
+            isAddingSchedule = true;
+            try {
+                if (addType === 'day') {
+                    console.log('🎯 Calling addSingleDay()');
+                    success = addSingleDay();
+                } else {
+                    console.log('🎯 Calling addWeek()');
+                    success = await addWeek();
+                    console.log('🎯 addWeek() returned:', success);
+                }
+            } catch (error) {
+                console.error('❌ Failed to create schedule:', error);
+                alert('Something went wrong while creating the schedule. Please try again.');
+            } finally {
+                isAddingSchedule = false;
+                if (!success && submitButton) submitButton.disabled = false;
             }
             
             // Only close modal if operation succeeded
@@ -1924,6 +1944,7 @@ function addSingleDay() {
                     // Auto-assign lunch/dinner recipes from the main queue
                     assignRecipeToMealBlock(copyToday);
                 }
+                blocks.push(...buildPrepTravelBlocks(copyToday, date));
                 blocks.push(copyToday); // Copy the block
                 
                 // For single-day add, if overnight, append the next-day piece into the same day so data isn't lost
@@ -2562,6 +2583,7 @@ async function addWeek() {
                     }
                 }
                 
+                blocks.push(...buildPrepTravelBlocks(copyToday, date));
                 blocks.push(copyToday);
                 
             });
@@ -2712,6 +2734,8 @@ async function addWeek() {
             const workBlock = blocks.find(b => isWorkBlock(b));
             const workRange = workBlock ? getBlockTimeRange(workBlock) : null;
             blocks = applyWorkMealRules(blocks, workRange, daySummary);
+        } else {
+            blocks = applyWorkMealRules(blocks, null, daySummary, { forceOverlapResolution: true });
         }
         
         const finalLunch = blocks.find(b => mealTypeOf(b) === 'lunch' && !b.isCookingBlock);
@@ -3208,7 +3232,15 @@ async function addWeek() {
                         date: date.toISOString().split('T')[0]
                     };
                     
-                    blocks = await resolveWorkOverlaps(i, dayData, blocks, workRange);
+                    if (typeof window.resolveWorkOverlaps === 'function') {
+                        try {
+                            blocks = await window.resolveWorkOverlaps(i, dayData, blocks, workRange);
+                        } catch (error) {
+                            console.error('❌ Failed to resolve work overlaps:', error);
+                        }
+                    } else {
+                        console.warn('⚠️ Work overlap resolver not available; skipping overlap handling.');
+                    }
                 }
             }
         }
@@ -6226,9 +6258,10 @@ function enforceMealWindows(blocks, isWorkDay, currentDate) {
     }).filter(block => !block.removeForWindow);
 }
 
-function applyWorkMealRules(blocks, workRange, daySummary) {
+function applyWorkMealRules(blocks, workRange, daySummary, options = {}) {
+    const { forceOverlapResolution = false } = options;
     if (!workRange || isNaN(workRange.start) || isNaN(workRange.end)) {
-        if (daySummary) {
+        if (daySummary && !forceOverlapResolution) {
             const mealBlocks = {
                 lunch: blocks.find(b => mealTypeOf(b) === 'lunch' && !b.isCookingBlock),
                 dinner: blocks.find(b => mealTypeOf(b) === 'dinner' && !b.isCookingBlock)
@@ -6236,7 +6269,9 @@ function applyWorkMealRules(blocks, workRange, daySummary) {
             daySummary.lunch = mealBlocks.lunch ? { status: 'kept', reason: 'NO_WORK_DAY' } : { status: 'none', reason: 'NO_WORK_DAY' };
             daySummary.dinner = mealBlocks.dinner ? { status: 'kept', reason: 'NO_WORK_DAY' } : { status: 'none', reason: 'NO_WORK_DAY' };
         }
-        return blocks;
+        if (!forceOverlapResolution) {
+            return blocks;
+        }
     }
     const toIntervals = (start, end) => {
         if (isNaN(start) || isNaN(end)) return [];
@@ -6522,6 +6557,80 @@ function formatMinutesToTime(mins) {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+function buildPrepTravelBlocks(baseBlock, date) {
+    if (!baseBlock?.hasPrepTravel) return [];
+    const prepDuration = Number(baseBlock.prepDuration) || 0;
+    const travelDuration = Number(baseBlock.travelDuration) || 0;
+    if (!baseBlock.time || (!prepDuration && !travelDuration)) return [];
+    const [startTime, endTime] = baseBlock.time.split('-');
+    const startMins = timeStrToMinutes(startTime);
+    const endMins = timeStrToMinutes(endTime);
+    if (isNaN(startMins) || isNaN(endMins)) return [];
+
+    const blocks = [];
+    const baseTitle = baseBlock.title || 'Event';
+    const sharedMeta = {
+        fromDefault: baseBlock.fromDefault,
+        sourceDefaultId: baseBlock.sourceDefaultId,
+        linkedBlockId: baseBlock.id
+    };
+
+    const applyDateTime = (block, blockStart, blockEnd) => {
+        if (!date) return block;
+        const startDateTime = new Date(date);
+        const endDateTime = new Date(date);
+        const [startH, startM] = blockStart.split(':').map(Number);
+        const [endH, endM] = blockEnd.split(':').map(Number);
+        startDateTime.setHours(startH, startM, 0, 0);
+        endDateTime.setHours(endH, endM, 0, 0);
+        if (timeStrToMinutes(blockEnd) < timeStrToMinutes(blockStart)) {
+            endDateTime.setDate(endDateTime.getDate() + 1);
+        }
+        return {
+            ...block,
+            startDateTime: startDateTime.toISOString(),
+            endDateTime: endDateTime.toISOString()
+        };
+    };
+
+    if (prepDuration > 0) {
+        const prepStart = formatMinutesToTime(startMins - travelDuration - prepDuration);
+        const prepEnd = formatMinutesToTime(startMins - travelDuration);
+        const prepBlock = applyDateTime({
+            ...sharedMeta,
+            time: `${prepStart}-${prepEnd}`,
+            title: `🧰 Prep for ${baseTitle}`,
+            tasks: ['Get ready', 'Gather items']
+        }, prepStart, prepEnd);
+        blocks.push(prepBlock);
+    }
+
+    if (travelDuration > 0) {
+        const travelToStart = formatMinutesToTime(startMins - travelDuration);
+        const travelToEnd = startTime;
+        const travelHomeStart = endTime;
+        const travelHomeEnd = formatMinutesToTime(endMins + travelDuration);
+
+        const travelToBlock = applyDateTime({
+            ...sharedMeta,
+            time: `${travelToStart}-${travelToEnd}`,
+            title: `🚗 Travel to ${baseTitle}`,
+            tasks: ['Travel']
+        }, travelToStart, travelToEnd);
+        blocks.push(travelToBlock);
+
+        const travelHomeBlock = applyDateTime({
+            ...sharedMeta,
+            time: `${travelHomeStart}-${travelHomeEnd}`,
+            title: `🚗 Travel home`,
+            tasks: ['Travel back']
+        }, travelHomeStart, travelHomeEnd);
+        blocks.push(travelHomeBlock);
+    }
+
+    return blocks;
+}
+
 function isWorkBlock(block) {
     const title = (block.title || '').toLowerCase();
     return title.includes('work') && !title.includes('commute');
@@ -6793,14 +6902,65 @@ function findAvailableShoppingSlots(orderedDays, beforeDayIndex, minDurationMins
     console.log(`🔍 Finding shopping slots before Day ${beforeDayIndex}...`);
     
     const availableSlots = [];
+    const defaultReservedRangesByDay = {};
+    const addRange = (ranges, start, end) => {
+        if (isNaN(start) || isNaN(end)) return;
+        if (end < start) {
+            ranges.push({ start, end: 24 * 60 });
+            ranges.push({ start: 0, end });
+            return;
+        }
+        ranges.push({ start, end });
+    };
+
+    const getDefaultReservedRanges = (dayName) => {
+        if (defaultReservedRangesByDay[dayName]) return defaultReservedRangesByDay[dayName];
+        const ranges = [];
+        if (!scheduleData.defaultBlocks || scheduleData.defaultBlocks.length === 0) {
+            defaultReservedRangesByDay[dayName] = ranges;
+            return ranges;
+        }
+
+        scheduleData.defaultBlocks.forEach(defaultBlock => {
+            const isEnabled = defaultBlock.enabled !== false;
+            const days = defaultBlock.days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+            if (!isEnabled || !days.includes(dayName) || !defaultBlock.time) return;
+
+            const [start, end] = defaultBlock.time.split('-');
+            addRange(ranges, timeStrToMinutes(start), timeStrToMinutes(end));
+
+            const prepDuration = Number(defaultBlock.prepDuration) || 0;
+            const travelDuration = Number(defaultBlock.travelDuration) || 0;
+            if (defaultBlock.hasPrepTravel && (prepDuration || travelDuration)) {
+                const startMins = timeStrToMinutes(start);
+                const endMins = timeStrToMinutes(end);
+                if (!isNaN(startMins) && !isNaN(endMins)) {
+                    if (prepDuration > 0) {
+                        addRange(
+                            ranges,
+                            startMins - travelDuration - prepDuration,
+                            startMins - travelDuration
+                        );
+                    }
+                    if (travelDuration > 0) {
+                        addRange(ranges, startMins - travelDuration, startMins);
+                        addRange(ranges, endMins, endMins + travelDuration);
+                    }
+                }
+            }
+        });
+
+        defaultReservedRangesByDay[dayName] = ranges;
+        return ranges;
+    };
     
     // FIX: If coverage is 0 days (beforeDayIndex = 1), search Day 0 itself
     // If user has no ingredients, they need to shop on Day 0 before cooking
     const searchUntilDay = beforeDayIndex <= 1 ? 1 : beforeDayIndex;
-    
-    // Search each day until the deadline
-    for (let dayIndex = 0; dayIndex < searchUntilDay && dayIndex < orderedDays.length; dayIndex++) {
+
+    const collectSlotsForDay = (dayIndex) => {
         const day = orderedDays[dayIndex];
+        if (!day) return;
         const date = day.date;
         const dayName = getDayName(date); // FIX: Use getDayName() instead of day.day
         
@@ -6834,20 +6994,16 @@ function findAvailableShoppingSlots(orderedDays, beforeDayIndex, minDurationMins
         
         // FIX: Account for default blocks that WILL be created (sleep, morning routine, breakfast)
         // AND meal/cooking blocks that WILL be created
-        const defaultBlockRanges = [
+        const fallbackRanges = [
             { start: 0, end: 360 },      // 00:00-06:00 (sleep)
             { start: 360, end: 480 },    // 06:00-08:00 (morning routine + breakfast)
             { start: 1320, end: 1440 }   // 22:00-24:00 (evening routine + sleep)
         ];
-        
-        // Add meal times that will be created (standard meal schedule)
-        const mealBlockRanges = [
-            { start: 660, end: 810 },    // 11:00-13:30 (lunch cooking + lunch meal)
-            { start: 1020, end: 1170 }   // 17:00-19:30 (dinner cooking + dinner meal)
-        ];
-        
-        // Combine all reserved ranges
-        const allReservedRanges = [...defaultBlockRanges, ...mealBlockRanges];
+
+        const defaultReservedRanges = getDefaultReservedRanges(dayName);
+        const allReservedRanges = defaultReservedRanges.length > 0
+            ? defaultReservedRanges
+            : fallbackRanges;
         
         // Check each hour from 08:00 to 21:00
         for (let hour = 8; hour <= 21; hour++) { // Changed from 6 to 8 (start after morning routine)
@@ -6922,6 +7078,18 @@ function findAvailableShoppingSlots(orderedDays, beforeDayIndex, minDurationMins
             if (availableSlots.filter(s => s.dayIndex === dayIndex).length >= 6) {
                 break;
             }
+        }
+    };
+
+    // Search each day until the deadline
+    for (let dayIndex = 0; dayIndex < searchUntilDay && dayIndex < orderedDays.length; dayIndex++) {
+        collectSlotsForDay(dayIndex);
+    }
+
+    // If none found before the deadline, search the remaining days as a fallback
+    if (availableSlots.length === 0) {
+        for (let dayIndex = searchUntilDay; dayIndex < orderedDays.length; dayIndex++) {
+            collectSlotsForDay(dayIndex);
         }
     }
     
@@ -10794,6 +10962,7 @@ function reapplySplittingToAllDays() {
         saveToLocalStorage();
     }
 }
+window.reapplySplittingToAllDays = reapplySplittingToAllDays;
 
 if (originalCopyDefaults) {
     window.copyDefaultsToDay = function(dayKey, dayName) {
