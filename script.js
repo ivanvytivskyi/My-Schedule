@@ -1021,7 +1021,9 @@ function initializeApp() {
         renderSchedule();
         
         // CRITICAL: Re-apply splitting for important blocks after loading from storage
-        reapplySplittingToAllDays();
+        if (typeof window.reapplySplittingToAllDays === 'function') {
+            window.reapplySplittingToAllDays();
+        }
         
         renderEvents();
         renderShopping();
@@ -10794,6 +10796,7 @@ function reapplySplittingToAllDays() {
         saveToLocalStorage();
     }
 }
+window.reapplySplittingToAllDays = reapplySplittingToAllDays;
 
 if (originalCopyDefaults) {
     window.copyDefaultsToDay = function(dayKey, dayName) {
