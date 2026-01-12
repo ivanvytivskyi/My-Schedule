@@ -432,6 +432,9 @@ body.edit-mode .add-day-btn {
     margin-bottom: 20px;
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
     position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
 }
 
 .day-header h2 {
@@ -441,9 +444,7 @@ body.edit-mode .add-day-btn {
 }
 
 .day-free-time {
-    position: absolute;
-    top: 20px;
-    right: 20px;
+    align-self: flex-end;
     background: #eef2ff;
     color: #1f2937;
     padding: 8px 12px;
@@ -451,6 +452,9 @@ body.edit-mode .add-day-btn {
     font-weight: 700;
     font-size: 13px;
     box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .day-header-edit {
@@ -473,6 +477,34 @@ body.edit-mode .day-header-display {
     font-size: 14px;
     font-family: inherit;
     margin-bottom: 10px;
+}
+
+.default-actions-row {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+}
+
+.default-action-btn {
+    flex: 1 1 240px;
+    padding: 14px;
+    border: none;
+    border-radius: 10px;
+    font-size: 16px;
+    font-weight: 700;
+    cursor: pointer;
+    color: white;
+    box-shadow: 0 4px 12px rgba(102,126,234,0.3);
+}
+
+.default-add-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.medicine-action-btn {
+    background: linear-gradient(135deg,#f093fb 0%,#f5576c 100%);
+    box-shadow: 0 4px 12px rgba(245,87,108,0.3);
 }
 
 .day-header textarea {
