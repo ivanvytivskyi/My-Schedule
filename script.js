@@ -4454,6 +4454,7 @@ document.getElementById('editForm').addEventListener('submit', (e) => {
 
 function showDay(dayKey) {
     currentDay = dayKey;
+    localStorage.setItem('lastOpenedDayKey', dayKey);
     
     // Check if this is today
     const today = new Date().toISOString().split('T')[0];
@@ -4685,30 +4686,13 @@ function setupNavigation() {
                         todayTab.click();
                     }
                 } else {
-                    // Today's date doesn't exist - show alert with option to add
-                    const todayFormatted = today.toLocaleDateString('en-GB', { 
-                        weekday: 'long', 
-                        day: 'numeric', 
-                        month: 'long' 
-                    });
-                    
-                    if (confirm(`Today (${todayFormatted}) is not in your schedule.\n\nWould you like to add it now?`)) {
-                        // Open the Add Day modal and pre-fill with today's date
-                        document.getElementById('addDayModal').classList.add('active');
-                        document.getElementById('dayTypeRadio').checked = true;
-                        
-                        // Set today's date
-                        const dayDate = document.getElementById('dayDate');
-                        const singleDayDateInput = document.getElementById('singleDayDateInput');
-                        if (dayDate) {
-                            dayDate.value = today.toLocaleDateString('en-GB');
+                    const lastOpenedDayKey = localStorage.getItem('lastOpenedDayKey');
+                    const fallbackDayKey = dayKeys.includes(lastOpenedDayKey) ? lastOpenedDayKey : dayKeys[0];
+                    if (fallbackDayKey) {
+                        const fallbackTab = document.querySelector(`.day-tab[data-day="${fallbackDayKey}"]`);
+                        if (fallbackTab) {
+                            fallbackTab.click();
                         }
-                        if (singleDayDateInput) {
-                            singleDayDateInput.value = todayDateStr;
-                        }
-                        
-                        // Switch to Single Day mode
-                        switchAddType('day');
                     }
                 }
             }
@@ -10756,11 +10740,16 @@ document.addEventListener('DOMContentLoaded', () => {
             medicineBtn.id = 'takeMedicineBtn';
             medicineBtn.type = 'button';
             medicineBtn.innerHTML = '💊 Take Medicine';
-            medicineBtn.style.cssText = 'width:100%;padding:14px;background:linear-gradient(135deg,#f093fb 0%,#f5576c 100%);color:white;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:20px;box-shadow:0 4px 12px rgba(245,87,108,0.3);';
+            medicineBtn.className = 'default-action-btn medicine-action-btn';
             medicineBtn.onclick = openMedicineScheduleModal;
             
-            // Insert after the Add New Default Block button
-            addButton.parentNode.insertBefore(medicineBtn, addButton.nextSibling);
+            addButton.classList.add('default-action-btn', 'default-add-btn');
+            const actionsRow = addButton.closest('.default-actions-row');
+            if (actionsRow) {
+                actionsRow.appendChild(medicineBtn);
+            } else {
+                addButton.parentNode.insertBefore(medicineBtn, addButton.nextSibling);
+            }
             console.log('✅ Take Medicine button added');
         }
     }, 500);
