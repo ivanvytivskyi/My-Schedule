@@ -32,10 +32,10 @@
                 <div class="date-display" id="dateDisplay">December 2025 🎄</div>
                 <input type="text" class="editable-date" id="editableDate" placeholder="e.g., December 2025 🎄" />
             </div>
-            <div class="mode-buttons" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                <div style="display: flex; gap: 15px; align-items: center;">
-                    <!-- Split Calendar/Edit Button - Exact style from HTML file -->
-                    <button class="toggle-button" id="toggleModeBtn" style="position: relative; display: inline-flex; height: 50px; cursor: pointer; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 25px; overflow: hidden; width: 200px; padding: 0;">
+        <div class="mode-buttons" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+            <div style="display: flex; gap: 15px; align-items: center;">
+                <!-- Split Calendar/Edit Button - Exact style from HTML file -->
+                <button class="toggle-button" id="toggleModeBtn" style="position: relative; display: inline-flex; height: 50px; cursor: pointer; border: none; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border-radius: 25px; overflow: hidden; width: 200px; padding: 0;">
                         <div class="button-section section-left" id="calendarSection" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 20px; font-weight: 600; color: white; transition: all 0.3s ease; background: linear-gradient(135deg, #7B68EE, #6B5FD8); border-radius: 25px 0 0 25px;">
                             <span>📅</span>
                             <span>Cal</span>
@@ -45,13 +45,13 @@
                             <span>✏️</span>
                             <span>Ed</span>
                         </div>
-                    </button>
-                </div>
-                <div style="display: flex; gap: 15px; align-items: center;">
-                    <button class="settings-button" id="settingsBtn" onclick="openSettings()" style="width: 50px; height: 50px; border-radius: 50%; background: #FFD700; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: all 0.3s ease;">🛠️</button>
-                    <button class="mode install-btn hidden" id="installAppBtn" type="button">📥 Install App</button>
-                </div>
+                </button>
             </div>
+            <div style="display: flex; gap: 15px; align-items: center;">
+                <button class="settings-button" id="settingsBtn" onclick="openSettings()" style="width: 50px; height: 50px; border-radius: 50%; background: #FFD700; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: all 0.3s ease;">🛠️</button>
+                <button class="mode install-btn hidden" id="installAppBtn" type="button">📥 Install App</button>
+            </div>
+        </div>
 
             <div class="important-events">
                 <div class="events-container" id="eventsContainer">
@@ -320,7 +320,6 @@
             </div>
             
             <p style="color: #666; margin-bottom: 12px;">Default blocks automatically appear on new days you create. Enable/disable, edit, or delete them below.</p>
-            
             <div style="background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px; margin-bottom: 16px; display: grid; gap: 10px;">
                 <div style="font-weight: 600; color: #1f2937;">Day window (affects free-time calculation)</div>
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
@@ -448,7 +447,6 @@
         <div class="modal-content">
             <h2>Add Day or Week</h2>
             <form id="addDayForm">
-                <!-- Manual Day/Week Addition Section -->
                 <div style="padding: 20px; background: #ffffff; border-radius: 12px; border: 2px solid #e5e7eb; box-shadow: 0 6px 16px rgba(15,23,42,0.08);">
                     <div style="margin-bottom: 16px; font-weight: 700; color: #1f2937; font-size: 16px; display: flex; align-items: center; gap: 8px;">
                         <span style="font-size: 18px;">🗓️</span>
@@ -597,6 +595,9 @@
                         <button type="button" id="openCookingConfigFromSchedule" class="open-cooking-config-btn">
                             ⚙️ Cooking Preferences
                         </button>
+                        <p style="margin: 6px 0 0 0; font-size: 12px; color: #6b7280;">
+                            Adjust meal timing rules, leftovers, and cooking limits.
+                        </p>
                     </div>
                     
                     <!-- Add and Cancel Buttons -->
