@@ -211,31 +211,31 @@
                     <label for="blockTasks">Tasks (one per line):</label>
                     <textarea id="blockTasks" placeholder="Wake up&#10;Shower&#10;Get dressed"></textarea>
                 </div>
-                <div class="form-group">
-                    <label for="blockRecipeSelect">Recipe (optional):</label>
-                    <select id="blockRecipeSelect">
-                        <option value="">No recipe linked</option>
-                    </select>
-                </div>
-                <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
-                    <label style="margin: 0; font-size: 16px; flex: 1;">
-                        Mark as leftover meal
-                    </label>
-                    <input type="checkbox" id="blockLeftoverToggle" style="width: 20px; height: 20px;" />
+                <div id="cookingFields" class="cooking-fields">
+                    <div class="form-group">
+                        <label for="blockRecipeSelect">Recipe (optional):</label>
+                        <select id="blockRecipeSelect">
+                            <option value="">No recipe linked</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="display: flex; align-items: center; gap: 8px;">
+                        <label style="margin: 0; font-size: 16px; flex: 1;">
+                            Mark as leftover meal
+                        </label>
+                        <input type="checkbox" id="blockLeftoverToggle" style="width: 20px; height: 20px;" />
+                    </div>
+                    <div class="form-group">
+                        <label for="blockVideo">YouTube Video Link (optional):</label>
+                        <input type="url" id="blockVideo" placeholder="https://www.youtube.com/watch?v=..." />
+                    </div>
                 </div>
                 <div class="form-group">
                     <label for="blockNote">Note (optional):</label>
                     <textarea id="blockNote" placeholder="Any additional notes"></textarea>
                 </div>
-                <div class="form-group">
-                    <label for="blockVideo">YouTube Video Link (optional):</label>
-                    <input type="url" id="blockVideo" placeholder="https://www.youtube.com/watch?v=..." />
-                </div>
-                <div class="form-group">
-                    <label>
-                        <input type="checkbox" id="applyToAllDays" />
-                        Apply this time block to all days as default
-                    </label>
+                <div class="form-group apply-default-row">
+                    <input type="checkbox" id="applyToAllDays" />
+                    <label for="applyToAllDays">Apply this time block as default for this weekday</label>
                 </div>
                 <div class="modal-buttons">
                     <button type="submit" class="btn btn-primary">Save</button>
@@ -336,9 +336,11 @@
                 <p style="margin: 0; font-size: 12px; color: #6b7280;">You can override the start time for specific days when creating a default block.</p>
             </div>
             
-            <button type="button" onclick="openAddDefaultModal()" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(102,126,234,0.3);">
-                ➕ Add New Default Block
-            </button>
+            <div class="default-actions-row">
+                <button type="button" onclick="openAddDefaultModal()" class="default-action-btn default-add-btn">
+                    ➕ Add New Default Block
+                </button>
+            </div>
             
             <!-- Quick Templates -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
@@ -446,24 +448,6 @@
         <div class="modal-content">
             <h2>Add Day or Week</h2>
             <form id="addDayForm">
-                <!-- Combined AI Section - Compact -->
-                <div style="margin-bottom: 20px; padding: 20px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px;">
-                    <div style="text-align: center; margin-bottom: 15px;">
-                        <h3 style="margin: 0 0 8px 0; color: white; font-size: 20px;">📝 Quick Week Planner</h3>
-                        <p style="margin: 0; color: rgba(255,255,255,0.95); font-size: 14px;">Fill form → Get prompts → Use any AI → Import back</p>
-                    </div>
-                    
-                    <button type="button" onclick="openPromptGenerator()" style="width: 100%; padding: 16px; background: white; color: #667eea; border: none; border-radius: 10px; font-size: 17px; font-weight: bold; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transition: all 0.3s ease; margin-bottom: 12px;">
-                        📝 Generate Prompts (Schedule + Shopping + Recipes)
-                    </button>
-                    
-                    <div style="display: grid; gap: 8px; margin-bottom: 12px;">
-                        <button type="button" onclick="openImportSchedule()" style="width: 100%; padding: 12px; background: rgba(255,255,255,0.95); color: #667eea; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.1); transition: all 0.3s ease;">
-                            📥 Import AI Output (Schedule + Recipe IDs)
-                        </button>
-                    </div>
-                </div>
-                
                 <!-- Manual Day/Week Addition Section -->
                 <div style="padding: 20px; background: white; border-radius: 8px; border: 2px solid #e0e0e0;">
                     <p style="margin: 0 0 15px 0; font-size: 15px; color: #666; font-weight: 500; display: flex; align-items: center; gap: 8px;">
@@ -478,6 +462,14 @@
                         <button type="button" id="wholeWeekBtn" onclick="switchAddType('week')" style="flex: 1; padding: 12px 20px; background: #F5D76E; color: #333; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; transition: all 0.3s;">
                             Whole Week
                         </button>
+                    </div>
+
+                    <!-- Schedule History - Shown for Whole Week -->
+                    <div id="weekHistorySection" style="display: none; margin-bottom: 20px;">
+                        <div style="margin-bottom: 10px; font-weight: 600; color: #1f2937;">📅 Schedule History</div>
+                        <div id="scheduleHistoryListWeek" style="max-height: 260px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px; background: #f9fafb;">
+                            <!-- History populated by JS -->
+                        </div>
                     </div>
                     
                     <!-- Hidden radio inputs for compatibility -->
