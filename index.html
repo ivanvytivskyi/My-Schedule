@@ -448,6 +448,39 @@
         <div class="modal-content">
             <h2>Add Day or Week</h2>
             <form id="addDayForm">
+                <!-- First Week Guided Setup -->
+                <div id="firstWeekGuide" style="display: none; margin-bottom: 18px; padding: 16px; background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 12px rgba(15,23,42,0.06);">
+                    <div style="font-weight: 800; color: #1f2937; font-size: 16px; display: flex; align-items: center; gap: 8px; margin-bottom: 12px;">
+                        <span style="font-size: 18px;">🧭</span>
+                        <span>Guided First Week Setup</span>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; margin-bottom: 12px;">
+                        <div style="padding: 8px 10px; background: #e0f2fe; border-radius: 999px; font-size: 12px; font-weight: 700; color: #0369a1; text-align: center;">1. Daily Template</div>
+                        <div style="padding: 8px 10px; background: #ede9fe; border-radius: 999px; font-size: 12px; font-weight: 700; color: #6d28d9; text-align: center;">2. Events</div>
+                        <div style="padding: 8px 10px; background: #fef3c7; border-radius: 999px; font-size: 12px; font-weight: 700; color: #b45309; text-align: center;">3. Work & Dates</div>
+                        <div style="padding: 8px 10px; background: #dcfce7; border-radius: 999px; font-size: 12px; font-weight: 700; color: #15803d; text-align: center;">4. Create Week</div>
+                    </div>
+                    <ol style="margin: 0 0 12px 20px; color: #475569; font-size: 13px; line-height: 1.6;">
+                        <li>Create your daily template so each day is auto-filled.</li>
+                        <li>Add important events (optional).</li>
+                        <li>Pick a week start date and work schedule.</li>
+                        <li>Create your first week.</li>
+                    </ol>
+                    <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                        <button type="button" class="open-cooking-config-btn" onclick="openDefaultsModal()">
+                            📌 Create Daily Template
+                        </button>
+                        <button type="button" class="open-cooking-config-btn" onclick="openEventModal()">
+                            📅 Add Important Event
+                        </button>
+                        <button type="button" class="open-cooking-config-btn" onclick="openCookingConfig()">
+                            ⚙️ Cooking Preferences
+                        </button>
+                    </div>
+                    <p style="margin: 10px 0 0 0; font-size: 12px; color: #64748b;">
+                        Tip: Templates fill every day automatically. Events highlight key dates. Cooking preferences tune meal timing.
+                    </p>
+                </div>
                 <!-- Manual Day/Week Addition Section -->
                 <div style="padding: 20px; background: #ffffff; border-radius: 12px; border: 2px solid #e5e7eb; box-shadow: 0 6px 16px rgba(15,23,42,0.08);">
                     <div style="margin-bottom: 16px; font-weight: 700; color: #1f2937; font-size: 16px; display: flex; align-items: center; gap: 8px;">
@@ -597,6 +630,9 @@
                         <button type="button" id="openCookingConfigFromSchedule" class="open-cooking-config-btn">
                             ⚙️ Cooking Preferences
                         </button>
+                        <p style="margin: 6px 0 0 0; font-size: 12px; color: #6b7280;">
+                            Adjust meal timing rules, leftovers, and cooking limits.
+                        </p>
                     </div>
                     
                     <!-- Add and Cancel Buttons -->
