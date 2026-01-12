@@ -2304,28 +2304,21 @@ async function addWeek() {
             }
         });
         
-        // Find available shopping slots
-        const minShoppingDuration = 90; // 15min travel + 60min shop + 15min travel
-        const availableSlots = findAvailableShoppingSlots(
-            orderedDays, 
-            stockAnalysis.needsShoppingFrom, 
-            minShoppingDuration
-        );
-        
-        console.log(`   Found ${availableSlots.length} available time slots`);
-        
         // Show shopping modal and wait for user decision
         try {
-            shoppingData = await showShoppingModal(stockAnalysis, availableSlots, orderedDays);
+            shoppingData = await showShoppingModal(stockAnalysis, orderedDays, {
+                travelMins: 15,
+                shopMins: 60
+            });
             
             if (shoppingData.selected) {
-                console.log(`   ✓ User selected: ${shoppingData.slot.dayName} at ${shoppingData.slot.startTime}`);
+                console.log(`   ✓ User selected: ${shoppingData.slot.dayName} at ${shoppingData.slot.shoppingStartTime || shoppingData.slot.startTime}`);
                 
                 // Add shopping blocks to selected day
                 const success = addShoppingBlocks(
                     orderedDays,
                     shoppingData.slot.dayIndex,
-                    shoppingData.slot.startTime,
+                    shoppingData.slot.shoppingStartTime || shoppingData.slot.startTime,
                     shoppingData.travelMins,
                     shoppingData.shopMins
                 );
@@ -6973,80 +6966,87 @@ function findAvailableShoppingSlots(orderedDays, beforeDayIndex, minDurationMins
             ? defaultReservedRanges
             : fallbackRanges;
         
-        // Check each hour from 08:00 to 21:00
-        for (let hour = 8; hour <= 21; hour++) { // Changed from 6 to 8 (start after morning routine)
-            const startMins = hour * 60;
-            const endMins = startMins + minDurationMins;
-            
-            // Don't go past 22:00 (evening routine starts)
-            if (endMins > 22 * 60) continue;
-            
-            // Check if overlaps with work
-            if (workStart && workEnd) {
-                if (startMins < workEnd && endMins > workStart) {
-                    continue; // Overlaps work
-                }
+        const busyIntervals = [];
+        const addBusyRange = (start, end) => {
+            if (isNaN(start) || isNaN(end)) return;
+            if (end < start) {
+                busyIntervals.push({ start, end: 24 * 60 });
+                busyIntervals.push({ start: 0, end });
+                return;
             }
-            
-            // Check if overlaps with default block times
-            let overlapsDefault = false;
-            for (const range of allReservedRanges) {
-                if (startMins < range.end && endMins > range.start) {
-                    overlapsDefault = true;
-                    break;
-                }
+            busyIntervals.push({ start, end });
+        };
+
+        // Work schedule (includes commute/prep)
+        if (workStart && workEnd) {
+            addBusyRange(workStart, workEnd);
+        }
+
+        // Default blocks (or fallbacks)
+        allReservedRanges.forEach(range => addBusyRange(range.start, range.end));
+
+        // Existing blocks
+        if (day.blocks) {
+            day.blocks.forEach(block => {
+                const [blockStart, blockEnd] = block.time.split('-');
+                addBusyRange(timeStrToMinutes(blockStart), timeStrToMinutes(blockEnd));
+            });
+        }
+
+        const mergedBusy = mergeIntervals(busyIntervals);
+        const dayWindowStart = timeStrToMinutes('08:00');
+        const dayWindowEnd = timeStrToMinutes('22:00');
+        const gaps = [];
+        let cursor = dayWindowStart;
+        mergedBusy.forEach(interval => {
+            if (interval.end <= dayWindowStart || interval.start >= dayWindowEnd) return;
+            const clampedStart = Math.max(interval.start, dayWindowStart);
+            const clampedEnd = Math.min(interval.end, dayWindowEnd);
+            if (clampedStart > cursor) {
+                gaps.push({
+                    start: cursor,
+                    end: clampedStart,
+                    duration: clampedStart - cursor
+                });
             }
-            if (overlapsDefault) continue;
-            
-            // Check if overlaps with existing blocks
-            let hasConflict = false;
-            if (day.blocks) {
-                for (const block of day.blocks) {
-                    const [blockStart, blockEnd] = block.time.split('-');
-                    const blockStartMins = timeStrToMinutes(blockStart);
-                    const blockEndMins = timeStrToMinutes(blockEnd);
-                    
-                    if (startMins < blockEndMins && endMins > blockStartMins) {
-                        hasConflict = true;
-                        break;
-                    }
-                }
-            }
-            
-            if (hasConflict) continue;
-            
-            // This slot is available!
-            const durationMins = endMins - startMins;
-            let label = "";
-            
-            // Use actual work time for labels (excludes commute)
-            if (actualWorkStart && hour * 60 >= actualWorkEnd) {
-                label = "After work";
-            } else if (actualWorkStart && endMins <= actualWorkStart) {
-                label = "Before work";
+            cursor = Math.max(cursor, clampedEnd);
+        });
+        if (cursor < dayWindowEnd) {
+            gaps.push({
+                start: cursor,
+                end: dayWindowEnd,
+                duration: dayWindowEnd - cursor
+            });
+        }
+
+        gaps.forEach(gap => {
+            if (gap.duration < minDurationMins) return;
+
+            let label = '';
+            if (actualWorkStart && gap.start >= actualWorkEnd) {
+                label = 'After work';
+            } else if (actualWorkStart && gap.end <= actualWorkStart) {
+                label = 'Before work';
             } else if (!actualWorkStart) {
-                if (hour < 12) label = "Morning";
-                else if (hour < 17) label = "Afternoon";
-                else label = "Evening";
+                if (gap.start < timeStrToMinutes('12:00')) label = 'Morning';
+                else if (gap.start < timeStrToMinutes('17:00')) label = 'Afternoon';
+                else label = 'Evening';
             }
-            
-            label += `, ${Math.floor(durationMins / 60)}h available`;
-            
+
+            label += `${label ? ', ' : ''}Free window: ${formatMinutesAsHoursAndMinutes(gap.duration)}`;
+
             availableSlots.push({
                 dayIndex: dayIndex,
                 dayName: dayName,
                 date: date,
-                startTime: formatMinutesToTime(startMins),
-                endTime: formatMinutesToTime(endMins),
-                durationMins: durationMins,
+                windowStartMins: gap.start,
+                windowEndMins: gap.end,
+                windowStartTime: formatMinutesToTime(gap.start),
+                windowEndTime: formatMinutesToTime(gap.end),
+                durationMins: gap.duration,
                 label: label
             });
-            
-            // FIX: Show more slots (6 instead of 2) for better options
-            if (availableSlots.filter(s => s.dayIndex === dayIndex).length >= 6) {
-                break;
-            }
-        }
+        });
     };
 
     // Search each day until the deadline
@@ -7222,7 +7222,7 @@ function generateShoppingListFromRecipes(recipes) {
 }
 
 // Show shopping modal and wait for user selection
-function showShoppingModal(stockAnalysis, availableSlots, orderedDays) {
+function showShoppingModal(stockAnalysis, orderedDays, defaultDurations = {}) {
     return new Promise((resolve) => {
         console.log('🛒 Showing shopping modal...');
         
@@ -7235,6 +7235,8 @@ function showShoppingModal(stockAnalysis, availableSlots, orderedDays) {
         const coverageDays = stockAnalysis.coverageDays;
         const needsFrom = stockAnalysis.needsShoppingFrom;
         const needsRecipes = stockAnalysis.needsShoppingRecipes.slice(0, 5); // Show first 5
+        const initialTravelMins = Number.isFinite(defaultDurations.travelMins) ? defaultDurations.travelMins : 15;
+        const initialShopMins = Number.isFinite(defaultDurations.shopMins) ? defaultDurations.shopMins : 60;
         
         // Format dates for display
         const firstDay = orderedDays[0];
@@ -7282,64 +7284,44 @@ function showShoppingModal(stockAnalysis, availableSlots, orderedDays) {
                         </ul>
                     </div>
                     
-                    ${availableSlots.length > 0 ? `
-                        <div style="margin-bottom: 20px;">
-                            <h3 style="font-size: 16px; margin-bottom: 10px;">Available Time Slots:</h3>
-                            <div id="shoppingSlotsList" style="max-height: 200px; overflow-y: auto;">
-                                ${availableSlots.map((slot, idx) => {
-                                    const slotDate = slot.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-                                    return `
-                                    <label style="display: block; padding: 12px; margin-bottom: 8px; 
-                                           border: 2px solid #ddd; border-radius: 8px; cursor: pointer;
-                                           transition: all 0.2s;" class="shopping-slot-option">
-                                        <input type="radio" name="shoppingSlot" value="${idx}" 
-                                               style="margin-right: 10px;">
-                                        <strong>${slot.dayName} ${slotDate}</strong><br>
-                                        <span style="margin-left: 26px;">${slot.startTime}-${slot.endTime}</span>
-                                        <br>
-                                        <small style="color: #666; margin-left: 26px;">${slot.label}</small>
-                                    </label>
-                                `}).join('')}
-                            </div>
-                        </div>
-                        
-                        <div style="margin-bottom: 20px; padding: 15px; background: #f5f5f5; border-radius: 8px;">
-                            <h3 style="font-size: 16px; margin-bottom: 10px;">Customize:</h3>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                                <div>
-                                    <label style="display: block; margin-bottom: 5px;">Travel time (each way):</label>
-                                    <input type="number" id="shoppingTravelTime" value="15" min="5" max="60" 
-                                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                                    <small style="color: #666;">minutes</small>
-                                </div>
-                                <div>
-                                    <label style="display: block; margin-bottom: 5px;">Shopping duration:</label>
-                                    <input type="number" id="shoppingDuration" value="60" min="15" max="180" 
-                                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                                    <small style="color: #666;">minutes</small>
-                                </div>
-                            </div>
-                        </div>
-                    ` : `
-                        <div style="padding: 20px; background: #fff3e0; border-radius: 8px; margin-bottom: 20px;">
+                    <div style="margin-bottom: 20px;">
+                        <h3 style="font-size: 16px; margin-bottom: 10px;">Available Time Slots:</h3>
+                        <div id="shoppingSlotsList" style="max-height: 200px; overflow-y: auto;"></div>
+                        <div id="shoppingSlotsEmpty" style="padding: 20px; background: #fff3e0; border-radius: 8px; display: none;">
                             <p style="margin: 0; color: #e65100;">
                                 ⚠️ No available time slots found in your schedule before ${needsFromDate}.
                                 Your schedule may be fully booked.
                             </p>
                         </div>
-                    `}
+                    </div>
+                    
+                    <div style="margin-bottom: 20px; padding: 15px; background: #f5f5f5; border-radius: 8px;">
+                        <h3 style="font-size: 16px; margin-bottom: 10px;">Customize:</h3>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div>
+                                <label style="display: block; margin-bottom: 5px;">Travel time (each way):</label>
+                                <input type="number" id="shoppingTravelTime" value="${initialTravelMins}" min="5" max="60" 
+                                       style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                <small style="color: #666;">minutes</small>
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 5px;">Shopping duration:</label>
+                                <input type="number" id="shoppingDuration" value="${initialShopMins}" min="15" max="180" 
+                                       style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                <small style="color: #666;">minutes</small>
+                            </div>
+                        </div>
+                    </div>
                     
                     <div style="display: flex; gap: 10px; justify-content: flex-end;">
                         <button id="shoppingSkipBtn" style="padding: 10px 20px; background: #757575; 
                                 color: white; border: none; border-radius: 4px; cursor: pointer;">
                             Skip - I'll Shop Later
                         </button>
-                        ${availableSlots.length > 0 ? `
-                            <button id="shoppingSelectBtn" style="padding: 10px 20px; background: #4CAF50; 
-                                    color: white; border: none; border-radius: 4px; cursor: pointer;">
-                                Select Time & Continue
-                            </button>
-                        ` : ''}
+                        <button id="shoppingSelectBtn" style="padding: 10px 20px; background: #4CAF50; 
+                                color: white; border: none; border-radius: 4px; cursor: pointer;">
+                            Select Time & Continue
+                        </button>
                     </div>
                 </div>
             </div>
@@ -7347,54 +7329,120 @@ function showShoppingModal(stockAnalysis, availableSlots, orderedDays) {
         
         document.body.appendChild(modal);
         
-        // Add hover effect to slots
-        const slotLabels = modal.querySelectorAll('.shopping-slot-option');
-        slotLabels.forEach(label => {
-            label.addEventListener('mouseenter', () => {
-                label.style.borderColor = '#4CAF50';
-                label.style.background = '#f1f8f4';
-            });
-            label.addEventListener('mouseleave', () => {
-                const radio = label.querySelector('input[type="radio"]');
-                if (!radio.checked) {
-                    label.style.borderColor = '#ddd';
-                    label.style.background = 'white';
-                }
-            });
-            label.addEventListener('click', () => {
-                slotLabels.forEach(l => {
-                    l.style.borderColor = '#ddd';
-                    l.style.background = 'white';
+        const slotsList = modal.querySelector('#shoppingSlotsList');
+        const slotsEmpty = modal.querySelector('#shoppingSlotsEmpty');
+        const travelInput = modal.querySelector('#shoppingTravelTime');
+        const durationInput = modal.querySelector('#shoppingDuration');
+        const selectBtn = modal.querySelector('#shoppingSelectBtn');
+        let availableSlots = [];
+        
+        const updateSelectButton = (isEnabled) => {
+            selectBtn.disabled = !isEnabled;
+            selectBtn.style.opacity = isEnabled ? '1' : '0.6';
+            selectBtn.style.cursor = isEnabled ? 'pointer' : 'not-allowed';
+        };
+        
+        const updateSlotHover = () => {
+            const slotLabels = modal.querySelectorAll('.shopping-slot-option');
+            slotLabels.forEach(label => {
+                label.addEventListener('mouseenter', () => {
+                    label.style.borderColor = '#4CAF50';
+                    label.style.background = '#f1f8f4';
                 });
-                label.style.borderColor = '#4CAF50';
-                label.style.background = '#f1f8f4';
+                label.addEventListener('mouseleave', () => {
+                    const radio = label.querySelector('input[type="radio"]');
+                    if (!radio.checked) {
+                        label.style.borderColor = '#ddd';
+                        label.style.background = 'white';
+                    }
+                });
+                label.addEventListener('click', () => {
+                    slotLabels.forEach(l => {
+                        l.style.borderColor = '#ddd';
+                        l.style.background = 'white';
+                    });
+                    label.style.borderColor = '#4CAF50';
+                    label.style.background = '#f1f8f4';
+                });
             });
-        });
+        };
+        
+        const renderSlots = () => {
+            const travelMins = parseInt(travelInput.value, 10);
+            const shopMins = parseInt(durationInput.value, 10);
+            const sanitizedTravel = Number.isFinite(travelMins) && travelMins > 0 ? travelMins : initialTravelMins;
+            const sanitizedShop = Number.isFinite(shopMins) && shopMins > 0 ? shopMins : initialShopMins;
+            const totalDuration = Math.max(15, (sanitizedTravel * 2) + sanitizedShop);
+            
+            availableSlots = findAvailableShoppingSlots(orderedDays, needsFrom, totalDuration);
+            console.log(`   Found ${availableSlots.length} available time slots`);
+            
+            if (availableSlots.length === 0) {
+                slotsList.innerHTML = '';
+                slotsList.style.display = 'none';
+                slotsEmpty.style.display = 'block';
+                updateSelectButton(false);
+                return;
+            }
+            
+            slotsList.style.display = 'block';
+            slotsEmpty.style.display = 'none';
+            slotsList.innerHTML = availableSlots.map((slot, idx) => {
+                const slotDate = slot.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                const shoppingStartMins = slot.windowStartMins + sanitizedTravel;
+                const shoppingEndMins = shoppingStartMins + sanitizedShop;
+                slot.shoppingStartTime = formatMinutesToTime(shoppingStartMins);
+                slot.shoppingEndTime = formatMinutesToTime(shoppingEndMins);
+                return `
+                    <label style="display: block; padding: 12px; margin-bottom: 8px; 
+                           border: 2px solid #ddd; border-radius: 8px; cursor: pointer;
+                           transition: all 0.2s;" class="shopping-slot-option">
+                        <input type="radio" name="shoppingSlot" value="${idx}" 
+                               style="margin-right: 10px;">
+                        <strong>${slot.dayName} ${slotDate}</strong><br>
+                        <span style="margin-left: 26px;">${slot.windowStartTime}-${slot.windowEndTime}</span>
+                        <br>
+                        <small style="color: #666; margin-left: 26px;">${slot.label}</small>
+                        <br>
+                        <small style="color: #059669; margin-left: 26px;">Shopping starts at ${slot.shoppingStartTime}</small>
+                    </label>
+                `;
+            }).join('');
+            
+            updateSlotHover();
+            updateSelectButton(true);
+        };
+        
+        renderSlots();
+        
+        travelInput.addEventListener('input', renderSlots);
+        durationInput.addEventListener('input', renderSlots);
         
         // Handle select button
-        const selectBtn = modal.querySelector('#shoppingSelectBtn');
-        if (selectBtn) {
-            selectBtn.addEventListener('click', () => {
-                const selectedRadio = modal.querySelector('input[name="shoppingSlot"]:checked');
-                if (!selectedRadio) {
-                    alert('Please select a time slot for shopping');
-                    return;
-                }
-                
-                const slotIndex = parseInt(selectedRadio.value);
-                const slot = availableSlots[slotIndex];
-                const travelMins = parseInt(modal.querySelector('#shoppingTravelTime').value);
-                const shopMins = parseInt(modal.querySelector('#shoppingDuration').value);
-                
-                document.body.removeChild(modal);
-                resolve({
-                    selected: true,
-                    slot: slot,
-                    travelMins: travelMins,
-                    shopMins: shopMins
-                });
+        selectBtn.addEventListener('click', () => {
+            if (selectBtn.disabled) {
+                return;
+            }
+            
+            const selectedRadio = modal.querySelector('input[name="shoppingSlot"]:checked');
+            if (!selectedRadio) {
+                alert('Please select a time slot for shopping');
+                return;
+            }
+            
+            const slotIndex = parseInt(selectedRadio.value);
+            const slot = availableSlots[slotIndex];
+            const travelMins = parseInt(modal.querySelector('#shoppingTravelTime').value, 10);
+            const shopMins = parseInt(modal.querySelector('#shoppingDuration').value, 10);
+            
+            document.body.removeChild(modal);
+            resolve({
+                selected: true,
+                slot: slot,
+                travelMins: Number.isFinite(travelMins) ? travelMins : initialTravelMins,
+                shopMins: Number.isFinite(shopMins) ? shopMins : initialShopMins
             });
-        }
+        });
         
         // Handle skip button
         const skipBtn = modal.querySelector('#shoppingSkipBtn');
@@ -7979,6 +8027,7 @@ function openDefaultsModal() {
     if (startInput) startInput.value = scheduleData.dayWindow?.start || '07:00';
     if (endInput) endInput.value = scheduleData.dayWindow?.end || '23:00';
     
+    modal.style.zIndex = '2100';
     modal.classList.add('active');
 }
 
@@ -7986,6 +8035,7 @@ function closeDefaultsModal() {
     const modal = document.getElementById('manageDefaultsModal');
     if (modal) {
         modal.classList.remove('active');
+        modal.style.zIndex = '';
     }
 }
 
