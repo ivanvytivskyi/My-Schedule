@@ -3717,13 +3717,7 @@ function editBlock(dayKey, index) {
     document.getElementById('blockLeftoverToggle').checked = !!block.isLeftover;
     document.getElementById('applyToAllDays').checked = false;
     
-    // Add/update "Important Task" checkbox
-    addImportantTaskCheckbox();
-    const importantCheckbox = document.getElementById('importantTaskCheckbox');
-    if (importantCheckbox) {
-        importantCheckbox.checked = !!(block.canSplit || block.blockType === 'important');
-    }
-    
+    updateCookingFieldsVisibility();
     showEmojiSuggestions(block.title || '');
     document.getElementById('editModal').classList.add('active');
     
@@ -3762,46 +3756,11 @@ function addNewBlock(dayKey, afterIndex) {
     document.getElementById('applyToAllDays').checked = false;
     document.getElementById('emojiSuggestions').innerHTML = '';
     
-    // Add/reset "Important Task" checkbox
-    addImportantTaskCheckbox();
-    
+    updateCookingFieldsVisibility();
     document.getElementById('editModal').classList.add('active');
     
     // Re-attach title suggestions (fixes dropdown not working)
     setupTitleSuggestions();
-}
-
-// Add "Important Task" checkbox to modal if it doesn't exist
-function addImportantTaskCheckbox() {
-    const applyToAllCheckbox = document.getElementById('applyToAllDays');
-    if (!applyToAllCheckbox) return;
-    
-    // Check if checkbox already exists
-    let importantCheckbox = document.getElementById('importantTaskCheckbox');
-    if (!importantCheckbox) {
-        // Create checkbox container
-        const container = applyToAllCheckbox.parentElement;
-        const wrapper = document.createElement('div');
-        wrapper.style.cssText = 'margin-top:10px;display:flex;align-items:center;gap:8px;';
-        
-        importantCheckbox = document.createElement('input');
-        importantCheckbox.type = 'checkbox';
-        importantCheckbox.id = 'importantTaskCheckbox';
-        
-        const label = document.createElement('label');
-        label.htmlFor = 'importantTaskCheckbox';
-        label.textContent = '🚨 Important (can split other blocks)';
-        label.style.cssText = 'cursor:pointer;font-size:14px;';
-        
-        wrapper.appendChild(importantCheckbox);
-        wrapper.appendChild(label);
-        container.appendChild(wrapper);
-    } else {
-        // Reset checkbox
-        importantCheckbox.checked = false;
-    }
-    
-    // Medicine helper removed - now in Default Blocks Manager only
 }
 
 // ==============================================
@@ -3890,11 +3849,6 @@ function checkAndShowMedicineHelper() {
     
     helperDiv.style.display = isMedicine ? 'block' : 'none';
     
-    // Auto-check important checkbox for medicine
-    if (isMedicine) {
-        const importantCheckbox = document.getElementById('importantTaskCheckbox');
-        if (importantCheckbox) importantCheckbox.checked = true;
-    }
 }
 
 // Update time input fields based on times per day
@@ -4316,16 +4270,6 @@ document.getElementById('editForm').addEventListener('submit', (e) => {
     const applyToAll = document.getElementById('applyToAllDays').checked;
     const selectedRecipeId = document.getElementById('blockRecipeSelect').value;
     const isLeftover = document.getElementById('blockLeftoverToggle').checked;
-    const isImportant = document.getElementById('importantTaskCheckbox')?.checked || false;
-    
-    // Set pending metadata for important blocks
-    if (isImportant) {
-        window._pendingBlockMetadata = {
-            blockType: 'important',
-            canSplit: true
-        };
-    }
-    
     const selectedRecipe = selectedRecipeId && typeof getRecipe === 'function' ? getRecipe(selectedRecipeId) : null;
 
     // Validate time format
@@ -4421,25 +4365,47 @@ document.getElementById('editForm').addEventListener('submit', (e) => {
         }
     }
 
-    // If "Apply to all days" is checked, add to defaultBlocks for NEW days
     if (applyToAll) {
-        const defaultBlock = {
-            time: time,
-            title: title,
-            tasks: tasks,
-            days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-            enabled: true
-        };
-        
-        // Check if this block already exists in defaults
-        const existingIndex = scheduleData.defaultBlocks.findIndex(b => b.time === time);
-        if (existingIndex >= 0) {
-            scheduleData.defaultBlocks[existingIndex] = defaultBlock;
+        const dayName = scheduleData.days[currentEditingDay]?.name;
+        if (dayName) {
+            const defaultBlock = {
+                time: time,
+                title: title,
+                tasks: tasks,
+                days: [dayName],
+                enabled: true
+            };
+            if (!Array.isArray(scheduleData.defaultBlocks)) {
+                scheduleData.defaultBlocks = [];
+            }
+            const hasOverlap = scheduleData.defaultBlocks.some(block => {
+                if (block.enabled === false) return false;
+                const days = block.days || DAYS_OF_WEEK;
+                if (!days.includes(dayName)) return false;
+                return timeRangesOverlap(time, block.time);
+            });
+            if (hasOverlap) {
+                alert(`⚠️ Default time already used for ${dayName}.\n\nChoose a different time or edit defaults first.`);
+            } else {
+                const existingIndex = scheduleData.defaultBlocks.findIndex(b => 
+                    b.time === time && b.title === title && (b.days || []).includes(dayName)
+                );
+                if (existingIndex >= 0) {
+                    scheduleData.defaultBlocks[existingIndex] = {
+                        ...scheduleData.defaultBlocks[existingIndex],
+                        ...defaultBlock
+                    };
+                } else {
+                    scheduleData.defaultBlocks.push({
+                        ...defaultBlock,
+                        id: `db_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`
+                    });
+                }
+                showToast(`✅ Added as default for ${dayName}`);
+            }
         } else {
-            scheduleData.defaultBlocks.push(defaultBlock);
+            showToast('⚠️ Could not determine day for default');
         }
-        
-        alert('✅ Added to default blocks!\n\nThis will appear on all NEW days you create.\n\nManage it in Edit Mode → Manage Defaults.');
     }
 
     renderSchedule();
@@ -4448,12 +4414,33 @@ document.getElementById('editForm').addEventListener('submit', (e) => {
     closeModal();
 });
 
+function updateCookingFieldsVisibility() {
+    const container = document.getElementById('cookingFields');
+    if (!container) return;
+    const title = document.getElementById('blockTitle')?.value || '';
+    const keywords = ['cook', 'cooking', 'lunch', 'breakfast', 'dinner', 'meal', 'recipe'];
+    const hasCooking = keywords.some(keyword => title.toLowerCase().includes(keyword));
+    container.classList.toggle('hidden', !hasCooking);
+}
+
+document.getElementById('blockTitle')?.addEventListener('input', updateCookingFieldsVisibility);
+
+function timeRangesOverlap(aRange, bRange) {
+    const a = parseTimeRangeToMinutes(aRange);
+    const b = parseTimeRangeToMinutes(bRange);
+    if (isNaN(a.start) || isNaN(a.end) || isNaN(b.start) || isNaN(b.end)) return false;
+    const aIntervals = getBlockIntervalsWithinWindow({ time: aRange }, 0, 24 * 60);
+    const bIntervals = getBlockIntervalsWithinWindow({ time: bRange }, 0, 24 * 60);
+    return aIntervals.some(([aStart, aEnd]) => bIntervals.some(([bStart, bEnd]) => aStart < bEnd && bStart < aEnd));
+}
+
 // ========================================
 // TIME TRACKING & AUTO-SCROLL
 // ========================================
 
 function showDay(dayKey) {
     currentDay = dayKey;
+    localStorage.setItem('lastOpenedDayKey', dayKey);
     
     // Check if this is today
     const today = new Date().toISOString().split('T')[0];
@@ -4685,30 +4672,13 @@ function setupNavigation() {
                         todayTab.click();
                     }
                 } else {
-                    // Today's date doesn't exist - show alert with option to add
-                    const todayFormatted = today.toLocaleDateString('en-GB', { 
-                        weekday: 'long', 
-                        day: 'numeric', 
-                        month: 'long' 
-                    });
-                    
-                    if (confirm(`Today (${todayFormatted}) is not in your schedule.\n\nWould you like to add it now?`)) {
-                        // Open the Add Day modal and pre-fill with today's date
-                        document.getElementById('addDayModal').classList.add('active');
-                        document.getElementById('dayTypeRadio').checked = true;
-                        
-                        // Set today's date
-                        const dayDate = document.getElementById('dayDate');
-                        const singleDayDateInput = document.getElementById('singleDayDateInput');
-                        if (dayDate) {
-                            dayDate.value = today.toLocaleDateString('en-GB');
+                    const lastOpenedDayKey = localStorage.getItem('lastOpenedDayKey');
+                    const fallbackDayKey = dayKeys.includes(lastOpenedDayKey) ? lastOpenedDayKey : dayKeys[0];
+                    if (fallbackDayKey) {
+                        const fallbackTab = document.querySelector(`.day-tab[data-day="${fallbackDayKey}"]`);
+                        if (fallbackTab) {
+                            fallbackTab.click();
                         }
-                        if (singleDayDateInput) {
-                            singleDayDateInput.value = todayDateStr;
-                        }
-                        
-                        // Switch to Single Day mode
-                        switchAddType('day');
                     }
                 }
             }
@@ -10756,11 +10726,16 @@ document.addEventListener('DOMContentLoaded', () => {
             medicineBtn.id = 'takeMedicineBtn';
             medicineBtn.type = 'button';
             medicineBtn.innerHTML = '💊 Take Medicine';
-            medicineBtn.style.cssText = 'width:100%;padding:14px;background:linear-gradient(135deg,#f093fb 0%,#f5576c 100%);color:white;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:20px;box-shadow:0 4px 12px rgba(245,87,108,0.3);';
+            medicineBtn.className = 'default-action-btn medicine-action-btn';
             medicineBtn.onclick = openMedicineScheduleModal;
             
-            // Insert after the Add New Default Block button
-            addButton.parentNode.insertBefore(medicineBtn, addButton.nextSibling);
+            addButton.classList.add('default-action-btn', 'default-add-btn');
+            const actionsRow = addButton.closest('.default-actions-row');
+            if (actionsRow) {
+                actionsRow.appendChild(medicineBtn);
+            } else {
+                addButton.parentNode.insertBefore(medicineBtn, addButton.nextSibling);
+            }
             console.log('✅ Take Medicine button added');
         }
     }, 500);
