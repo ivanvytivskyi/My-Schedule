@@ -448,6 +448,30 @@
         <div class="modal-content">
             <h2>Add Day or Week</h2>
             <form id="addDayForm">
+                <!-- First Week Guided Setup -->
+                <div id="firstWeekGuide" style="display: none; margin-bottom: 18px; padding: 16px; background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 12px; box-shadow: 0 4px 12px rgba(15,23,42,0.06);">
+                    <div style="font-weight: 800; color: #1f2937; font-size: 16px; display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">
+                        <span style="font-size: 18px;">🧭</span>
+                        <span>First Week Setup (Recommended)</span>
+                    </div>
+                    <ol style="margin: 0 0 12px 20px; color: #475569; font-size: 13px; line-height: 1.6;">
+                        <li>Create your daily template so each day is auto-filled.</li>
+                        <li>Add important events (optional).</li>
+                        <li>Pick a week start date and work schedule.</li>
+                        <li>Create your first week.</li>
+                    </ol>
+                    <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                        <button type="button" class="open-cooking-config-btn" onclick="openDefaultsModal()">
+                            📌 Create Daily Template
+                        </button>
+                        <button type="button" class="open-cooking-config-btn" onclick="openEventModal()">
+                            📅 Add Important Event
+                        </button>
+                    </div>
+                    <p style="margin: 10px 0 0 0; font-size: 12px; color: #64748b;">
+                        You can still create a single day, but a weekly template makes planning much faster.
+                    </p>
+                </div>
                 <!-- Manual Day/Week Addition Section -->
                 <div style="padding: 20px; background: #ffffff; border-radius: 12px; border: 2px solid #e5e7eb; box-shadow: 0 6px 16px rgba(15,23,42,0.08);">
                     <div style="margin-bottom: 16px; font-weight: 700; color: #1f2937; font-size: 16px; display: flex; align-items: center; gap: 8px;">
@@ -593,9 +617,12 @@
                     </div>
                     
                     <!-- Cooking Preferences Button -->
-                    <div style="margin-bottom: 15px;">
+                    <div style="margin-bottom: 15px; display: flex; flex-wrap: wrap; gap: 10px;">
                         <button type="button" id="openCookingConfigFromSchedule" class="open-cooking-config-btn">
                             ⚙️ Cooking Preferences
+                        </button>
+                        <button type="button" id="openDefaultBlocksFromSchedule" class="open-cooking-config-btn" onclick="openDefaultsModal()">
+                            ➕ First add your daily task block
                         </button>
                     </div>
                     
