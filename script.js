@@ -136,12 +136,6 @@ let currentEditingDay = null;
 let currentDay = null;
 let autoScrollTimeout = null;
 let isToday = false;
-const PROMPT_FORM_STORAGE_KEY = 'promptGeneratorFormState_v1';
-const WORK_MEAL_STRATEGIES = {
-    COOK_MORNING: 'cook_morning',
-    COOK_EVENING: 'cook_evening',
-    BUY: 'buy'
-};
 let activeDefaultDay = localStorage.getItem('defaultBlocksActiveDay') || 'Monday';
 let mealRecipeQueues = null;
 let weeklyBreakfastQueue = [];
@@ -1007,6 +1001,10 @@ document.addEventListener("DOMContentLoaded", function () {
     startLiveClock();
     setupScrollButton();
     populateBlockRecipeSelect();
+    const dayWindowStart = document.getElementById('dayWindowStart');
+    const dayWindowEnd = document.getElementById('dayWindowEnd');
+    if (dayWindowStart) dayWindowStart.addEventListener('change', saveDayWindowSettings);
+    if (dayWindowEnd) dayWindowEnd.addEventListener('change', saveDayWindowSettings);
 });
 
 function initializeApp() {
@@ -1090,8 +1088,7 @@ function createDefaultWeek() {
         };
     }
     saveToLocalStorage();
-    
-    const uniqueRecipeIDs = [...detectedRecipeIDs];
+    saveScheduleHistoryEntry(startDate, response, uniqueRecipeIDs);
 }
 
 function setDefaultActiveDay() {
@@ -3293,6 +3290,8 @@ async function addWeek() {
         renderDayTabs();
         renderSchedule();
         saveToLocalStorage();
+        const scheduleText = buildWeekScheduleText(orderedDays);
+        saveScheduleHistoryEntry(weekStart, scheduleText, []);
         
         // Show first day of new week
         const firstDayKey = `day_${orderedDays[0].date.getTime()}`;
@@ -3717,13 +3716,7 @@ function editBlock(dayKey, index) {
     document.getElementById('blockLeftoverToggle').checked = !!block.isLeftover;
     document.getElementById('applyToAllDays').checked = false;
     
-    // Add/update "Important Task" checkbox
-    addImportantTaskCheckbox();
-    const importantCheckbox = document.getElementById('importantTaskCheckbox');
-    if (importantCheckbox) {
-        importantCheckbox.checked = !!(block.canSplit || block.blockType === 'important');
-    }
-    
+    updateCookingFieldsVisibility();
     showEmojiSuggestions(block.title || '');
     document.getElementById('editModal').classList.add('active');
     
@@ -3762,46 +3755,11 @@ function addNewBlock(dayKey, afterIndex) {
     document.getElementById('applyToAllDays').checked = false;
     document.getElementById('emojiSuggestions').innerHTML = '';
     
-    // Add/reset "Important Task" checkbox
-    addImportantTaskCheckbox();
-    
+    updateCookingFieldsVisibility();
     document.getElementById('editModal').classList.add('active');
     
     // Re-attach title suggestions (fixes dropdown not working)
     setupTitleSuggestions();
-}
-
-// Add "Important Task" checkbox to modal if it doesn't exist
-function addImportantTaskCheckbox() {
-    const applyToAllCheckbox = document.getElementById('applyToAllDays');
-    if (!applyToAllCheckbox) return;
-    
-    // Check if checkbox already exists
-    let importantCheckbox = document.getElementById('importantTaskCheckbox');
-    if (!importantCheckbox) {
-        // Create checkbox container
-        const container = applyToAllCheckbox.parentElement;
-        const wrapper = document.createElement('div');
-        wrapper.style.cssText = 'margin-top:10px;display:flex;align-items:center;gap:8px;';
-        
-        importantCheckbox = document.createElement('input');
-        importantCheckbox.type = 'checkbox';
-        importantCheckbox.id = 'importantTaskCheckbox';
-        
-        const label = document.createElement('label');
-        label.htmlFor = 'importantTaskCheckbox';
-        label.textContent = '🚨 Important (can split other blocks)';
-        label.style.cssText = 'cursor:pointer;font-size:14px;';
-        
-        wrapper.appendChild(importantCheckbox);
-        wrapper.appendChild(label);
-        container.appendChild(wrapper);
-    } else {
-        // Reset checkbox
-        importantCheckbox.checked = false;
-    }
-    
-    // Medicine helper removed - now in Default Blocks Manager only
 }
 
 // ==============================================
@@ -3890,11 +3848,6 @@ function checkAndShowMedicineHelper() {
     
     helperDiv.style.display = isMedicine ? 'block' : 'none';
     
-    // Auto-check important checkbox for medicine
-    if (isMedicine) {
-        const importantCheckbox = document.getElementById('importantTaskCheckbox');
-        if (importantCheckbox) importantCheckbox.checked = true;
-    }
 }
 
 // Update time input fields based on times per day
@@ -4316,16 +4269,6 @@ document.getElementById('editForm').addEventListener('submit', (e) => {
     const applyToAll = document.getElementById('applyToAllDays').checked;
     const selectedRecipeId = document.getElementById('blockRecipeSelect').value;
     const isLeftover = document.getElementById('blockLeftoverToggle').checked;
-    const isImportant = document.getElementById('importantTaskCheckbox')?.checked || false;
-    
-    // Set pending metadata for important blocks
-    if (isImportant) {
-        window._pendingBlockMetadata = {
-            blockType: 'important',
-            canSplit: true
-        };
-    }
-    
     const selectedRecipe = selectedRecipeId && typeof getRecipe === 'function' ? getRecipe(selectedRecipeId) : null;
 
     // Validate time format
@@ -4421,25 +4364,47 @@ document.getElementById('editForm').addEventListener('submit', (e) => {
         }
     }
 
-    // If "Apply to all days" is checked, add to defaultBlocks for NEW days
     if (applyToAll) {
-        const defaultBlock = {
-            time: time,
-            title: title,
-            tasks: tasks,
-            days: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
-            enabled: true
-        };
-        
-        // Check if this block already exists in defaults
-        const existingIndex = scheduleData.defaultBlocks.findIndex(b => b.time === time);
-        if (existingIndex >= 0) {
-            scheduleData.defaultBlocks[existingIndex] = defaultBlock;
+        const dayName = scheduleData.days[currentEditingDay]?.name;
+        if (dayName) {
+            const defaultBlock = {
+                time: time,
+                title: title,
+                tasks: tasks,
+                days: [dayName],
+                enabled: true
+            };
+            if (!Array.isArray(scheduleData.defaultBlocks)) {
+                scheduleData.defaultBlocks = [];
+            }
+            const hasOverlap = scheduleData.defaultBlocks.some(block => {
+                if (block.enabled === false) return false;
+                const days = block.days || DAYS_OF_WEEK;
+                if (!days.includes(dayName)) return false;
+                return timeRangesOverlap(time, block.time);
+            });
+            if (hasOverlap) {
+                alert(`⚠️ Default time already used for ${dayName}.\n\nChoose a different time or edit defaults first.`);
+            } else {
+                const existingIndex = scheduleData.defaultBlocks.findIndex(b => 
+                    b.time === time && b.title === title && (b.days || []).includes(dayName)
+                );
+                if (existingIndex >= 0) {
+                    scheduleData.defaultBlocks[existingIndex] = {
+                        ...scheduleData.defaultBlocks[existingIndex],
+                        ...defaultBlock
+                    };
+                } else {
+                    scheduleData.defaultBlocks.push({
+                        ...defaultBlock,
+                        id: `db_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`
+                    });
+                }
+                showToast(`✅ Added as default for ${dayName}`);
+            }
         } else {
-            scheduleData.defaultBlocks.push(defaultBlock);
+            showToast('⚠️ Could not determine day for default');
         }
-        
-        alert('✅ Added to default blocks!\n\nThis will appear on all NEW days you create.\n\nManage it in Edit Mode → Manage Defaults.');
     }
 
     renderSchedule();
@@ -4448,12 +4413,35 @@ document.getElementById('editForm').addEventListener('submit', (e) => {
     closeModal();
 });
 
+function updateCookingFieldsVisibility() {
+    const container = document.getElementById('cookingFields');
+    if (!container) return;
+    const title = document.getElementById('blockTitle')?.value || '';
+    const keywords = ['cook', 'cooking', 'lunch', 'breakfast', 'dinner', 'meal', 'recipe'];
+    const hasCooking = keywords.some(keyword => title.toLowerCase().includes(keyword));
+    container.classList.toggle('hidden', !hasCooking);
+}
+
+document.getElementById('blockTitle')?.addEventListener('input', updateCookingFieldsVisibility);
+
+function timeRangesOverlap(aRange, bRange) {
+    const a = parseTimeRangeToMinutes(aRange);
+    const b = parseTimeRangeToMinutes(bRange);
+    if (isNaN(a.start) || isNaN(a.end) || isNaN(b.start) || isNaN(b.end)) return false;
+    const aIntervals = getBlockIntervalsWithinWindow({ time: aRange }, 0, 24 * 60);
+    const bIntervals = getBlockIntervalsWithinWindow({ time: bRange }, 0, 24 * 60);
+    return aIntervals.some(aInterval => bIntervals.some(bInterval =>
+        aInterval.start < bInterval.end && bInterval.start < aInterval.end
+    ));
+}
+
 // ========================================
 // TIME TRACKING & AUTO-SCROLL
 // ========================================
 
 function showDay(dayKey) {
     currentDay = dayKey;
+    localStorage.setItem('lastOpenedDayKey', dayKey);
     
     // Check if this is today
     const today = new Date().toISOString().split('T')[0];
@@ -4685,30 +4673,13 @@ function setupNavigation() {
                         todayTab.click();
                     }
                 } else {
-                    // Today's date doesn't exist - show alert with option to add
-                    const todayFormatted = today.toLocaleDateString('en-GB', { 
-                        weekday: 'long', 
-                        day: 'numeric', 
-                        month: 'long' 
-                    });
-                    
-                    if (confirm(`Today (${todayFormatted}) is not in your schedule.\n\nWould you like to add it now?`)) {
-                        // Open the Add Day modal and pre-fill with today's date
-                        document.getElementById('addDayModal').classList.add('active');
-                        document.getElementById('dayTypeRadio').checked = true;
-                        
-                        // Set today's date
-                        const dayDate = document.getElementById('dayDate');
-                        const singleDayDateInput = document.getElementById('singleDayDateInput');
-                        if (dayDate) {
-                            dayDate.value = today.toLocaleDateString('en-GB');
+                    const lastOpenedDayKey = localStorage.getItem('lastOpenedDayKey');
+                    const fallbackDayKey = dayKeys.includes(lastOpenedDayKey) ? lastOpenedDayKey : dayKeys[0];
+                    if (fallbackDayKey) {
+                        const fallbackTab = document.querySelector(`.day-tab[data-day="${fallbackDayKey}"]`);
+                        if (fallbackTab) {
+                            fallbackTab.click();
                         }
-                        if (singleDayDateInput) {
-                            singleDayDateInput.value = todayDateStr;
-                        }
-                        
-                        // Switch to Single Day mode
-                        switchAddType('day');
                     }
                 }
             }
@@ -5553,44 +5524,6 @@ function renderHomeInventoryTable() {
             localStorage.setItem('homeInventoryCollapsed', (!isHidden).toString());
         });
     }
-}
-
-function buildHomeInventoryPromptString() {
-    // Load from Kitchen Stock V2
-    const kitchenStock = JSON.parse(localStorage.getItem('kitchenStock_v2')) || {};
-    
-    if (!kitchenStock || Object.keys(kitchenStock).length === 0) return 'None';
-    
-    const entries = [];
-    
-    Object.keys(kitchenStock).forEach(canonicalKey => {
-        const stockData = kitchenStock[canonicalKey];
-        const product = typeof CANONICAL_PRODUCTS !== 'undefined' ? CANONICAL_PRODUCTS[canonicalKey] : null;
-        
-        if (!product) return;
-        
-        const productName = product.name;
-        
-        // Check if product is unlimited
-        if (product.unlimited) {
-            entries.push(`${productName} (unlimited)`);
-            return;
-        }
-        
-        const qtyBase = stockData.qtyBase;
-        
-        // Format quantity nicely
-        let qtyLabel = '';
-        if (typeof prettyQty === 'function') {
-            qtyLabel = prettyQty(canonicalKey, qtyBase);
-        } else {
-            qtyLabel = `${qtyBase}${product.unitType}`;
-        }
-        
-        entries.push(`${productName} (${qtyLabel})`);
-    });
-    
-    return entries.length > 0 ? entries.join('; ') : 'None';
 }
 
 function renderHomeInventoryChecklist(shop, savedInventory) {
@@ -8407,598 +8340,6 @@ function emergencyReset() {
     }
 }
 
-// ========================================
-// PROMPT GENERATOR & RESPONSE IMPORTER
-// ========================================
-
-function loadPromptFormState() {
-    try {
-        const raw = localStorage.getItem(PROMPT_FORM_STORAGE_KEY);
-        return raw ? JSON.parse(raw) : null;
-    } catch (error) {
-        console.warn('Unable to load prompt form state:', error);
-        return null;
-    }
-}
-
-function getWorkDayTimesFromDOM() {
-    const times = [];
-    for (let i = 0; i < 7; i++) {
-        const startInput = document.getElementById(`workDay${i}Start`);
-        const endInput = document.getElementById(`workDay${i}End`);
-        times.push({
-            start: startInput?.value || '',
-            end: endInput?.value || ''
-        });
-    }
-    return times;
-}
-
-function collectPromptFormState() {
-    return {
-        weekDate: document.getElementById('promptWeekDate')?.value || '',
-        workDayTimes: getWorkDayTimesFromDOM(),
-        addCommute: document.getElementById('promptAddCommute')?.checked || false,
-        commuteMinutes: document.getElementById('promptAddCommute')?.checked ?
-            (parseInt(document.getElementById('promptCommuteDuration')?.value) || 0) : 0,
-        commutePrepMinutes: document.getElementById('promptAddCommute')?.checked ?
-            (parseInt(document.getElementById('promptCommutePrepDuration')?.value) || 0) : 0,
-        studySubjects: document.getElementById('promptStudySubjects')?.value || '',
-        examDates: document.getElementById('promptExamDates')?.value || '',
-        studyHours: document.getElementById('promptStudyHours')?.value || '',
-        studyAIDecide: document.getElementById('promptStudyAIDecide')?.checked || false,
-        studyTopics: document.getElementById('promptStudyTopics')?.value || '',
-        foodPrefs: document.getElementById('promptFoodPrefs')?.value || '',
-        batchDuration: document.querySelector('input[name="batchDuration"]:checked')?.value || '1',
-        hobbies: document.getElementById('promptHobbies')?.value || '',
-        hobbyHours: document.getElementById('promptHobbyHours')?.value || '',
-        hobbyAIDecide: document.getElementById('promptHobbyAIDecide')?.checked || false,
-        oneOffTasks: document.getElementById('promptOneOffTasks')?.value || '',
-        sleepSchedule: document.getElementById('promptSleep')?.value || '',
-        includeRelax: document.getElementById('promptRelax')?.checked || false,
-        workMealsProvided: document.getElementById('promptWorkMealsProvided')?.checked || false,
-        workMealStrategy: document.getElementById('promptWorkMealStrategy')?.value || WORK_MEAL_STRATEGIES.COOK_MORNING,
-        workMealCookMinutes: parseInt(document.getElementById('promptWorkMealCookMinutes')?.value) || 30,
-        workMealNotes: document.getElementById('promptWorkMealNotes')?.value || '',
-        dietary: {
-            vegetarian: document.getElementById('dietVegetarian')?.checked || false,
-            vegan: document.getElementById('dietVegan')?.checked || false,
-            nutFree: document.getElementById('dietNutFree')?.checked || false,
-            dairyFree: document.getElementById('dietDairyFree')?.checked || false,
-            glutenFree: document.getElementById('dietGlutenFree')?.checked || false
-        }
-    };
-}
-
-function savePromptFormState() {
-    try {
-        const state = collectPromptFormState();
-        localStorage.setItem(PROMPT_FORM_STORAGE_KEY, JSON.stringify(state));
-    } catch (error) {
-        console.warn('Unable to save prompt form state:', error);
-    }
-}
-
-function applyWorkDayTimes(times) {
-    if (!Array.isArray(times)) return;
-    times.forEach((entry, index) => {
-        const startInput = document.getElementById(`workDay${index}Start`);
-        const endInput = document.getElementById(`workDay${index}End`);
-        if (startInput && entry.start) startInput.value = entry.start;
-        if (endInput && entry.end) endInput.value = entry.end;
-    });
-}
-
-function applyPromptFormState(state, options = {}) {
-    if (!state) return;
-    
-    if (!options.skipWeekDate && state.weekDate) {
-        const dateInput = document.getElementById('promptWeekDate');
-        if (dateInput) dateInput.value = state.weekDate;
-    }
-    
-    const studySubjects = document.getElementById('promptStudySubjects');
-    if (studySubjects) studySubjects.value = state.studySubjects || '';
-    const examDates = document.getElementById('promptExamDates');
-    if (examDates) examDates.value = state.examDates || '';
-    const studyHours = document.getElementById('promptStudyHours');
-    if (studyHours) studyHours.value = state.studyHours || '';
-    const studyAIDecide = document.getElementById('promptStudyAIDecide');
-    if (studyAIDecide) studyAIDecide.checked = !!state.studyAIDecide;
-    const studyTopics = document.getElementById('promptStudyTopics');
-    if (studyTopics) studyTopics.value = state.studyTopics || '';
-    const foodPrefs = document.getElementById('promptFoodPrefs');
-    if (foodPrefs) foodPrefs.value = state.foodPrefs || '';
-    const batchRadio = document.querySelector(`input[name="batchDuration"][value="${state.batchDuration}"]`);
-    if (batchRadio) batchRadio.checked = true;
-    
-    const hobbies = document.getElementById('promptHobbies');
-    if (hobbies) hobbies.value = state.hobbies || '';
-    const hobbyHours = document.getElementById('promptHobbyHours');
-    if (hobbyHours) hobbyHours.value = state.hobbyHours || '';
-    const hobbyAIDecide = document.getElementById('promptHobbyAIDecide');
-    if (hobbyAIDecide) hobbyAIDecide.checked = !!state.hobbyAIDecide;
-    
-    const oneOffTasks = document.getElementById('promptOneOffTasks');
-    if (oneOffTasks) oneOffTasks.value = state.oneOffTasks || '';
-    const sleepSchedule = document.getElementById('promptSleep');
-    if (sleepSchedule) sleepSchedule.value = state.sleepSchedule || '';
-    const includeRelax = document.getElementById('promptRelax');
-    if (includeRelax) includeRelax.checked = !!state.includeRelax;
-    
-    const workMealsProvided = document.getElementById('promptWorkMealsProvided');
-    if (workMealsProvided) workMealsProvided.checked = !!state.workMealsProvided;
-    const workMealStrategy = document.getElementById('promptWorkMealStrategy');
-    if (workMealStrategy && state.workMealStrategy) workMealStrategy.value = state.workMealStrategy;
-    const workMealCookMinutes = document.getElementById('promptWorkMealCookMinutes');
-    if (workMealCookMinutes) workMealCookMinutes.value = state.workMealCookMinutes ?? 30;
-    const workMealNotes = document.getElementById('promptWorkMealNotes');
-    if (workMealNotes) workMealNotes.value = state.workMealNotes || '';
-    
-    document.getElementById('dietVegetarian')?.setAttribute('checked', state.dietary?.vegetarian ? 'checked' : '');
-    const dietVegetarian = document.getElementById('dietVegetarian');
-    if (dietVegetarian) dietVegetarian.checked = !!state.dietary?.vegetarian;
-    const dietVegan = document.getElementById('dietVegan');
-    if (dietVegan) dietVegan.checked = !!state.dietary?.vegan;
-    const dietNutFree = document.getElementById('dietNutFree');
-    if (dietNutFree) dietNutFree.checked = !!state.dietary?.nutFree;
-    const dietDairyFree = document.getElementById('dietDairyFree');
-    if (dietDairyFree) dietDairyFree.checked = !!state.dietary?.dairyFree;
-    const dietGlutenFree = document.getElementById('dietGlutenFree');
-    if (dietGlutenFree) dietGlutenFree.checked = !!state.dietary?.glutenFree;
-    
-    const addCommute = document.getElementById('promptAddCommute');
-    if (addCommute) addCommute.checked = !!state.addCommute;
-    const commuteDuration = document.getElementById('promptCommuteDuration');
-    if (commuteDuration) commuteDuration.value = state.commuteMinutes ?? 15;
-    const commutePrep = document.getElementById('promptCommutePrepDuration');
-    if (commutePrep) commutePrep.value = state.commutePrepMinutes ?? 0;
-    
-    applyWorkDayTimes(state.workDayTimes);
-}
-
-function attachPromptFormListeners() {
-    const fields = [
-        'promptWeekDate',
-        'promptStudySubjects',
-        'promptExamDates',
-        'promptStudyHours',
-        'promptStudyAIDecide',
-        'promptStudyTopics',
-        'promptFoodPrefs',
-        'promptHobbies',
-        'promptHobbyHours',
-        'promptHobbyAIDecide',
-        'promptOneOffTasks',
-        'promptSleep',
-        'promptRelax',
-        'promptWorkMealsProvided',
-        'promptWorkMealStrategy',
-        'promptWorkMealCookMinutes',
-        'promptWorkMealNotes',
-        'promptAddCommute',
-        'promptCommuteDuration',
-        'promptCommutePrepDuration'
-    ];
-    
-    fields.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.addEventListener('input', savePromptFormState);
-            el.addEventListener('change', savePromptFormState);
-        }
-    });
-    
-    const batchRadios = document.querySelectorAll('input[name="batchDuration"]');
-    batchRadios.forEach(radio => {
-        radio.addEventListener('change', savePromptFormState);
-    });
-    
-    const dietaryCheckboxes = [
-        'dietVegetarian',
-        'dietVegan',
-        'dietNutFree',
-        'dietDairyFree',
-        'dietGlutenFree'
-    ];
-    dietaryCheckboxes.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.addEventListener('change', savePromptFormState);
-        }
-    });
-    
-    // Work meal visibility toggles
-    const staffMealToggle = document.getElementById('promptWorkMealsProvided');
-    const strategySelect = document.getElementById('promptWorkMealStrategy');
-    const cookMinutes = document.getElementById('promptWorkMealCookMinutes');
-    
-    if (staffMealToggle) {
-        staffMealToggle.addEventListener('change', () => {
-            updateWorkMealUI();
-            savePromptFormState();
-        });
-    }
-    if (strategySelect) {
-        strategySelect.addEventListener('change', () => {
-            updateWorkMealUI();
-            savePromptFormState();
-        });
-    }
-    if (cookMinutes) {
-        cookMinutes.addEventListener('input', savePromptFormState);
-    }
-}
-
-function attachWorkDayListeners() {
-    for (let i = 0; i < 7; i++) {
-        const startInput = document.getElementById(`workDay${i}Start`);
-        const endInput = document.getElementById(`workDay${i}End`);
-        if (startInput) startInput.addEventListener('input', savePromptFormState);
-        if (endInput) endInput.addEventListener('input', savePromptFormState);
-    }
-}
-
-function updateWorkMealUI() {
-    const providedToggle = document.getElementById('promptWorkMealsProvided');
-    const planContainer = document.getElementById('workMealPlanContainer');
-    const cookOptions = document.getElementById('workMealCookOptions');
-    const strategySelect = document.getElementById('promptWorkMealStrategy');
-    
-    if (!planContainer || !providedToggle || !strategySelect || !cookOptions) return;
-    
-    const showPlan = !providedToggle.checked;
-    planContainer.style.display = showPlan ? 'block' : 'none';
-    
-    const strategy = strategySelect.value || WORK_MEAL_STRATEGIES.COOK_MORNING;
-    cookOptions.style.display = (strategy === WORK_MEAL_STRATEGIES.COOK_MORNING || strategy === WORK_MEAL_STRATEGIES.COOK_EVENING) ? 'block' : 'none';
-}
-
-function openPromptGenerator() {
-    document.getElementById('promptGeneratorModal').classList.add('active');
-    document.getElementById('generatedPromptSection').style.display = 'none';
-    
-    const savedState = loadPromptFormState();
-    
-    // Set today's date as default, or restore saved date
-    const today = new Date();
-    const defaultDateStr = savedState?.weekDate || today.toISOString().split('T')[0];
-    document.getElementById('promptWeekDate').value = defaultDateStr;
-    
-    // Populate work days with saved values
-    populateWorkDays(defaultDateStr);
-    applyPromptFormState(savedState, { skipWeekDate: true });
-    updateWorkMealUI();
-}
-
-function closePromptGenerator() {
-    document.getElementById('promptGeneratorModal').classList.remove('active');
-}
-
-function populateWorkDays(date) {
-    const container = document.getElementById('workDaysContainer');
-    
-    // Use the EXACT date entered - do NOT adjust to Monday!
-    const startDate = new Date(date);
-    console.log('Work days start from:', startDate.toDateString());
-    
-    // Create work day inputs for each day starting from the entered date
-    const dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-    let html = '<div style="display: grid; gap: 8px;">';
-    
-    for (let i = 0; i < 7; i++) {
-        const currentDate = new Date(startDate);
-        currentDate.setDate(startDate.getDate() + i);
-        const dateStr = currentDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
-        const dayName = getDayName(currentDate); // This returns "Monday", "Tuesday", etc.
-        
-        html += `
-            <div style="background: white; padding: 8px 12px; border-radius: 6px; display: flex; align-items: center; gap: 10px;">
-                <span style="font-weight: 600; min-width: 80px; color: #2c3e50; font-size: 14px;">${dayName}</span>
-                <span style="color: #7f8c8d; font-size: 12px; min-width: 50px;">${dateStr}</span>
-                <input type="time" id="workDay${i}Start" style="padding: 6px 8px; border: 2px solid #ddd; border-radius: 4px; font-size: 13px; width: 110px;" />
-                <span style="color: #7f8c8d; font-size: 13px;">to</span>
-                <input type="time" id="workDay${i}End" style="padding: 6px 8px; border: 2px solid #ddd; border-radius: 4px; font-size: 13px; width: 110px;" />
-            </div>
-        `;
-    }
-    
-    html += '</div>';
-    container.innerHTML = html;
-    
-    // Re-attach listeners and restore saved times
-    attachWorkDayListeners();
-    const savedState = loadPromptFormState();
-    if (savedState?.workDayTimes) {
-        applyWorkDayTimes(savedState.workDayTimes);
-    }
-}
-
-// Listen for date changes
-document.addEventListener('DOMContentLoaded', () => {
-    const dateInput = document.getElementById('promptWeekDate');
-    if (dateInput) {
-        dateInput.addEventListener('change', function() {
-            const date = new Date(this.value);
-            populateWorkDays(date);
-            savePromptFormState();
-        });
-    }
-    
-    attachPromptFormListeners();
-    updateWorkMealUI();
-    
-    // Day window controls
-    const dayWindowStart = document.getElementById('dayWindowStart');
-    const dayWindowEnd = document.getElementById('dayWindowEnd');
-    if (dayWindowStart) dayWindowStart.addEventListener('change', saveDayWindowSettings);
-    if (dayWindowEnd) dayWindowEnd.addEventListener('change', saveDayWindowSettings);
-});
-
-/**
- * Get date of next Monday (or today if already Monday)
- */
-function getNextMonday() {
-    const today = new Date();
-    const dayOfWeek = today.getDay();
-    const daysUntilMonday = dayOfWeek === 0 ? 1 : (8 - dayOfWeek) % 7;
-    
-    const nextMonday = new Date(today);
-    nextMonday.setDate(today.getDate() + daysUntilMonday);
-    
-    const day = nextMonday.getDate();
-    const month = nextMonday.toLocaleDateString('en-GB', { month: 'short' });
-    const year = nextMonday.getFullYear();
-    
-    return `${day} ${month} ${year}`;
-}
-
-function chooseWorkMealSuggestion(selectedRecipes = []) {
-    if (!Array.isArray(selectedRecipes) || selectedRecipes.length === 0) return null;
-    
-    const scored = selectedRecipes.map(recipe => {
-        const availability = typeof describeRecipeAvailability === 'function'
-            ? describeRecipeAvailability(recipe)
-            : { match: 0, isReady: false, missingList: [] };
-        return { recipe, availability };
-    });
-    
-    scored.sort((a, b) => {
-        if (a.availability.isReady !== b.availability.isReady) {
-            return a.availability.isReady ? -1 : 1; // ready first
-        }
-        return (b.availability.match || 0) - (a.availability.match || 0);
-    });
-    
-    return scored[0] || null;
-}
-
-function buildWorkMealInstruction(formData, suggestion) {
-    const notes = formData.workMealNotes ? ` Preferences: ${formData.workMealNotes}.` : '';
-    
-    if (formData.workMealsProvided) {
-        return `Staff meals provided on workdays; skip planning cooked/bought lunches/dinners during work shifts.${notes}`;
-    }
-    
-    const describeSuggestion = () => {
-        if (!suggestion) return 'Pick a quick main/batch recipe that travels well.';
-        const { recipe, availability } = suggestion;
-        const readyText = availability?.isReady ? 'ready with current stock' :
-            (availability?.missingList?.length ? `missing: ${availability.missingList.join(', ')} (schedule shopping before first cook)` : 'may need shopping first');
-        return `${recipe.name} (${recipe.id}) — ${readyText}`;
-    };
-    
-    if (formData.workMealStrategy === WORK_MEAL_STRATEGIES.COOK_MORNING) {
-        return `Cook a portable work meal each workday in the morning before leaving. Reserve ~${formData.workMealCookMinutes} mins before the commute for cooking, then pack it. Suggested recipe: ${describeSuggestion()}.${notes}`;
-    }
-    
-    if (formData.workMealStrategy === WORK_MEAL_STRATEGIES.COOK_EVENING) {
-        return `Cook the next day's work meal in the evening before workdays. Reserve ~${formData.workMealCookMinutes} mins after work or later in the evening, then pack for the next morning. Suggested recipe: ${describeSuggestion()}.${notes}`;
-    }
-    
-    return `Buy meals near work (no cooking block). Add a small buffer around lunch to purchase food.${notes}`;
-}
-
-function generatePrompt() {
-    console.log('🤖 Generating AI prompt with smart selection...');
-    savePromptFormState();
-    
-    // Get all form data
-    const weekDate = document.getElementById('promptWeekDate').value || new Date().toISOString().split('T')[0];
-    
-    // Build formData for pre-fill system
-    const formData = {
-        workSchedule: '',  // Will build from time inputs
-        weekDate: weekDate,
-        workDayTimes: getWorkDayTimesFromDOM(),
-        commuteMinutes: document.getElementById('promptAddCommute')?.checked ? 
-            (parseInt(document.getElementById('promptCommuteDuration')?.value) || 0) : 0,
-        commutePrepMinutes: document.getElementById('promptAddCommute')?.checked ?
-            (parseInt(document.getElementById('promptCommutePrepDuration')?.value) || 0) : 0,
-        studySubjects: document.getElementById('promptStudySubjects')?.value || '',
-        examDates: document.getElementById('promptExamDates')?.value || '',
-        studyHours: document.getElementById('promptStudyHours')?.value || '',
-        studyAIDecide: document.getElementById('promptStudyAIDecide')?.checked || false,
-        studyTopics: document.getElementById('promptStudyTopics')?.value || '',
-        foodPrefs: document.getElementById('promptFoodPrefs')?.value || '',
-        batchDuration: document.querySelector('input[name="batchDuration"]:checked')?.value || '1',
-        hobbies: document.getElementById('promptHobbies')?.value || '',
-        hobbyHours: document.getElementById('promptHobbyHours')?.value || '',
-        hobbyAIDecide: document.getElementById('promptHobbyAIDecide')?.checked || false,
-        oneOffTasks: document.getElementById('promptOneOffTasks')?.value || '',
-        sleepSchedule: document.getElementById('promptSleep')?.value || '',
-        includeRelax: document.getElementById('promptRelax')?.checked || false,
-        workMealsProvided: document.getElementById('promptWorkMealsProvided')?.checked || false,
-        workMealStrategy: document.getElementById('promptWorkMealStrategy')?.value || WORK_MEAL_STRATEGIES.COOK_MORNING,
-        workMealCookMinutes: parseInt(document.getElementById('promptWorkMealCookMinutes')?.value) || 30,
-        workMealNotes: document.getElementById('promptWorkMealNotes')?.value || ''
-    };
-    
-    // Build work schedule string from time inputs
-    const startDate = new Date(weekDate);
-    for (let i = 0; i < 7; i++) {
-        const startInput = document.getElementById(`workDay${i}Start`);
-        const endInput = document.getElementById(`workDay${i}End`);
-        
-        if (!startInput || !endInput) continue;
-        
-        const start = startInput.value;
-        const end = endInput.value;
-        
-        if (start && end) {
-            const dayDate = new Date(startDate);
-            dayDate.setDate(startDate.getDate() + i);
-            const dayName = getDayName(dayDate);
-            
-            // Convert to "Monday-Friday 9am-5pm" format if possible
-            if (!formData.workSchedule) {
-                formData.workSchedule = `${dayName} ${start}-${end}`;
-            } else {
-                formData.workSchedule += `\n${dayName}: ${start}-${end}`;
-            }
-        }
-    }
-    
-    // Get dietary filters
-    const dietaryFilters = {
-        vegetarian: document.getElementById('dietVegetarian')?.checked || false,
-        vegan: document.getElementById('dietVegan')?.checked || false,
-        nutFree: document.getElementById('dietNutFree')?.checked || false,
-        dairyFree: document.getElementById('dietDairyFree')?.checked || false,
-        glutenFree: document.getElementById('dietGlutenFree')?.checked || false
-    };
-    
-    // === SMART RECIPE SELECTION (Part 2) ===
-    const selectedRecipes = selectRecipesForWeek(dietaryFilters);
-    console.log(`📊 Selected ${selectedRecipes.length} recipes for this week`);
-    const workMealSuggestion = chooseWorkMealSuggestion(selectedRecipes);
-    const workMealInstruction = buildWorkMealInstruction(formData, workMealSuggestion);
-    
-    // === PRE-FILL SYSTEM (Part 3) ===
-    const preFilledData = generatePreFilledData(formData);
-    
-    // === BUILD REDUCED RECIPE PROMPT ===
-    const recipePromptSection = buildReducedRecipePrompt(
-        selectedRecipes, 
-        formData.batchDuration
-    );
-    
-    // === BUILD TIME SLOT SECTION ===
-    const timeSlotSection = buildTimeSlotPrompt(
-        preFilledData.timeGaps,
-        preFilledData.excludedActivities
-    );
-    const nonWorkDays = preFilledData.nonWorkDays || [];
-    const nonWorkDaysSummary = nonWorkDays.length ? nonWorkDays.join(', ') : 'None (work scheduled on all listed days)';
-    const breakfastRule = preFilledData.hasBreakfastDefault
-        ? 'Breakfast is already in default blocks—leave those untouched. If a day has no default breakfast, place breakfast in the earliest available morning gap after any morning routine.'
-        : 'Place breakfast in the earliest available morning gap after any morning routine (earliest free morning slot).';
-    
-    // === BUILD KITCHEN STOCK SUMMARY ===
-    const homeInventorySummary = buildHomeInventoryPromptString();
-    
-    // === BUILD DIETARY SUMMARY ===
-    const dietarySummary = describeDietaryFilters(dietaryFilters);
-    
-    // Format the week start date nicely
-    const weekDateObj = new Date(weekDate);
-    const weekDateFormatted = weekDateObj.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
-    
-    // === BUILD FULL PROMPT ===
-    const prompt = `
-You are a personal schedule assistant helping me plan my week.
-
-📅 WEEK DETAILS:
-Start date: ${weekDateFormatted}
-
-${timeSlotSection}
-
-📚 STUDY:
-- Subjects: ${formData.studySubjects || 'None'}
-${formData.examDates ? `- IMPORTANT EXAMS: ${formData.examDates}` : ''}
-- Study time needed: ${formData.studyAIDecide ? 'YOU DECIDE the optimal hours based on my schedule' : formData.studyHours + ' hours per day'}
-${formData.studyTopics ? `- Focus topics:\n${formData.studyTopics}` : ''}
-
-🍳 MEALS & FOOD:
-- Preferences: ${formData.foodPrefs || 'No preferences'}
-- Batch cook duration: ${formData.batchDuration} day(s) worth of meals per batch recipe
-- Dietary filters: ${dietarySummary}
-- Non-work days: ${nonWorkDaysSummary} (use these for more flexible lunch/dinner timing; on workdays, keep meals around work blocks)
-- Breakfast rule: ${breakfastRule}
-- Meal ordering rule: Cook recipes from the "READY TO COOK" list first (all ingredients on hand). For any recipe listed under "RECIPES NEEDING SHOPPING", add a shopping block before it and only schedule it after that shopping trip.
-
-🏢 WORK MEALS:
-- ${workMealInstruction || 'Plan simple, portable meals for workdays as you see fit.'}
-
-🎯 HOBBIES:
-- Hobbies: ${formData.hobbies || 'None'}
-- Time per day: ${formData.hobbyAIDecide ? 'YOU DECIDE the optimal time' : formData.hobbyHours + ' hours'}
-
-✅ ONE-OFF TASKS & ERRANDS:
-${formData.oneOffTasks ? `These MUST be scheduled somewhere this week:\n${formData.oneOffTasks}` : 'No special tasks this week'}
-- Find appropriate time slots for each task
-- Spread them across the week logically
-
-😴 SLEEP & REST:
-- Preferred sleep: ${formData.sleepSchedule}
-${formData.includeRelax ? '- Include relaxation/free time blocks' : ''}
-
-${recipePromptSection}
-
-📋 WHAT I NEED FROM YOU:
-
-Create a COMPLETE 7-day schedule only. Output must be copy-paste ready for the app with ZERO extra sections or notes.
-
-FORMAT RULES:
-1) Each day header: === DAY — DD Mon YYYY ===
-2) Each block on its own line: HH:MM–HH:MM | EMOJI Title | Tasks
-3) Add the recipe ID next to meal titles, e.g., "🍳 Breakfast | Porridge oats with honey (R5)". Recipe IDs use the R1+ for defaults and CR1+ for custom shown in the database above.
-4) After all 7 days, add one blank line, then a SINGLE LINE with all recipe IDs you used, comma-separated, and NO heading (e.g., R4, CR2, R6).
-5) Do NOT include shopping lists, meal summaries, video links, or extra headings (specifically avoid: "🗓️ WEEKLY SCHEDULE", "🛒 SHOPPING LIST…", "🍽️ MEAL PLAN SUMMARY…", "📌 RECIPES USED", or any "If you want…" variants).
-6) Keep meals simple and quick. Use Kitchen Stock items first: ${homeInventorySummary || 'none'}.
-7) Use the exact time slots provided in the "FILL THESE TIME SLOTS" section above.
-8) Ensure meals that are ready-to-cook (100% ingredients available) happen BEFORE any recipes that need shopping. Place shopping before those missing-ingredient recipes so no meal is scheduled without its ingredients.
-${workMealInstruction ? `9) Work meal handling: ${workMealInstruction}` : ''}
-
-Generate the schedule now.
-    `.trim();
-    
-    console.log('✅ AI prompt generated');
-    console.log(`📏 Estimated tokens: ~${Math.round(prompt.length / 4)}`);
-    
-    // Save preFilledData for later use during import
-    sessionStorage.setItem('lastPreFilledData', JSON.stringify(preFilledData));
-    
-    // Show generated prompt
-    document.getElementById('generatedPromptText').value = prompt;
-    document.getElementById('generatedPromptSection').style.display = 'block';
-    
-    // Scroll to generated prompt
-    document.getElementById('generatedPromptSection').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-}
-
-function copyPrompt() {
-    const promptText = document.getElementById('generatedPromptText');
-    promptText.select();
-    document.execCommand('copy');
-    
-    // Show confirmation
-    const btn = event.target;
-    const originalText = btn.textContent;
-    btn.textContent = '✅ Copied to Clipboard!';
-    btn.style.background = '#27ae60';
-    
-    setTimeout(() => {
-        btn.textContent = originalText;
-        btn.style.background = '#4caf50';
-    }, 2500);
-    
-    // Show helpful alert
-    setTimeout(() => {
-        alert('✅ Prompt copied!\n\nNext steps:\n1. Go to ChatGPT.com or Claude.ai\n2. Paste and send\n3. Copy AI\'s complete response\n4. Click "📥 Step 2: Import AI Response"');
-    }, 100);
-}
-
 function parseAndCreateSchedule(response) {
     console.log('=== PARSING STARTED ===');
     
@@ -9020,7 +8361,7 @@ function parseAndCreateSchedule(response) {
     // Clean up the response - handle ALL dash types
     const originalLength = response.length;
     response = response.replace(/–/g, '-'); // En-dash
-    response = response.replace(/—/g, '-'); // Em-dash (this is what your AI uses!)
+    response = response.replace(/—/g, '-'); // Em-dash (common format)
     response = response.replace(/→/g, '-'); // Arrow
     response = response.replace(/>/g, '-'); // Greater than
     console.log('Cleaned dashes, length:', response.length, 'original:', originalLength);
@@ -9272,7 +8613,7 @@ function parseAndCreateSchedule(response) {
     console.log(`Total blocks parsed: ${totalBlocks}`);
     
     if (totalBlocks === 0 && detectedRecipeIDs.size === 0) {
-        throw new Error('No schedule blocks found in the response. Make sure the AI included time blocks like "07:00-07:30 | Title | Tasks"');
+        throw new Error('No schedule blocks found in the response. Make sure it includes time blocks like "07:00-07:30 | Title | Tasks"');
     }
     
     // If only recipe IDs were provided, just update recipes and shopping
@@ -9326,7 +8667,7 @@ function parseAndCreateSchedule(response) {
     
     // If no days were created, throw error
     if (Object.keys(dayData).length === 0) {
-        throw new Error('No days found in response. Make sure the AI response includes day headers like "=== MONDAY — 15 Dec 2025 ==="');
+        throw new Error('No days found in response. Make sure it includes day headers like "=== MONDAY — 15 Dec 2025 ==="');
     }
     
     // Extract and show shopping list
@@ -9411,6 +8752,59 @@ function parseAndCreateSchedule(response) {
         daysCreated: Object.keys(dayData).length,
         recipeCount: uniqueRecipeIDs.length
     };
+}
+
+function saveScheduleHistoryEntry(startDate, scheduleText, recipeIds = []) {
+    if (!startDate || !(startDate instanceof Date) || isNaN(startDate.getTime())) return;
+    const weekStart = startDate.toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+    });
+    const history = JSON.parse(localStorage.getItem('scheduleHistory_v2')) || [];
+    history.unshift({
+        id: `hist_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`,
+        weekStart,
+        scheduleText,
+        recipesUsed: Array.isArray(recipeIds) ? recipeIds : [],
+        generatedAt: new Date().toISOString()
+    });
+    localStorage.setItem('scheduleHistory_v2', JSON.stringify(history));
+}
+
+function buildWeekScheduleText(orderedDays) {
+    if (!Array.isArray(orderedDays)) return '';
+    const lines = [];
+    orderedDays.forEach(({ date }) => {
+        if (!date || isNaN(date.getTime())) return;
+        const dateStr = date.toLocaleDateString('en-GB', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+        });
+        const dayName = getDayName(date).toUpperCase();
+        lines.push(`=== ${dayName} — ${dateStr} ===`);
+        const dayKey = Object.keys(scheduleData.days || {}).find(key => {
+            return scheduleData.days[key].date === date.toISOString().split('T')[0];
+        });
+        const day = dayKey ? scheduleData.days[dayKey] : null;
+        if (!day || !Array.isArray(day.blocks)) {
+            lines.push('');
+            return;
+        }
+        const sortedBlocks = day.blocks.slice().sort((a, b) => {
+            const aStart = (a.time || '').split('-')[0] || '';
+            const bStart = (b.time || '').split('-')[0] || '';
+            return aStart.localeCompare(bStart);
+        });
+        sortedBlocks.forEach(block => {
+            const title = block.title || '';
+            const tasks = Array.isArray(block.tasks) && block.tasks.length > 0 ? block.tasks.join(', ') : '';
+            lines.push(`${block.time} | ${title} | ${tasks}`);
+        });
+        lines.push('');
+    });
+    return lines.join('\n').trim();
 }
 
 
@@ -9984,7 +9378,7 @@ console.log('✅ New manual add interface handlers loaded!');
 function openSettings() {
     document.getElementById('settingsModal').classList.add('active');
     loadSettingsStats();
-    loadScheduleHistory();
+    renderScheduleHistory();
 }
 
 /**
@@ -9998,31 +9392,20 @@ function closeSettings() {
  * Load and display usage statistics
  */
 function loadSettingsStats() {
-    // Generation count
-    const genData = JSON.parse(localStorage.getItem('aiGenerationCount')) || {
-        count: 0,
-        firstGenerated: null,
-        lastGenerated: null
-    };
-    
-    document.getElementById('statsGenerationCount').textContent = genData.count;
-    
-    // First generated
-    if (genData.firstGenerated) {
-        const date = new Date(genData.firstGenerated);
-        document.getElementById('statsFirstGenerated').textContent = date.toLocaleDateString('en-GB', {
+    const history = JSON.parse(localStorage.getItem('scheduleHistory_v2')) || [];
+    const sorted = history.slice().sort((a, b) => new Date(a.generatedAt) - new Date(b.generatedAt));
+
+    document.getElementById('statsGenerationCount').textContent = sorted.length;
+
+    if (sorted.length > 0) {
+        const first = new Date(sorted[0].generatedAt);
+        const last = new Date(sorted[sorted.length - 1].generatedAt);
+        document.getElementById('statsFirstGenerated').textContent = first.toLocaleDateString('en-GB', {
             day: 'numeric',
             month: 'short',
             year: 'numeric'
         });
-    } else {
-        document.getElementById('statsFirstGenerated').textContent = 'Never';
-    }
-    
-    // Last generated
-    if (genData.lastGenerated) {
-        const date = new Date(genData.lastGenerated);
-        document.getElementById('statsLastGenerated').textContent = date.toLocaleDateString('en-GB', {
+        document.getElementById('statsLastGenerated').textContent = last.toLocaleDateString('en-GB', {
             day: 'numeric',
             month: 'short',
             year: 'numeric',
@@ -10030,21 +9413,23 @@ function loadSettingsStats() {
             minute: '2-digit'
         });
     } else {
+        document.getElementById('statsFirstGenerated').textContent = 'Never';
         document.getElementById('statsLastGenerated').textContent = 'Never';
     }
     
     // Recipes tried
-    const history = JSON.parse(localStorage.getItem('recipeUsageHistory')) || {};
-    const recipesTried = Object.keys(history).length;
+    const recipeHistory = JSON.parse(localStorage.getItem('recipeUsageHistory')) || {};
+    const recipesTried = Object.keys(recipeHistory).length;
     document.getElementById('statsRecipesTried').textContent = recipesTried;
 }
 
 /**
  * Load and display schedule history
  */
-function loadScheduleHistory() {
+function renderScheduleHistory(containerId = 'scheduleHistoryList') {
     const history = JSON.parse(localStorage.getItem('scheduleHistory_v2')) || [];
-    const container = document.getElementById('scheduleHistoryList');
+    const container = document.getElementById(containerId);
+    if (!container) return;
     
     if (history.length === 0) {
         container.innerHTML = `
@@ -10756,11 +10141,16 @@ document.addEventListener('DOMContentLoaded', () => {
             medicineBtn.id = 'takeMedicineBtn';
             medicineBtn.type = 'button';
             medicineBtn.innerHTML = '💊 Take Medicine';
-            medicineBtn.style.cssText = 'width:100%;padding:14px;background:linear-gradient(135deg,#f093fb 0%,#f5576c 100%);color:white;border:none;border-radius:10px;font-size:16px;font-weight:700;cursor:pointer;margin-bottom:20px;box-shadow:0 4px 12px rgba(245,87,108,0.3);';
+            medicineBtn.className = 'default-action-btn medicine-action-btn';
             medicineBtn.onclick = openMedicineScheduleModal;
             
-            // Insert after the Add New Default Block button
-            addButton.parentNode.insertBefore(medicineBtn, addButton.nextSibling);
+            addButton.classList.add('default-action-btn', 'default-add-btn');
+            const actionsRow = addButton.closest('.default-actions-row');
+            if (actionsRow) {
+                actionsRow.appendChild(medicineBtn);
+            } else {
+                addButton.parentNode.insertBefore(medicineBtn, addButton.nextSibling);
+            }
             console.log('✅ Take Medicine button added');
         }
     }, 500);
