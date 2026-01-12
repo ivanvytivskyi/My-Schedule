@@ -1596,13 +1596,29 @@ function renderEvents() {
 }
 
 function openEventModal() {
-    document.getElementById('eventModal').classList.add('active');
+    const modal = document.getElementById('eventModal');
+    if (!modal) return;
+    modal.style.zIndex = '2100';
+    modal.classList.add('active');
+    updateFirstTimeGuideUI();
 }
 
 function closeEventModal() {
-    document.getElementById('eventModal').classList.remove('active');
+    const modal = document.getElementById('eventModal');
+    if (!modal) return;
+    modal.classList.remove('active');
+    modal.style.zIndex = '';
     document.getElementById('eventForm').reset();
+    updateFirstTimeGuideUI();
 }
+
+function openCookingConfig() {
+    if (typeof showCookingConfigModal === 'function') {
+        showCookingConfigModal(false);
+    }
+}
+
+window.openCookingConfig = openCookingConfig;
 
 document.getElementById('eventForm').addEventListener('submit', (e) => {
     e.preventDefault();
@@ -1615,6 +1631,10 @@ document.getElementById('eventForm').addEventListener('submit', (e) => {
     renderEvents();
     saveToLocalStorage();
     closeEventModal();
+    updateFirstTimeGuideUI();
+    if (isFirstTimeGuideActive()) {
+        launchFirstTimeGuide();
+    }
 });
 
 function deleteEvent(index) {
@@ -1622,6 +1642,7 @@ function deleteEvent(index) {
         scheduleData.events.splice(index, 1);
         renderEvents();
         saveToLocalStorage();
+        updateFirstTimeGuideUI();
     }
 }
 
@@ -1707,8 +1728,520 @@ function deleteDay(dayKey, event) {
 
 // Add Day/Week Modal
 document.getElementById('addDayBtn').addEventListener('click', () => {
-    document.getElementById('addDayModal').classList.add('active');
+    openAddDayModal();
 });
+
+function openAddDayModal() {
+    const modal = document.getElementById('addDayModal');
+    if (!modal) return;
+    modal.classList.add('active');
+
+    const hasDays = Object.keys(scheduleData.days || {}).length > 0;
+    const guide = document.getElementById('firstWeekGuide');
+    if (guide) {
+        guide.style.display = (!hasDays) ? 'block' : 'none';
+    }
+
+    if (!hasDays) {
+        switchAddType('week');
+    }
+
+    updateFirstTimeGuideUI();
+}
+
+const FIRST_TIME_GUIDE_STATE_KEY = 'firstTimeGuideState';
+
+const FIRST_TIME_DEFAULT_TEMPLATES = [
+    {
+        id: 'wake',
+        label: 'Wake up',
+        title: '☀️ Wake up',
+        time: '06:30-06:45',
+        tasks: ['Wake up', 'Drink water']
+    },
+    {
+        id: 'morning',
+        label: 'Morning routine',
+        title: '🌅 Morning Routine',
+        time: '06:45-07:30',
+        tasks: ['Wash up', 'Get dressed', 'Plan the day']
+    },
+    {
+        id: 'work',
+        label: 'Work or Study',
+        title: '💼 Work / Study',
+        time: '09:00-17:00',
+        tasks: ['Focus time', 'Key tasks']
+    },
+    {
+        id: 'meal',
+        label: 'Meal time',
+        title: '🍽️ Meal Time',
+        time: '12:30-13:00',
+        tasks: ['Lunch break']
+    },
+    {
+        id: 'bedtime',
+        label: 'Bedtime',
+        title: '🌙 Bedtime Routine',
+        time: '22:30-23:00',
+        tasks: ['Unwind', 'Prepare for sleep']
+    }
+];
+
+function normalizeFirstTimeGuideState(state) {
+    return {
+        currentStep: 1,
+        completed: [],
+        noEventsThisWeek: false,
+        noWorkThisWeek: false,
+        ...state
+    };
+}
+
+function getFirstTimeGuideState() {
+    return normalizeFirstTimeGuideState(JSON.parse(localStorage.getItem(FIRST_TIME_GUIDE_STATE_KEY) || '{}'));
+}
+
+function setFirstTimeGuideState(state) {
+    localStorage.setItem(FIRST_TIME_GUIDE_STATE_KEY, JSON.stringify(normalizeFirstTimeGuideState(state)));
+}
+
+function areAllFirstTimeStepsComplete(state) {
+    return [1, 2, 3, 4].every(step => state.completed.includes(step));
+}
+
+function setFirstTimeGuideStep(step) {
+    const state = getFirstTimeGuideState();
+    state.currentStep = step;
+    setFirstTimeGuideState(state);
+}
+
+function markFirstTimeStepComplete(step) {
+    if (step !== 4) {
+        updateFirstTimeGuideProgress();
+        return;
+    }
+    const state = getFirstTimeGuideState();
+    if (!state.completed.includes(step)) {
+        state.completed.push(step);
+    }
+    setFirstTimeGuideState(state);
+}
+
+function isFirstTimeGuideDismissed() {
+    return localStorage.getItem('firstTimeGuideDismissed') === 'true';
+}
+
+function isFirstTimeGuideActive() {
+    const state = getFirstTimeGuideState();
+    return !isFirstTimeGuideDismissed() && !areAllFirstTimeStepsComplete(state);
+}
+
+function getDefaultBlockCount() {
+    return Array.isArray(scheduleData.defaultBlocks) ? scheduleData.defaultBlocks.length : 0;
+}
+
+function getEventsCount() {
+    return Array.isArray(scheduleData.events) ? scheduleData.events.length : 0;
+}
+
+function hasValidWeekStartDate() {
+    const weekStartValue = document.getElementById('weekStartDateInput')?.value || document.getElementById('weekStartDate')?.value;
+    if (!weekStartValue) return false;
+    const parsed = typeof parseFlexibleDate === 'function' ? parseFlexibleDate(weekStartValue) : new Date(weekStartValue);
+    return parsed instanceof Date && !isNaN(parsed);
+}
+
+function getWorkScheduleStatus() {
+    const addWorkSchedule = document.getElementById('addWorkScheduleNew')?.checked || document.getElementById('addWorkSchedule')?.checked;
+    if (!addWorkSchedule) {
+        return { hasWorkSchedule: false, hasValidWorkSchedule: false };
+    }
+    let hasValid = false;
+    document.querySelectorAll('.day-work-start').forEach(startInput => {
+        const dayKey = startInput.dataset.day;
+        const endInput = document.querySelector(`.day-work-end[data-day="${dayKey}"]`);
+        if (startInput.value && endInput?.value && endInput.value > startInput.value) {
+            hasValid = true;
+        }
+    });
+    return { hasWorkSchedule: true, hasValidWorkSchedule: hasValid };
+}
+
+function updateFirstTimeGuideProgress() {
+    const state = getFirstTimeGuideState();
+    const defaultBlocksComplete = getDefaultBlockCount() >= 5;
+    const eventsCount = getEventsCount();
+    if (eventsCount > 0 && state.noEventsThisWeek) {
+        state.noEventsThisWeek = false;
+    }
+    const eventsComplete = eventsCount >= 1 || state.noEventsThisWeek;
+    const weekStartComplete = hasValidWeekStartDate();
+    const workStatus = getWorkScheduleStatus();
+    if (workStatus.hasWorkSchedule && state.noWorkThisWeek) {
+        state.noWorkThisWeek = false;
+    }
+    const workComplete = state.noWorkThisWeek || workStatus.hasValidWorkSchedule;
+    const workStepComplete = weekStartComplete && workComplete;
+
+    const completed = new Set(state.completed);
+    if (defaultBlocksComplete) {
+        completed.add(1);
+    } else {
+        completed.delete(1);
+    }
+    if (eventsComplete) {
+        completed.add(2);
+    } else {
+        completed.delete(2);
+    }
+    if (workStepComplete) {
+        completed.add(3);
+    } else {
+        completed.delete(3);
+    }
+    state.completed = Array.from(completed);
+
+    const nextStep = [1, 2, 3, 4].find(step => !state.completed.includes(step)) || 4;
+    state.currentStep = nextStep;
+    setFirstTimeGuideState(state);
+
+    if (areAllFirstTimeStepsComplete(state)) {
+        localStorage.setItem('firstTimeGuideDismissed', 'true');
+        const modal = document.getElementById('firstTimeGuideModal');
+        if (modal) modal.classList.remove('active');
+    }
+}
+
+function updateFirstTimeGuideUI() {
+    updateFirstTimeGuideProgress();
+    const state = getFirstTimeGuideState();
+    const stepText = {
+        1: {
+            title: 'Step 1: Daily Template',
+            body: 'Create at least 5 default blocks to build your daily backbone.',
+            primary: 'Open Daily Template',
+            action: 'startFirstTimeStepOne'
+        },
+        2: {
+            title: 'Step 2: Important Events',
+            body: 'Add at least 1 event, or confirm you have none this week.',
+            primary: 'Add an Event',
+            action: 'startFirstTimeStepTwo'
+        },
+        3: {
+            title: 'Step 3: Work & Dates',
+            body: 'Choose a week start date and confirm your work schedule (or no work this week).',
+            primary: 'Open Work & Week',
+            action: 'startFirstTimeStepThree'
+        },
+        4: {
+            title: 'Step 4: Create Your Week',
+            body: 'You are ready. Press Create Week to build your real schedule.',
+            primary: 'Open Week Creator',
+            action: 'startFirstTimeStepFour'
+        }
+    };
+
+    const stepIcons = [1, 2, 3, 4];
+    stepIcons.forEach(step => {
+        const el = document.getElementById(`firstTimeStep${step}`);
+        if (!el) return;
+        if (state.completed.includes(step)) {
+            el.style.background = '#dcfce7';
+            el.style.color = '#15803d';
+            el.textContent = `✓ ${el.textContent.replace(/^✓\s*/, '')}`;
+            return;
+        }
+        if (state.currentStep === step) {
+            el.style.background = '#e0f2fe';
+            el.style.color = '#0369a1';
+        } else {
+            el.style.background = '#f1f5f9';
+            el.style.color = '#94a3b8';
+        }
+    });
+
+    const body = document.getElementById('firstTimeGuideBody');
+    const actions = document.getElementById('firstTimeGuideActions');
+    if (!body || !actions) return;
+    const stepInfo = stepText[state.currentStep] || stepText[4];
+    body.innerHTML = `<strong>${stepInfo.title}</strong><br>${stepInfo.body}`;
+    actions.innerHTML = `
+        <button type="button" class="btn btn-secondary" onclick="skipFirstTimeGuide()">Skip for now</button>
+        <button type="button" class="btn btn-primary" onclick="${stepInfo.action}()">${stepInfo.primary}</button>
+    `;
+
+    updateFirstTimeDefaultsGuideUI();
+    updateFirstTimeEventsGuideUI();
+    updateFirstTimeWeekGuideUI();
+    updateResumeSetupButton();
+}
+
+function showFirstTimeGuideIfNeeded() {
+    const hasDays = Object.keys(scheduleData.days || {}).length > 0;
+    if (hasDays) return;
+    updateFirstTimeGuideProgress();
+    const dismissed = isFirstTimeGuideDismissed();
+    if (dismissed) return;
+    const modal = document.getElementById('firstTimeGuideModal');
+    if (modal) {
+        modal.classList.add('active');
+        updateFirstTimeGuideUI();
+    }
+}
+
+function launchFirstTimeGuide() {
+    const state = getFirstTimeGuideState();
+    if (areAllFirstTimeStepsComplete(state)) {
+        return;
+    }
+    localStorage.removeItem('firstTimeGuideDismissed');
+    updateFirstTimeGuideProgress();
+    const modal = document.getElementById('firstTimeGuideModal');
+    if (modal) {
+        modal.classList.add('active');
+        updateFirstTimeGuideUI();
+    }
+}
+
+function skipFirstTimeGuide() {
+    localStorage.setItem('firstTimeGuideDismissed', 'true');
+    const modal = document.getElementById('firstTimeGuideModal');
+    if (modal) modal.classList.remove('active');
+    openAddDayModal();
+}
+
+function startFirstTimeStepOne() {
+    setFirstTimeGuideStep(1);
+    const modal = document.getElementById('firstTimeGuideModal');
+    if (modal) modal.classList.remove('active');
+    openDefaultsModal();
+}
+
+function startFirstTimeStepTwo() {
+    setFirstTimeGuideStep(2);
+    const modal = document.getElementById('firstTimeGuideModal');
+    if (modal) modal.classList.remove('active');
+    openEventModal();
+}
+
+function startFirstTimeStepThree() {
+    setFirstTimeGuideStep(3);
+    const modal = document.getElementById('firstTimeGuideModal');
+    if (modal) modal.classList.remove('active');
+    openAddDayModal();
+    switchAddType('week');
+}
+
+function startFirstTimeStepFour() {
+    setFirstTimeGuideStep(4);
+    const modal = document.getElementById('firstTimeGuideModal');
+    if (modal) modal.classList.remove('active');
+    openAddDayModal();
+    switchAddType('week');
+}
+
+function setChecklistStatus(elementId, isComplete) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    el.textContent = isComplete ? '✓' : '○';
+    el.style.color = isComplete ? '#16a34a' : '#94a3b8';
+}
+
+function getDefaultsChecklistStatus() {
+    const blocks = scheduleData.defaultBlocks || [];
+    const matches = (keywords) => blocks.some(block => {
+        const text = `${block.title || ''} ${(block.tasks || []).join(' ')}`.toLowerCase();
+        return keywords.some(keyword => text.includes(keyword));
+    });
+    return {
+        wake: matches(['wake']),
+        morning: matches(['morning']),
+        work: matches(['work', 'study', 'class']),
+        meal: matches(['meal', 'breakfast', 'lunch', 'dinner', 'cook']),
+        bedtime: matches(['bed', 'sleep'])
+    };
+}
+
+function updateFirstTimeDefaultsGuideUI() {
+    const panel = document.getElementById('firstTimeDefaultsGuide');
+    if (!panel) return;
+    const state = getFirstTimeGuideState();
+    const isActive = isFirstTimeGuideActive() && state.currentStep === 1 && !state.completed.includes(1);
+    panel.style.display = isActive ? 'block' : 'none';
+    if (!isActive) return;
+
+    const count = getDefaultBlockCount();
+    const progress = document.getElementById('firstTimeDefaultsCount');
+    if (progress) {
+        progress.textContent = `${Math.min(count, 5)} / 5 default blocks created`;
+    }
+
+    const checklist = getDefaultsChecklistStatus();
+    setChecklistStatus('firstTimeDefaultsStatusWake', checklist.wake);
+    setChecklistStatus('firstTimeDefaultsStatusMorning', checklist.morning);
+    setChecklistStatus('firstTimeDefaultsStatusWork', checklist.work);
+    setChecklistStatus('firstTimeDefaultsStatusMeal', checklist.meal);
+    setChecklistStatus('firstTimeDefaultsStatusBedtime', checklist.bedtime);
+
+    const continueButton = document.getElementById('firstTimeDefaultsContinue');
+    if (continueButton) {
+        continueButton.disabled = count < 5;
+        continueButton.textContent = count < 5 ? 'Add at least 5 blocks to continue' : 'Continue to Events';
+    }
+}
+
+function updateFirstTimeEventsGuideUI() {
+    const panel = document.getElementById('firstTimeEventsGuide');
+    if (!panel) return;
+    const state = getFirstTimeGuideState();
+    const isActive = isFirstTimeGuideActive() && state.currentStep === 2 && !state.completed.includes(2);
+    panel.style.display = isActive ? 'block' : 'none';
+    if (!isActive) return;
+
+    const eventsCount = getEventsCount();
+    const countEl = document.getElementById('firstTimeEventsCount');
+    if (countEl) {
+        countEl.textContent = `${eventsCount} event${eventsCount === 1 ? '' : 's'} added`;
+    }
+    const noEventsCheckbox = document.getElementById('firstTimeNoEventsCheckbox');
+    if (noEventsCheckbox) {
+        noEventsCheckbox.checked = !!state.noEventsThisWeek;
+    }
+
+    const continueButton = document.getElementById('firstTimeEventsContinue');
+    if (continueButton) {
+        const canContinue = eventsCount >= 1 || state.noEventsThisWeek;
+        continueButton.disabled = !canContinue;
+        continueButton.textContent = canContinue ? 'Continue to Work & Week' : 'Add an event or choose “No events”';
+    }
+}
+
+function updateFirstTimeWeekGuideUI() {
+    const panel = document.getElementById('firstTimeWeekGuide');
+    if (!panel) return;
+    const state = getFirstTimeGuideState();
+    const isActive = isFirstTimeGuideActive() && state.currentStep === 3 && !state.completed.includes(3);
+    panel.style.display = isActive ? 'block' : 'none';
+    if (!isActive) return;
+
+    const weekDateReady = hasValidWeekStartDate();
+    const workStatus = getWorkScheduleStatus();
+    const noWorkCheckbox = document.getElementById('firstTimeNoWorkCheckbox');
+    if (noWorkCheckbox) {
+        noWorkCheckbox.checked = !!state.noWorkThisWeek;
+    }
+
+    setChecklistStatus('firstTimeWeekDateStatus', weekDateReady);
+    setChecklistStatus('firstTimeWeekWorkDecisionStatus', state.noWorkThisWeek || workStatus.hasWorkSchedule);
+    setChecklistStatus('firstTimeWeekWorkShiftStatus', state.noWorkThisWeek || workStatus.hasValidWorkSchedule);
+
+    const continueButton = document.getElementById('firstTimeWeekContinue');
+    if (continueButton) {
+        const canContinue = weekDateReady && (state.noWorkThisWeek || workStatus.hasValidWorkSchedule);
+        continueButton.disabled = !canContinue;
+        continueButton.textContent = canContinue ? 'Continue to Create Week' : 'Complete the checklist to continue';
+    }
+}
+
+function updateResumeSetupButton() {
+    const resumeButton = document.getElementById('resumeSetupBtn');
+    if (!resumeButton) return;
+    updateFirstTimeGuideProgress();
+    const state = getFirstTimeGuideState();
+    const shouldShow = isFirstTimeGuideDismissed() && !areAllFirstTimeStepsComplete(state);
+    resumeButton.style.display = shouldShow ? 'inline-flex' : 'none';
+}
+
+function startGuidedDefaultTemplate(templateId) {
+    const template = FIRST_TIME_DEFAULT_TEMPLATES.find(item => item.id === templateId);
+    if (!template) return;
+    openAddDefaultModal();
+    const [start, end] = template.time.split('-');
+    const startInput = document.getElementById('defaultStartTime');
+    const endInput = document.getElementById('defaultEndTime');
+    const titleInput = document.getElementById('defaultTitle');
+    const tasksInput = document.getElementById('defaultTasks');
+    if (startInput) startInput.value = start;
+    if (endInput) endInput.value = end;
+    if (titleInput) titleInput.value = template.title;
+    if (tasksInput) tasksInput.value = template.tasks.join('\n');
+    document.querySelectorAll('.default-day-checkbox').forEach(checkbox => {
+        checkbox.checked = true;
+    });
+}
+
+function selectSuggestedEvent(name) {
+    const input = document.getElementById('eventName');
+    if (input) {
+        input.value = name;
+        input.focus();
+    }
+}
+
+function setFirstTimeNoEvents(choice) {
+    const state = getFirstTimeGuideState();
+    state.noEventsThisWeek = choice;
+    setFirstTimeGuideState(state);
+    updateFirstTimeGuideUI();
+}
+
+function setFirstTimeNoWork(choice) {
+    const state = getFirstTimeGuideState();
+    state.noWorkThisWeek = choice;
+    setFirstTimeGuideState(state);
+    const workCheckbox = document.getElementById('addWorkScheduleNew');
+    if (choice && workCheckbox) {
+        workCheckbox.checked = false;
+        workCheckbox.dispatchEvent(new Event('change'));
+    }
+    updateFirstTimeGuideUI();
+}
+
+function finishDefaultsGuide() {
+    updateFirstTimeGuideProgress();
+    closeDefaultsModal();
+}
+
+function finishEventsGuide() {
+    updateFirstTimeGuideProgress();
+    closeEventModal();
+    if (!isFirstTimeGuideDismissed()) {
+        launchFirstTimeGuide();
+    }
+}
+
+function finishWeekGuide() {
+    updateFirstTimeGuideProgress();
+    closeAddDayModal();
+    if (!isFirstTimeGuideDismissed()) {
+        launchFirstTimeGuide();
+    }
+}
+
+window.skipFirstTimeGuide = skipFirstTimeGuide;
+window.startFirstTimeStepOne = startFirstTimeStepOne;
+window.launchFirstTimeGuide = launchFirstTimeGuide;
+window.startFirstTimeStepTwo = startFirstTimeStepTwo;
+window.startFirstTimeStepThree = startFirstTimeStepThree;
+window.startFirstTimeStepFour = startFirstTimeStepFour;
+window.markFirstTimeStepComplete = markFirstTimeStepComplete;
+window.updateFirstTimeGuideUI = updateFirstTimeGuideUI;
+window.startGuidedDefaultTemplate = startGuidedDefaultTemplate;
+window.selectSuggestedEvent = selectSuggestedEvent;
+window.setFirstTimeNoEvents = setFirstTimeNoEvents;
+window.setFirstTimeNoWork = setFirstTimeNoWork;
+window.finishDefaultsGuide = finishDefaultsGuide;
+window.finishEventsGuide = finishEventsGuide;
+window.finishWeekGuide = finishWeekGuide;
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', showFirstTimeGuideIfNeeded);
+} else {
+    showFirstTimeGuideIfNeeded();
+}
 
 function closeAddDayModal() {
     document.getElementById('addDayModal').classList.remove('active');
@@ -1826,6 +2359,8 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Only close modal if operation succeeded
             if (success) {
+                markFirstTimeStepComplete(4);
+                updateFirstTimeGuideUI();
                 closeAddDayModal();
             }
         });
@@ -1843,6 +2378,24 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         console.error('❌ INIT ERROR: addDayForm element not found in DOM!');
     }
+});
+
+document.addEventListener('DOMContentLoaded', () => {
+    const weekStartDateInput = document.getElementById('weekStartDateInput');
+    if (weekStartDateInput) {
+        weekStartDateInput.addEventListener('input', updateFirstTimeGuideUI);
+    }
+
+    const addWorkScheduleNew = document.getElementById('addWorkScheduleNew');
+    if (addWorkScheduleNew) {
+        addWorkScheduleNew.addEventListener('change', updateFirstTimeGuideUI);
+    }
+
+    document.addEventListener('change', (event) => {
+        if (event.target.classList.contains('day-work-start') || event.target.classList.contains('day-work-end')) {
+            updateFirstTimeGuideUI();
+        }
+    });
 });
 
 function addSingleDay() {
@@ -2145,6 +2698,99 @@ async function addWeek() {
         const newMins = totalMins % 60;
         return `${String(newHours).padStart(2, '0')}:${String(newMins).padStart(2, '0')}`;
     }
+
+    function isFixedBlockForMeals(block) {
+        const title = (block.title || '').toLowerCase();
+        if (isWorkBlock(block)) return true;
+        if (title.includes('commute')) return true;
+        if (title.includes('sleep')) return true;
+        if (block.type === 'shopping' || block.type === 'travel-shopping') return true;
+        if (isCookingBlock(block)) return true;
+        if (isLunchBlock(block) || isDinnerBlock(block) || isBreakfastBlock(block)) return true;
+        return false;
+    }
+
+    function shiftBlocksAfterMeal(blocks, date) {
+        const dayWindowStart = timeStrToMinutes(scheduleData?.dayWindow?.start || '07:00');
+        const dayWindowEnd = timeStrToMinutes(scheduleData?.dayWindow?.end || '23:00');
+
+        const getChain = (type) => {
+            const mealBlock = blocks.find(b => mealTypeOf(b) === type && !b.isCookingBlock);
+            const cookBlock = blocks.find(b => b.isCookingBlock && mealTypeOf(b) === type);
+            if (!mealBlock || !cookBlock) return null;
+            const mealRange = getBlockTimeRange(mealBlock);
+            const cookRange = getBlockTimeRange(cookBlock);
+            const start = Math.min(mealRange.start, cookRange.start);
+            const end = Math.max(mealRange.end, cookRange.end);
+            if (isNaN(start) || isNaN(end)) return null;
+            return { start, end, mealBlock, cookBlock };
+        };
+
+        const relocateBlock = (block, searchStart) => {
+            const duration = getBlockDurationMinutes(block);
+            if (!duration) return false;
+
+            const intervals = [];
+            blocks.forEach(other => {
+                if (other === block) return;
+                const { start, end } = getBlockTimeRange(other);
+                if (isNaN(start) || isNaN(end)) return;
+                if (end < start) {
+                    intervals.push({ start, end: 24 * 60 });
+                    intervals.push({ start: 0, end });
+                } else {
+                    intervals.push({ start, end });
+                }
+            });
+
+            const merged = mergeIntervals(intervals);
+            let cursor = Math.max(searchStart, dayWindowStart);
+
+            for (const interval of merged) {
+                if (interval.end <= cursor) continue;
+                if (interval.start > cursor && interval.start - cursor >= duration) {
+                    const newStart = cursor;
+                    const newEnd = newStart + duration;
+                    block.time = `${formatMinutesToTime(newStart)}-${formatMinutesToTime(newEnd)}`;
+                    if (block.startDateTime && block.endDateTime) {
+                        block.startDateTime = createDateTime(date, formatMinutesToTime(newStart)).toISOString();
+                        block.endDateTime = createDateTime(date, formatMinutesToTime(newEnd)).toISOString();
+                    }
+                    return true;
+                }
+                cursor = Math.max(cursor, interval.end);
+            }
+
+            if (dayWindowEnd - cursor >= duration) {
+                const newStart = cursor;
+                const newEnd = newStart + duration;
+                block.time = `${formatMinutesToTime(newStart)}-${formatMinutesToTime(newEnd)}`;
+                if (block.startDateTime && block.endDateTime) {
+                    block.startDateTime = createDateTime(date, formatMinutesToTime(newStart)).toISOString();
+                    block.endDateTime = createDateTime(date, formatMinutesToTime(newEnd)).toISOString();
+                }
+                return true;
+            }
+
+            return false;
+        };
+
+        ['lunch', 'dinner'].forEach(type => {
+            const chain = getChain(type);
+            if (!chain) return;
+            blocks.forEach(block => {
+                if (block === chain.mealBlock || block === chain.cookBlock) return;
+                if (isFixedBlockForMeals(block)) return;
+                const range = getBlockTimeRange(block);
+                if (isNaN(range.start) || isNaN(range.end)) return;
+                const overlaps = range.start < chain.end && range.end > chain.start;
+                if (!overlaps) return;
+                relocateBlock(block, chain.end);
+            });
+        });
+
+        return blocks;
+    }
     
     // NEW: Helper function to create datetime from date and time
     function createDateTime(date, timeStr) {
@@ -2270,92 +2916,6 @@ async function addWeek() {
     
     // Analyze stock coverage
     const stockAnalysis = analyzeStockCoverage(assignedRecipes);
-    
-    // Check if shopping is needed
-    let shoppingData = null;
-    if (stockAnalysis.needsShoppingRecipes.length > 0) {
-        console.log(`   ⚠️ Shopping needed! Coverage: ${stockAnalysis.coverageDays} days`);
-        console.log(`   Need to shop before Day ${stockAnalysis.needsShoppingFrom}`);
-        
-        // FIX: Add work schedule info to orderedDays BEFORE finding slots
-        // This is needed so the slot finder can check work conflicts
-        orderedDays.forEach((day, idx) => {
-            const dayOfWeek = day.date.getDay();
-            if (addWorkSchedule && workSchedule[dayOfWeek]) {
-                const work = workSchedule[dayOfWeek];
-                
-                // Calculate actual start time including commute prep + commute
-                let actualStartTime = work.start;
-                if (addCommute) {
-                    // Subtract commute time
-                    const workStartMins = timeStrToMinutes(work.start);
-                    let commuteStartMins = workStartMins - commuteDuration;
-                    
-                    // Subtract commute prep time
-                    if (addCommutePrep) {
-                        commuteStartMins -= commutePrepDuration;
-                    }
-                    
-                    actualStartTime = formatMinutesToTime(commuteStartMins);
-                }
-                
-                day.work = `${actualStartTime}-${work.end}`;
-                day.workActual = `${work.start}-${work.end}`; // Store actual work time separately
-            }
-        });
-        
-        // Find available shopping slots
-        const minShoppingDuration = 90; // 15min travel + 60min shop + 15min travel
-        const availableSlots = findAvailableShoppingSlots(
-            orderedDays, 
-            stockAnalysis.needsShoppingFrom, 
-            minShoppingDuration
-        );
-        
-        console.log(`   Found ${availableSlots.length} available time slots`);
-        
-        // Show shopping modal and wait for user decision
-        try {
-            shoppingData = await showShoppingModal(stockAnalysis, availableSlots, orderedDays);
-            
-            if (shoppingData.selected) {
-                console.log(`   ✓ User selected: ${shoppingData.slot.dayName} at ${shoppingData.slot.startTime}`);
-                
-                // Add shopping blocks to selected day
-                const success = addShoppingBlocks(
-                    orderedDays,
-                    shoppingData.slot.dayIndex,
-                    shoppingData.slot.startTime,
-                    shoppingData.travelMins,
-                    shoppingData.shopMins
-                );
-                
-                if (success) {
-                    // Generate shopping list
-                    const shoppingList = generateShoppingListFromRecipes(stockAnalysis.needsShoppingRecipes);
-                    console.log(`   ✓ Shopping list generated: ${shoppingList.items.length} items to buy`);
-                    
-                    // Store shopping list for later display
-                    window.currentWeekShoppingList = shoppingList;
-                }
-            } else if (shoppingData.skipped) {
-                console.log(`   ⚠️ User skipped shopping - recipes may not be cookable`);
-            }
-        } catch (error) {
-            console.error('❌ Error in shopping modal:', error);
-            alert('⚠️ Shopping integration error. Week will be created without shopping blocks.');
-        }
-    } else {
-        console.log(`   ✓ All recipes can be cooked with current stock - no shopping needed!`);
-    }
-    
-    console.log('🛒 CHECKPOINT 4: Shopping integration complete');
-    
-    // ========================================
-    // END SMART SHOPPING INTEGRATION
-    // ========================================
-    
-    
     let createdDays = 0;
     for (let i = 0; i < orderedDays.length; i++) {
         const { date } = orderedDays[i];
@@ -3213,6 +3773,7 @@ async function addWeek() {
         // Never moves Work start time, compresses blocks if needed
         blocks = pushForwardBreakfastChain(blocks, date);
         blocks = enforceMealWindows(blocks, isWorkDay, date);
+        blocks = shiftBlocksAfterMeal(blocks, date);
         
         // *** WORK-OVERLAP RESOLUTION ***
         // Check for conflicts with work hours and resolve them
@@ -3253,6 +3814,7 @@ async function addWeek() {
             motivation: '✨ Make today count!',
             blocks: dedupeSleepBlocks(blocks)
         };
+        orderedDays[i].blocks = scheduleData.days[dayKey].blocks;
         createdDays += 1;
         } catch (error) {
             console.error(`❌ Failed to build schedule for ${dayLabel}:`, error);
@@ -3265,6 +3827,7 @@ async function addWeek() {
                     motivation: '✨ Make today count!',
                     blocks: dedupeSleepBlocks(blocks)
                 };
+                orderedDays[i].blocks = scheduleData.days[dayKey].blocks;
                 createdDays += 1;
             } catch (fallbackError) {
                 console.error(`❌ Failed to save fallback schedule for ${dayLabel}:`, fallbackError);
@@ -3285,6 +3848,76 @@ async function addWeek() {
     if (createdDays === 0) {
         throw new Error('No days were created for the requested week.');
     }
+
+    // Check if shopping is needed after schedule blocks are created
+    let shoppingData = null;
+    if (stockAnalysis.needsShoppingRecipes.length > 0) {
+        console.log(`   ⚠️ Shopping needed! Coverage: ${stockAnalysis.coverageDays} days`);
+        console.log(`   Need to shop before Day ${stockAnalysis.needsShoppingFrom}`);
+
+        // Add work schedule info so the slot finder can check work conflicts
+        orderedDays.forEach((day) => {
+            const dayOfWeek = day.date.getDay();
+            if (addWorkSchedule && workSchedule[dayOfWeek]) {
+                const work = workSchedule[dayOfWeek];
+
+                // Calculate actual start time including commute prep + commute
+                let actualStartTime = work.start;
+                if (addCommute) {
+                    const workStartMins = timeStrToMinutes(work.start);
+                    let commuteStartMins = workStartMins - commuteDuration;
+
+                    if (addCommutePrep) {
+                        commuteStartMins -= commutePrepDuration;
+                    }
+
+                    actualStartTime = formatMinutesToTime(commuteStartMins);
+                }
+
+                day.work = `${actualStartTime}-${work.end}`;
+                day.workActual = `${work.start}-${work.end}`;
+            }
+        });
+
+        // Show shopping modal and wait for user decision
+        try {
+            shoppingData = await showShoppingModal(stockAnalysis, orderedDays, {
+                prepMins: 10,
+                travelMins: 15,
+                shopMins: 60,
+                unpackMins: 10
+            });
+
+            if (shoppingData.selected) {
+                console.log(`   ✓ User selected: ${shoppingData.slot.dayName} at ${shoppingData.slot.shoppingStartTime || shoppingData.slot.startTime}`);
+
+                const success = addShoppingBlocks(
+                    orderedDays,
+                    shoppingData.slot.dayIndex,
+                    shoppingData.slot.shoppingStartTime || shoppingData.slot.startTime,
+                    shoppingData.prepMins,
+                    shoppingData.travelMins,
+                    shoppingData.shopMins,
+                    shoppingData.unpackMins
+                );
+
+                if (success) {
+                    const shoppingList = generateShoppingListFromRecipes(stockAnalysis.needsShoppingRecipes);
+                    console.log(`   ✓ Shopping list generated: ${shoppingList.items.length} items to buy`);
+                    window.currentWeekShoppingList = shoppingList;
+                }
+            } else if (shoppingData.skipped) {
+                console.log(`   ⚠️ User skipped shopping - recipes may not be cookable`);
+            }
+        } catch (error) {
+            console.error('❌ Error in shopping modal:', error);
+            alert('⚠️ Shopping integration error. Week will be created without shopping blocks.');
+        }
+    } else {
+        console.log(`   ✓ All recipes can be cooked with current stock - no shopping needed!`);
+    }
+
+    console.log('🛒 CHECKPOINT 4: Shopping integration complete');
 
     try {
         renderDayTabs();
@@ -6866,7 +7499,7 @@ function analyzeStockCoverage(allRecipes) {
 }
 
 // Find available time slots for shopping
-function findAvailableShoppingSlots(orderedDays, beforeDayIndex, minDurationMins = 90) {
+function findAvailableShoppingSlots(orderedDays, beforeDayIndex, minDurationMins = 90, minDaysToShow = 2) {
     console.log(`🔍 Finding shopping slots before Day ${beforeDayIndex}...`);
     
     const availableSlots = [];
@@ -6973,90 +7606,99 @@ function findAvailableShoppingSlots(orderedDays, beforeDayIndex, minDurationMins
             ? defaultReservedRanges
             : fallbackRanges;
         
-        // Check each hour from 08:00 to 21:00
-        for (let hour = 8; hour <= 21; hour++) { // Changed from 6 to 8 (start after morning routine)
-            const startMins = hour * 60;
-            const endMins = startMins + minDurationMins;
-            
-            // Don't go past 22:00 (evening routine starts)
-            if (endMins > 22 * 60) continue;
-            
-            // Check if overlaps with work
-            if (workStart && workEnd) {
-                if (startMins < workEnd && endMins > workStart) {
-                    continue; // Overlaps work
-                }
+        const busyIntervals = [];
+        const addBusyRange = (start, end) => {
+            if (isNaN(start) || isNaN(end)) return;
+            if (end < start) {
+                busyIntervals.push({ start, end: 24 * 60 });
+                busyIntervals.push({ start: 0, end });
+                return;
             }
-            
-            // Check if overlaps with default block times
-            let overlapsDefault = false;
-            for (const range of allReservedRanges) {
-                if (startMins < range.end && endMins > range.start) {
-                    overlapsDefault = true;
-                    break;
-                }
+            busyIntervals.push({ start, end });
+        };
+
+        // Work schedule (includes commute/prep)
+        if (workStart && workEnd) {
+            addBusyRange(workStart, workEnd);
+        }
+
+        // Default blocks (or fallbacks)
+        allReservedRanges.forEach(range => addBusyRange(range.start, range.end));
+
+        // Existing blocks
+        if (day.blocks) {
+            day.blocks.forEach(block => {
+                const [blockStart, blockEnd] = block.time.split('-');
+                addBusyRange(timeStrToMinutes(blockStart), timeStrToMinutes(blockEnd));
+            });
+        }
+
+        const mergedBusy = mergeIntervals(busyIntervals);
+        const dayWindowStart = timeStrToMinutes(scheduleData?.dayWindow?.start || '07:00');
+        const dayWindowEnd = timeStrToMinutes(scheduleData?.dayWindow?.end || '23:00');
+        const gaps = [];
+        let cursor = dayWindowStart;
+        mergedBusy.forEach(interval => {
+            if (interval.end <= dayWindowStart || interval.start >= dayWindowEnd) return;
+            const clampedStart = Math.max(interval.start, dayWindowStart);
+            const clampedEnd = Math.min(interval.end, dayWindowEnd);
+            if (clampedStart > cursor) {
+                gaps.push({
+                    start: cursor,
+                    end: clampedStart,
+                    duration: clampedStart - cursor
+                });
             }
-            if (overlapsDefault) continue;
-            
-            // Check if overlaps with existing blocks
-            let hasConflict = false;
-            if (day.blocks) {
-                for (const block of day.blocks) {
-                    const [blockStart, blockEnd] = block.time.split('-');
-                    const blockStartMins = timeStrToMinutes(blockStart);
-                    const blockEndMins = timeStrToMinutes(blockEnd);
-                    
-                    if (startMins < blockEndMins && endMins > blockStartMins) {
-                        hasConflict = true;
-                        break;
-                    }
-                }
-            }
-            
-            if (hasConflict) continue;
-            
-            // This slot is available!
-            const durationMins = endMins - startMins;
-            let label = "";
-            
-            // Use actual work time for labels (excludes commute)
-            if (actualWorkStart && hour * 60 >= actualWorkEnd) {
-                label = "After work";
-            } else if (actualWorkStart && endMins <= actualWorkStart) {
-                label = "Before work";
+            cursor = Math.max(cursor, clampedEnd);
+        });
+        if (cursor < dayWindowEnd) {
+            gaps.push({
+                start: cursor,
+                end: dayWindowEnd,
+                duration: dayWindowEnd - cursor
+            });
+        }
+
+        gaps.forEach(gap => {
+            if (gap.duration < minDurationMins) return;
+
+            let label = '';
+            if (actualWorkStart && gap.start >= actualWorkEnd) {
+                label = 'After work';
+            } else if (actualWorkStart && gap.end <= actualWorkStart) {
+                label = 'Before work';
             } else if (!actualWorkStart) {
-                if (hour < 12) label = "Morning";
-                else if (hour < 17) label = "Afternoon";
-                else label = "Evening";
+                if (gap.start < timeStrToMinutes('12:00')) label = 'Morning';
+                else if (gap.start < timeStrToMinutes('17:00')) label = 'Afternoon';
+                else label = 'Evening';
             }
-            
-            label += `, ${Math.floor(durationMins / 60)}h available`;
-            
+
+            label += `${label ? ', ' : ''}Free window: ${formatMinutesAsHoursAndMinutes(gap.duration)}`;
+
             availableSlots.push({
                 dayIndex: dayIndex,
                 dayName: dayName,
                 date: date,
-                startTime: formatMinutesToTime(startMins),
-                endTime: formatMinutesToTime(endMins),
-                durationMins: durationMins,
+                windowStartMins: gap.start,
+                windowEndMins: gap.end,
+                windowStartTime: formatMinutesToTime(gap.start),
+                windowEndTime: formatMinutesToTime(gap.end),
+                durationMins: gap.duration,
                 label: label
             });
-            
-            // FIX: Show more slots (6 instead of 2) for better options
-            if (availableSlots.filter(s => s.dayIndex === dayIndex).length >= 6) {
-                break;
-            }
-        }
+        });
     };
 
-    // Search each day until the deadline
-    for (let dayIndex = 0; dayIndex < searchUntilDay && dayIndex < orderedDays.length; dayIndex++) {
+    const dayCount = Math.max(minDaysToShow, searchUntilDay);
+
+    // Search each day until the deadline (or minimum days)
+    for (let dayIndex = 0; dayIndex < dayCount && dayIndex < orderedDays.length; dayIndex++) {
         collectSlotsForDay(dayIndex);
     }
 
     // If none found before the deadline, search the remaining days as a fallback
     if (availableSlots.length === 0) {
-        for (let dayIndex = searchUntilDay; dayIndex < orderedDays.length; dayIndex++) {
+        for (let dayIndex = dayCount; dayIndex < orderedDays.length; dayIndex++) {
             collectSlotsForDay(dayIndex);
         }
     }
@@ -7066,9 +7708,9 @@ function findAvailableShoppingSlots(orderedDays, beforeDayIndex, minDurationMins
 }
 
 // Add shopping blocks (travel + shopping + travel) to a specific day
-function addShoppingBlocks(orderedDays, dayIndex, startTime, travelMins = 15, shopMins = 60) {
+function addShoppingBlocks(orderedDays, dayIndex, startTime, prepMins = 10, travelMins = 15, shopMins = 60, unpackMins = 10) {
     console.log(`🛒 Adding shopping blocks to Day ${dayIndex} at ${startTime}`);
-    console.log(`   Travel: ${travelMins}min, Shopping: ${shopMins}min`);
+    console.log(`   Prep: ${prepMins}min, Travel: ${travelMins}min, Shopping: ${shopMins}min, Unpack: ${unpackMins}min`);
     
     const day = orderedDays[dayIndex];
     if (!day) {
@@ -7078,13 +7720,27 @@ function addShoppingBlocks(orderedDays, dayIndex, startTime, travelMins = 15, sh
     
     const startMins = timeStrToMinutes(startTime);
     
-    // Calculate times
-    const travelToStart = startMins - travelMins;
-    const travelToEnd = startMins;
-    const shopStart = startMins;
-    const shopEnd = startMins + shopMins;
+    // Calculate times (startTime represents prep start)
+    const prepStart = startMins;
+    const prepEnd = prepStart + prepMins;
+    const travelToStart = prepEnd;
+    const travelToEnd = travelToStart + travelMins;
+    const shopStart = travelToEnd;
+    const shopEnd = shopStart + shopMins;
     const travelHomeStart = shopEnd;
     const travelHomeEnd = shopEnd + travelMins;
+    const unpackStart = travelHomeEnd;
+    const unpackEnd = unpackStart + unpackMins;
+
+    const prepBlock = {
+        title: "🧾 Get Ready for Shopping",
+        time: `${formatMinutesToTime(prepStart)}-${formatMinutesToTime(prepEnd)}`,
+        tasks: ["Get bags", "Grab shopping list", "Prepare to leave"],
+        note: '',
+        video: '',
+        color: "#7C3AED",
+        type: "shopping-prep"
+    };
     
     // Create blocks
     const travelToBlock = {
@@ -7117,12 +7773,24 @@ function addShoppingBlocks(orderedDays, dayIndex, startTime, travelMins = 15, sh
         color: "#FF9800",
         type: "travel-shopping"
     };
+
+    const unpackBlock = {
+        title: "📦 Unpack Groceries",
+        time: `${formatMinutesToTime(unpackStart)}-${formatMinutesToTime(unpackEnd)}`,
+        tasks: ["Unpack bags", "Put items away", "Clean up"],
+        note: '',
+        video: '',
+        color: "#10B981",
+        type: "shopping-unpack"
+    };
     
     // Add blocks to day
     if (!day.blocks) day.blocks = [];
+    if (prepMins > 0) day.blocks.push(prepBlock);
     day.blocks.push(travelToBlock);
     day.blocks.push(shoppingBlock);
     day.blocks.push(travelHomeBlock);
+    if (unpackMins > 0) day.blocks.push(unpackBlock);
     
     // Sort blocks by time
     day.blocks.sort((a, b) => {
@@ -7131,7 +7799,7 @@ function addShoppingBlocks(orderedDays, dayIndex, startTime, travelMins = 15, sh
         return aStart - bStart;
     });
     
-    console.log(`   ✓ Added 3 blocks: Travel → Shopping → Travel`);
+    console.log(`   ✓ Added shopping blocks with prep/travel/shop/travel/unpack`);
     return true;
 }
 
@@ -7222,7 +7890,7 @@ function generateShoppingListFromRecipes(recipes) {
 }
 
 // Show shopping modal and wait for user selection
-function showShoppingModal(stockAnalysis, availableSlots, orderedDays) {
+function showShoppingModal(stockAnalysis, orderedDays, defaultDurations = {}) {
     return new Promise((resolve) => {
         console.log('🛒 Showing shopping modal...');
         
@@ -7235,6 +7903,10 @@ function showShoppingModal(stockAnalysis, availableSlots, orderedDays) {
         const coverageDays = stockAnalysis.coverageDays;
         const needsFrom = stockAnalysis.needsShoppingFrom;
         const needsRecipes = stockAnalysis.needsShoppingRecipes.slice(0, 5); // Show first 5
+        const initialPrepMins = Number.isFinite(defaultDurations.prepMins) ? defaultDurations.prepMins : 10;
+        const initialTravelMins = Number.isFinite(defaultDurations.travelMins) ? defaultDurations.travelMins : 15;
+        const initialShopMins = Number.isFinite(defaultDurations.shopMins) ? defaultDurations.shopMins : 60;
+        const initialUnpackMins = Number.isFinite(defaultDurations.unpackMins) ? defaultDurations.unpackMins : 10;
         
         // Format dates for display
         const firstDay = orderedDays[0];
@@ -7282,64 +7954,56 @@ function showShoppingModal(stockAnalysis, availableSlots, orderedDays) {
                         </ul>
                     </div>
                     
-                    ${availableSlots.length > 0 ? `
-                        <div style="margin-bottom: 20px;">
-                            <h3 style="font-size: 16px; margin-bottom: 10px;">Available Time Slots:</h3>
-                            <div id="shoppingSlotsList" style="max-height: 200px; overflow-y: auto;">
-                                ${availableSlots.map((slot, idx) => {
-                                    const slotDate = slot.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-                                    return `
-                                    <label style="display: block; padding: 12px; margin-bottom: 8px; 
-                                           border: 2px solid #ddd; border-radius: 8px; cursor: pointer;
-                                           transition: all 0.2s;" class="shopping-slot-option">
-                                        <input type="radio" name="shoppingSlot" value="${idx}" 
-                                               style="margin-right: 10px;">
-                                        <strong>${slot.dayName} ${slotDate}</strong><br>
-                                        <span style="margin-left: 26px;">${slot.startTime}-${slot.endTime}</span>
-                                        <br>
-                                        <small style="color: #666; margin-left: 26px;">${slot.label}</small>
-                                    </label>
-                                `}).join('')}
-                            </div>
-                        </div>
-                        
-                        <div style="margin-bottom: 20px; padding: 15px; background: #f5f5f5; border-radius: 8px;">
-                            <h3 style="font-size: 16px; margin-bottom: 10px;">Customize:</h3>
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
-                                <div>
-                                    <label style="display: block; margin-bottom: 5px;">Travel time (each way):</label>
-                                    <input type="number" id="shoppingTravelTime" value="15" min="5" max="60" 
-                                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                                    <small style="color: #666;">minutes</small>
-                                </div>
-                                <div>
-                                    <label style="display: block; margin-bottom: 5px;">Shopping duration:</label>
-                                    <input type="number" id="shoppingDuration" value="60" min="15" max="180" 
-                                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                                    <small style="color: #666;">minutes</small>
-                                </div>
-                            </div>
-                        </div>
-                    ` : `
-                        <div style="padding: 20px; background: #fff3e0; border-radius: 8px; margin-bottom: 20px;">
+                    <div style="margin-bottom: 20px;">
+                        <h3 style="font-size: 16px; margin-bottom: 10px;">Available Time Slots:</h3>
+                        <div id="shoppingSlotsList" style="max-height: 200px; overflow-y: auto;"></div>
+                        <div id="shoppingSlotsEmpty" style="padding: 20px; background: #fff3e0; border-radius: 8px; display: none;">
                             <p style="margin: 0; color: #e65100;">
                                 ⚠️ No available time slots found in your schedule before ${needsFromDate}.
                                 Your schedule may be fully booked.
                             </p>
                         </div>
-                    `}
+                    </div>
+                    
+                    <div style="margin-bottom: 20px; padding: 15px; background: #f5f5f5; border-radius: 8px;">
+                        <h3 style="font-size: 16px; margin-bottom: 10px;">Customize:</h3>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                            <div>
+                                <label style="display: block; margin-bottom: 5px;">Prep time:</label>
+                                <input type="number" id="shoppingPrepTime" value="${initialPrepMins}" min="0" max="60" 
+                                       style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                <small style="color: #666;">minutes</small>
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 5px;">Travel time (each way):</label>
+                                <input type="number" id="shoppingTravelTime" value="${initialTravelMins}" min="5" max="60" 
+                                       style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                <small style="color: #666;">minutes</small>
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 5px;">Shopping duration:</label>
+                                <input type="number" id="shoppingDuration" value="${initialShopMins}" min="15" max="180" 
+                                       style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                <small style="color: #666;">minutes</small>
+                            </div>
+                            <div>
+                                <label style="display: block; margin-bottom: 5px;">Unpack time:</label>
+                                <input type="number" id="shoppingUnpackTime" value="${initialUnpackMins}" min="0" max="60" 
+                                       style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                                <small style="color: #666;">minutes</small>
+                            </div>
+                        </div>
+                    </div>
                     
                     <div style="display: flex; gap: 10px; justify-content: flex-end;">
                         <button id="shoppingSkipBtn" style="padding: 10px 20px; background: #757575; 
                                 color: white; border: none; border-radius: 4px; cursor: pointer;">
                             Skip - I'll Shop Later
                         </button>
-                        ${availableSlots.length > 0 ? `
-                            <button id="shoppingSelectBtn" style="padding: 10px 20px; background: #4CAF50; 
-                                    color: white; border: none; border-radius: 4px; cursor: pointer;">
-                                Select Time & Continue
-                            </button>
-                        ` : ''}
+                        <button id="shoppingSelectBtn" style="padding: 10px 20px; background: #4CAF50; 
+                                color: white; border: none; border-radius: 4px; cursor: pointer;">
+                            Select Time & Continue
+                        </button>
                     </div>
                 </div>
             </div>
@@ -7347,54 +8011,160 @@ function showShoppingModal(stockAnalysis, availableSlots, orderedDays) {
         
         document.body.appendChild(modal);
         
-        // Add hover effect to slots
-        const slotLabels = modal.querySelectorAll('.shopping-slot-option');
-        slotLabels.forEach(label => {
-            label.addEventListener('mouseenter', () => {
-                label.style.borderColor = '#4CAF50';
-                label.style.background = '#f1f8f4';
-            });
-            label.addEventListener('mouseleave', () => {
-                const radio = label.querySelector('input[type="radio"]');
-                if (!radio.checked) {
-                    label.style.borderColor = '#ddd';
-                    label.style.background = 'white';
-                }
-            });
-            label.addEventListener('click', () => {
-                slotLabels.forEach(l => {
-                    l.style.borderColor = '#ddd';
-                    l.style.background = 'white';
+        const slotsList = modal.querySelector('#shoppingSlotsList');
+        const slotsEmpty = modal.querySelector('#shoppingSlotsEmpty');
+        const prepInput = modal.querySelector('#shoppingPrepTime');
+        const travelInput = modal.querySelector('#shoppingTravelTime');
+        const durationInput = modal.querySelector('#shoppingDuration');
+        const unpackInput = modal.querySelector('#shoppingUnpackTime');
+        const selectBtn = modal.querySelector('#shoppingSelectBtn');
+        let availableSlots = [];
+        
+        const updateSelectButton = (isEnabled) => {
+            selectBtn.disabled = !isEnabled;
+            selectBtn.style.opacity = isEnabled ? '1' : '0.6';
+            selectBtn.style.cursor = isEnabled ? 'pointer' : 'not-allowed';
+        };
+        
+        const updateSlotHover = () => {
+            const slotLabels = modal.querySelectorAll('.shopping-slot-option');
+            slotLabels.forEach(label => {
+                label.addEventListener('mouseenter', () => {
+                    label.style.borderColor = '#4CAF50';
+                    label.style.background = '#f1f8f4';
                 });
-                label.style.borderColor = '#4CAF50';
-                label.style.background = '#f1f8f4';
+                label.addEventListener('mouseleave', () => {
+                    const radio = label.querySelector('input[type="radio"]');
+                    if (!radio.checked) {
+                        label.style.borderColor = '#ddd';
+                        label.style.background = 'white';
+                    }
+                });
+                label.addEventListener('click', () => {
+                    slotLabels.forEach(l => {
+                        l.style.borderColor = '#ddd';
+                        l.style.background = 'white';
+                    });
+                    label.style.borderColor = '#4CAF50';
+                    label.style.background = '#f1f8f4';
+                });
             });
-        });
+        };
+        
+        const renderSlots = () => {
+            const prepMins = parseInt(prepInput.value, 10);
+            const travelMins = parseInt(travelInput.value, 10);
+            const shopMins = parseInt(durationInput.value, 10);
+            const unpackMins = parseInt(unpackInput.value, 10);
+            const sanitizedPrep = Number.isFinite(prepMins) && prepMins >= 0 ? prepMins : initialPrepMins;
+            const sanitizedTravel = Number.isFinite(travelMins) && travelMins > 0 ? travelMins : initialTravelMins;
+            const sanitizedShop = Number.isFinite(shopMins) && shopMins > 0 ? shopMins : initialShopMins;
+            const sanitizedUnpack = Number.isFinite(unpackMins) && unpackMins >= 0 ? unpackMins : initialUnpackMins;
+            const totalDuration = Math.max(15, sanitizedPrep + (sanitizedTravel * 2) + sanitizedShop + sanitizedUnpack);
+            
+            availableSlots = findAvailableShoppingSlots(orderedDays, needsFrom, totalDuration, 2);
+            console.log(`   Found ${availableSlots.length} available time slots`);
+            
+            if (availableSlots.length === 0) {
+                slotsList.innerHTML = '';
+                slotsList.style.display = 'none';
+                slotsEmpty.style.display = 'block';
+                updateSelectButton(false);
+                return;
+            }
+            
+            slotsList.style.display = 'block';
+            slotsEmpty.style.display = 'none';
+            slotsList.innerHTML = availableSlots.map((slot, idx) => {
+                const slotDate = slot.date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                const minStartMins = slot.windowStartMins;
+                const maxStartMins = slot.windowEndMins - totalDuration;
+                slot.minStartTime = formatMinutesToTime(minStartMins);
+                slot.maxStartTime = formatMinutesToTime(maxStartMins);
+                slot.shoppingStartTime = slot.minStartTime;
+                return `
+                    <label style="display: block; padding: 12px; margin-bottom: 8px; 
+                           border: 2px solid #ddd; border-radius: 8px; cursor: pointer;
+                           transition: all 0.2s;" class="shopping-slot-option">
+                        <input type="radio" name="shoppingSlot" value="${idx}" 
+                               style="margin-right: 10px;">
+                        <strong>${slot.dayName} ${slotDate}</strong><br>
+                        <span style="margin-left: 26px;">${slot.windowStartTime}-${slot.windowEndTime}</span>
+                        <br>
+                        <small style="color: #666; margin-left: 26px;">${slot.label}</small>
+                        <br>
+                        <small style="color: #059669; margin-left: 26px;">Choose start time (prep/leave):</small>
+                        <div style="margin-left: 26px; margin-top: 6px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+                            <input type="time" id="shoppingStartTime_${idx}" value="${slot.shoppingStartTime}" min="${slot.minStartTime}" max="${slot.maxStartTime}"
+                                   style="padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;">
+                            <small style="color: #6b7280;">Allowed: ${slot.minStartTime} - ${slot.maxStartTime}</small>
+                        </div>
+                    </label>
+                `;
+            }).join('');
+            
+            updateSlotHover();
+            updateSelectButton(true);
+        };
+        
+        renderSlots();
+        
+        prepInput.addEventListener('input', renderSlots);
+        travelInput.addEventListener('input', renderSlots);
+        durationInput.addEventListener('input', renderSlots);
+        unpackInput.addEventListener('input', renderSlots);
         
         // Handle select button
-        const selectBtn = modal.querySelector('#shoppingSelectBtn');
-        if (selectBtn) {
-            selectBtn.addEventListener('click', () => {
-                const selectedRadio = modal.querySelector('input[name="shoppingSlot"]:checked');
-                if (!selectedRadio) {
-                    alert('Please select a time slot for shopping');
-                    return;
-                }
-                
-                const slotIndex = parseInt(selectedRadio.value);
-                const slot = availableSlots[slotIndex];
-                const travelMins = parseInt(modal.querySelector('#shoppingTravelTime').value);
-                const shopMins = parseInt(modal.querySelector('#shoppingDuration').value);
-                
-                document.body.removeChild(modal);
-                resolve({
-                    selected: true,
-                    slot: slot,
-                    travelMins: travelMins,
-                    shopMins: shopMins
-                });
+        selectBtn.addEventListener('click', () => {
+            if (selectBtn.disabled) {
+                return;
+            }
+            
+            const selectedRadio = modal.querySelector('input[name="shoppingSlot"]:checked');
+            if (!selectedRadio) {
+                alert('Please select a time slot for shopping');
+                return;
+            }
+            
+            const slotIndex = parseInt(selectedRadio.value);
+            const slot = availableSlots[slotIndex];
+            const prepMins = parseInt(modal.querySelector('#shoppingPrepTime').value, 10);
+            const travelMins = parseInt(modal.querySelector('#shoppingTravelTime').value, 10);
+            const shopMins = parseInt(modal.querySelector('#shoppingDuration').value, 10);
+            const unpackMins = parseInt(modal.querySelector('#shoppingUnpackTime').value, 10);
+            const sanitizedPrep = Number.isFinite(prepMins) && prepMins >= 0 ? prepMins : initialPrepMins;
+            const sanitizedTravel = Number.isFinite(travelMins) && travelMins > 0 ? travelMins : initialTravelMins;
+            const sanitizedShop = Number.isFinite(shopMins) && shopMins > 0 ? shopMins : initialShopMins;
+            const sanitizedUnpack = Number.isFinite(unpackMins) && unpackMins >= 0 ? unpackMins : initialUnpackMins;
+            const totalDuration = Math.max(15, sanitizedPrep + (sanitizedTravel * 2) + sanitizedShop + sanitizedUnpack);
+            const startInput = modal.querySelector(`#shoppingStartTime_${slotIndex}`);
+            const startValue = startInput?.value || slot.shoppingStartTime;
+            const startMins = timeStrToMinutes(startValue);
+            const minStartMins = timeStrToMinutes(slot.minStartTime);
+            const maxStartMins = timeStrToMinutes(slot.maxStartTime);
+
+            if (isNaN(startMins) || startMins < minStartMins || startMins > maxStartMins) {
+                alert(`Please choose a start time between ${slot.minStartTime} and ${slot.maxStartTime}.`);
+                return;
+            }
+
+            if (startMins + totalDuration > slot.windowEndMins) {
+                alert(`This start time doesn't leave enough room for travel + shopping. Pick a time between ${slot.minStartTime} and ${slot.maxStartTime}.`);
+                return;
+            }
+
+            slot.shoppingStartTime = startValue;
+            
+            document.body.removeChild(modal);
+            resolve({
+                selected: true,
+                slot: slot,
+                prepMins: sanitizedPrep,
+                travelMins: sanitizedTravel,
+                shopMins: sanitizedShop,
+                unpackMins: sanitizedUnpack
             });
-        }
+        });
         
         // Handle skip button
         const skipBtn = modal.querySelector('#shoppingSkipBtn');
@@ -7979,13 +8749,20 @@ function openDefaultsModal() {
     if (startInput) startInput.value = scheduleData.dayWindow?.start || '07:00';
     if (endInput) endInput.value = scheduleData.dayWindow?.end || '23:00';
     
+    modal.style.zIndex = '2100';
     modal.classList.add('active');
+    updateFirstTimeGuideUI();
 }
 
 function closeDefaultsModal() {
     const modal = document.getElementById('manageDefaultsModal');
     if (modal) {
         modal.classList.remove('active');
+        modal.style.zIndex = '';
+    }
+    updateFirstTimeGuideUI();
+    if (!isFirstTimeGuideDismissed()) {
+        launchFirstTimeGuide();
     }
 }
 
@@ -8003,11 +8780,19 @@ function openAddDefaultModal() {
         checkbox.checked = activeDefaultDay ? day === activeDefaultDay : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'].includes(day);
     });
     
-    document.getElementById('addEditDefaultModal').classList.add('active');
+    const modal = document.getElementById('addEditDefaultModal');
+    if (modal) {
+        modal.style.zIndex = '2200';
+        modal.classList.add('active');
+    }
 }
 
 function closeAddEditDefaultModal() {
-    document.getElementById('addEditDefaultModal').classList.remove('active');
+    const modal = document.getElementById('addEditDefaultModal');
+    if (modal) {
+        modal.classList.remove('active');
+        modal.style.zIndex = '';
+    }
 }
 
 function saveDayWindowSettings() {
@@ -8106,6 +8891,7 @@ function saveDefaultBlock(event) {
     saveToLocalStorage();
     renderDefaultBlocksList();
     closeAddEditDefaultModal();
+    updateFirstTimeGuideUI();
     
     const action = index >= 0 ? 'updated' : 'added';
     const splitMsg = blocksToSave.length > 1 ? ' (split overnight into two blocks)' : '';
@@ -8134,7 +8920,11 @@ function editDefaultBlock(index) {
         checkbox.checked = days.includes(checkbox.value);
     });
     
-    document.getElementById('addEditDefaultModal').classList.add('active');
+    const modal = document.getElementById('addEditDefaultModal');
+    if (modal) {
+        modal.style.zIndex = '2200';
+        modal.classList.add('active');
+    }
 }
 
 function toggleDefaultBlock(index) {
@@ -8179,6 +8969,7 @@ function addMorningRoutineTemplate() {
     saveToLocalStorage();
     renderDefaultBlocksList();
     showToast('🌅 Morning Routine added to defaults!');
+    updateFirstTimeGuideUI();
 }
 
 function addBedtimeRoutineTemplate() {
@@ -8203,6 +8994,7 @@ function addBedtimeRoutineTemplate() {
     saveToLocalStorage();
     renderDefaultBlocksList();
     showToast('🌙 Bedtime Routine added to defaults!');
+    updateFirstTimeGuideUI();
 }
 
 function renderDefaultBlocksList() {
@@ -8329,6 +9121,7 @@ function removeDefaultBlock(index) {
         renderDefaultBlocksList();
         saveToLocalStorage();
         showToast('Default block deleted');
+        updateFirstTimeGuideUI();
     }
 }
 
@@ -9379,6 +10172,7 @@ function openSettings() {
     document.getElementById('settingsModal').classList.add('active');
     loadSettingsStats();
     renderScheduleHistory();
+    updateResumeSetupButton();
 }
 
 /**
