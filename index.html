@@ -234,7 +234,7 @@
                 <div class="form-group">
                     <label>
                         <input type="checkbox" id="applyToAllDays" />
-                        Apply this time block to all days as default
+                        Apply this time block as default for this weekday
                     </label>
                 </div>
                 <div class="modal-buttons">
@@ -336,9 +336,11 @@
                 <p style="margin: 0; font-size: 12px; color: #6b7280;">You can override the start time for specific days when creating a default block.</p>
             </div>
             
-            <button type="button" onclick="openAddDefaultModal()" style="width: 100%; padding: 14px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer; margin-bottom: 20px; box-shadow: 0 4px 12px rgba(102,126,234,0.3);">
-                ➕ Add New Default Block
-            </button>
+            <div class="default-actions-row">
+                <button type="button" onclick="openAddDefaultModal()" class="default-action-btn default-add-btn">
+                    ➕ Add New Default Block
+                </button>
+            </div>
             
             <!-- Quick Templates -->
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px;">
