@@ -1015,6 +1015,232 @@ body.edit-mode .recipe-table textarea {
     margin-bottom: 20px;
 }
 
+.welcome-screen {
+    display: flex;
+    justify-content: center;
+    padding: 50px 20px;
+}
+
+.welcome-card {
+    max-width: 720px;
+    width: 100%;
+    background: #ffffff;
+    border-radius: 22px;
+    padding: 40px 45px;
+    text-align: center;
+    box-shadow: 0 18px 35px rgba(76, 72, 161, 0.25);
+}
+
+.welcome-title {
+    font-size: 34px;
+    font-weight: 800;
+    color: #6b5fd8;
+    margin-bottom: 18px;
+}
+
+.welcome-subtitle {
+    font-size: 18px;
+    color: #4b5563;
+    line-height: 1.6;
+    margin-bottom: 22px;
+}
+
+.welcome-lead {
+    font-size: 17px;
+    font-weight: 600;
+    color: #111827;
+    margin-bottom: 18px;
+}
+
+.welcome-steps {
+    list-style: none;
+    padding: 0;
+    margin: 0 auto 22px;
+    max-width: 420px;
+    text-align: left;
+    display: grid;
+    gap: 10px;
+}
+
+.welcome-step-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 999px;
+    background: #ede9fe;
+    color: #6b5fd8;
+    font-weight: 700;
+    margin-right: 12px;
+    font-size: 14px;
+}
+
+.welcome-footnote {
+    font-size: 16px;
+    font-weight: 600;
+    color: #4b5563;
+    margin-bottom: 26px;
+}
+
+.welcome-cta {
+    background: linear-gradient(135deg, #6b5fd8, #7b6df0);
+    color: #fff;
+    border: none;
+    padding: 14px 36px;
+    border-radius: 999px;
+    font-size: 17px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 10px 20px rgba(107, 95, 216, 0.3);
+}
+
+.welcome-cta:hover {
+    transform: translateY(-1px);
+}
+
+.setup-wizard-content {
+    max-width: 900px;
+    width: 94%;
+    padding: 0;
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.setup-wizard-header {
+    padding: 28px 32px;
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    align-items: flex-start;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.setup-wizard-header h2 {
+    margin: 0 0 6px;
+    font-size: 26px;
+}
+
+.setup-wizard-header p {
+    margin: 0;
+    color: #6b7280;
+}
+
+.setup-wizard-meta {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.setup-pill {
+    background: #f3f4f6;
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #374151;
+}
+
+.setup-close {
+    border: none;
+    background: #f3f4f6;
+    border-radius: 10px;
+    width: 36px;
+    height: 36px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.setup-wizard-note {
+    margin: 18px 32px 0;
+    padding: 12px 16px;
+    background: #eef2ff;
+    color: #4c51bf;
+    border-radius: 12px;
+    font-size: 14px;
+    border: 1px solid #c7d2fe;
+}
+
+.setup-wizard-steps {
+    padding: 20px 32px 10px;
+    display: grid;
+    gap: 14px;
+}
+
+.setup-step {
+    background: #f9fafb;
+    border-radius: 16px;
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    border: 1px solid #e5e7eb;
+}
+
+.setup-step-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+    background: #ede9fe;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+}
+
+.setup-step-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: #111827;
+}
+
+.setup-step-tags {
+    margin-left: auto;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.setup-tag {
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    font-size: 12px;
+    font-weight: 600;
+    color: #374151;
+}
+
+.setup-tag-alt {
+    background: #ecfdf3;
+    border-color: #bbf7d0;
+    color: #15803d;
+}
+
+.setup-tag-warm {
+    background: #fef3c7;
+    border-color: #fde68a;
+    color: #b45309;
+}
+
+.setup-wizard-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 18px 32px 24px;
+    border-top: 1px solid #e5e7eb;
+}
+
+.setup-wizard-hint {
+    font-size: 13px;
+    color: #6b7280;
+}
+
+.setup-wizard-actions {
+    display: flex;
+    gap: 10px;
+}
+
 .form-group {
     margin-bottom: 15px;
 }

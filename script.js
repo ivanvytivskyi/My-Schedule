@@ -1137,27 +1137,46 @@ function setDefaultActiveDay() {
 function showWelcomeScreen() {
     const container = document.getElementById('scheduleContent');
     container.innerHTML = `
-        <div style="background: white; border-radius: 15px; padding: 40px; text-align: center; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);">
-            <h2 style="color: #667eea; margin-bottom: 20px; font-size: 32px;">👋 Welcome to Your Schedule Manager!</h2>
-            <p style="color: #666; font-size: 18px; margin-bottom: 30px; line-height: 1.6;">
-                Your schedule is empty. Let's get started by adding your first day or week!
-            </p>
-            <div style="margin: 30px 0;">
-                <h3 style="color: #2d3436; margin-bottom: 15px;">Quick Start:</h3>
-                <ol style="text-align: left; max-width: 500px; margin: 0 auto; line-height: 2;">
-                    <li>Click <strong>"Edit"</strong> mode button above</li>
-                    <li>Click the <strong>➕</strong> button in the navigation bar</li>
-                    <li>Choose "Single Day" or "Whole Week"</li>
-                    <li>Enter a date and click Add</li>
-                    <li>Start scheduling! 🎉</li>
+        <div class="welcome-screen">
+            <div class="welcome-card">
+                <div class="welcome-title">👋 Welcome to your personal schedule system.</div>
+                <p class="welcome-subtitle">
+                    This app automatically builds your weekly schedule using your daily template, work shifts, meals, and routines — so you don’t have to plan everything by hand.
+                </p>
+                <p class="welcome-lead">
+                    To generate weeks quickly in the future, you’ll set up a few things once:
+                </p>
+                <ol class="welcome-steps">
+                    <li><span class="welcome-step-number">1</span> Create your daily template</li>
+                    <li><span class="welcome-step-number">2</span> Enter your work schedule</li>
+                    <li><span class="welcome-step-number">3</span> Set your cooking preferences</li>
+                    <li><span class="welcome-step-number">4</span> Create your week</li>
+                    <li><span class="welcome-step-number">5</span> Choose a shopping day and time</li>
                 </ol>
+                <p class="welcome-footnote">
+                    Let’s start with Step 1 — building your daily template.<br />
+                    This will be the base for every week you generate.
+                </p>
+                <button class="welcome-cta" onclick="openSetupWizard()">
+                    🚀 Get Started
+                </button>
             </div>
-            <button onclick="document.getElementById('toggleModeBtn').click(); setTimeout(() => document.getElementById('addDayBtn').click(), 100);" 
-                style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 30px; border: none; border-radius: 10px; cursor: pointer; font-size: 18px; font-weight: 600; margin-top: 20px; box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);">
-                🚀 Get Started
-            </button>
         </div>
     `;
+}
+
+function openSetupWizard() {
+    const modal = document.getElementById('setupWizardModal');
+    if (modal) {
+        modal.classList.add('active');
+    }
+}
+
+function closeSetupWizard() {
+    const modal = document.getElementById('setupWizardModal');
+    if (modal) {
+        modal.classList.remove('active');
+    }
 }
 
 // ========================================
@@ -9354,6 +9373,8 @@ function switchAddType(type) {
     const wholeWeekBtn = document.getElementById('wholeWeekBtn');
     const dayRadio = document.getElementById('dayTypeRadio');
     const weekRadio = document.getElementById('weekTypeRadio');
+    const weekRangePreview = document.getElementById('weekRangePreview');
+    const weekStartDateInput = document.getElementById('weekStartDateInput');
     
     const singleDayDateSection = document.getElementById('singleDayDateSection');
     const weekStartDateSection = document.getElementById('weekStartDateSection');
@@ -9381,6 +9402,7 @@ function switchAddType(type) {
         
         // Hide Whole Week sections
         if (weekStartDateSection) weekStartDateSection.style.display = 'none';
+        if (weekRangePreview) weekRangePreview.style.display = 'none';
         if (workScheduleCheckboxSection) workScheduleCheckboxSection.style.display = 'none';
         if (workDaysSection) workDaysSection.style.display = 'none';
         if (commuteSettingsNew) commuteSettingsNew.style.display = 'none';
@@ -9409,6 +9431,9 @@ function switchAddType(type) {
         
         // Show Whole Week sections
         if (weekStartDateSection) weekStartDateSection.style.display = 'block';
+        if (weekRangePreview && weekStartDateInput && weekStartDateInput.value) {
+            weekRangePreview.style.display = 'block';
+        }
         if (workScheduleCheckboxSection) workScheduleCheckboxSection.style.display = 'block';
         
         // Trigger existing logic
@@ -9437,8 +9462,30 @@ document.addEventListener('DOMContentLoaded', function() {
     // Sync week start date
     const weekStartDateInput = document.getElementById('weekStartDateInput');
     const oldWeekStartDate = document.getElementById('weekStartDate');
+    const weekRangePreview = document.getElementById('weekRangePreview');
+    const weekRangeText = document.getElementById('weekRangeText');
+    const weekRangeSubtext = document.getElementById('weekRangeSubtext');
     
     if (weekStartDateInput) {
+        const updateWeekRangePreview = () => {
+            if (!weekRangePreview || !weekRangeText) return;
+            if (!weekStartDateInput.value) {
+                weekRangePreview.style.display = 'none';
+                return;
+            }
+            const startDate = new Date(weekStartDateInput.value);
+            const endDate = new Date(startDate);
+            endDate.setDate(startDate.getDate() + 6);
+            const formatOptions = { weekday: 'short', day: 'numeric', month: 'short' };
+            const startLabel = startDate.toLocaleDateString('en-GB', formatOptions);
+            const endLabel = endDate.toLocaleDateString('en-GB', formatOptions);
+            weekRangeText.textContent = `${startLabel} – ${endLabel}`;
+            if (weekRangeSubtext) {
+                weekRangeSubtext.textContent = '7 days starting from your selected date.';
+            }
+            weekRangePreview.style.display = 'block';
+        };
+
         weekStartDateInput.addEventListener('input', function() {
             if (this.value) {
                 const parts = this.value.split('-');
@@ -9452,7 +9499,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (oldWeekStartDate) oldWeekStartDate.value = '';
                 if (oldDayDate) oldDayDate.value = '';
             }
+            updateWeekRangePreview();
         });
+        updateWeekRangePreview();
     }
     
     // Function to update manual work days based on selected start date
