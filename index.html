@@ -481,6 +481,14 @@
                             <label style="font-weight: 600; color: #333; white-space: nowrap;">Week Start Date:</label>
                             <input type="date" id="weekStartDateInput" style="flex: 0 0 150px; padding: 8px 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;" />
                         </div>
+                        <p style="margin: 6px 0 0 0; font-size: 12px; color: #6b7280;">
+                            Choose any start date. The week will run for 7 days starting from this date.
+                        </p>
+                        <div id="weekRangePreview" style="display: none; margin-top: 10px; padding: 10px 12px; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px;">
+                            <div style="font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Week preview</div>
+                            <div id="weekRangeText" style="font-weight: 600; color: #1f2937; margin-top: 4px;"></div>
+                            <div id="weekRangeSubtext" style="font-size: 12px; color: #6b7280; margin-top: 4px;">7 days starting from your selected date.</div>
+                        </div>
                     </div>
                     
                     <!-- Work Schedule Checkbox - Only shown for Whole Week -->
@@ -634,6 +642,111 @@
                 </div>
                 </div> <!-- Close manual section -->
             </form>
+        </div>
+    </div>
+
+    <!-- Setup Wizard Modal -->
+    <div class="modal" id="setupWizardModal">
+        <div class="modal-content setup-wizard-content">
+            <div class="setup-wizard-header">
+                <div>
+                    <h2>Setup – Step 1 of 5: Daily Template</h2>
+                    <p>Build the default blocks for a normal day (wake, meals, routines, etc.).</p>
+                </div>
+                <div class="setup-wizard-meta">
+                    <span class="setup-pill">Mode: Setup</span>
+                    <span class="setup-pill">Step 1 / 5</span>
+                    <button class="setup-close" onclick="closeSetupWizard()" aria-label="Close setup">✕</button>
+                </div>
+            </div>
+            <div class="setup-wizard-note">
+                <strong>Note:</strong> Visual mock only. This modal shows the structure and look. Your real app will embed your existing UIs inside each step.
+            </div>
+            <div class="setup-wizard-steps">
+                <div class="setup-step-card" data-step="1">
+                    <button class="setup-step-toggle" type="button" onclick="toggleSetupStep(1)">
+                        <div class="setup-step-icon">➡️</div>
+                        <div class="setup-step-body">
+                            <div class="setup-step-title">1) Daily Template</div>
+                        </div>
+                        <div class="setup-step-tags">
+                            <span class="setup-tag">Manage Default Blocks</span>
+                        </div>
+                    </button>
+                    <div class="setup-step-content" id="setupStep1Content">
+                        <div id="setupStepDefaultsContainer"></div>
+                        <div class="setup-step-actions">
+                            <button class="btn btn-primary" type="button" onclick="advanceSetupStep(1)">Continue to Step 2</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="setup-step-card" data-step="2">
+                    <button class="setup-step-toggle" type="button" onclick="toggleSetupStep(2)">
+                        <div class="setup-step-icon">➡️</div>
+                        <div class="setup-step-body">
+                            <div class="setup-step-title">2) Work schedule</div>
+                        </div>
+                        <div class="setup-step-tags">
+                            <span class="setup-tag">Prep & Commute per shift</span>
+                            <span class="setup-tag setup-tag-alt">Two modes</span>
+                        </div>
+                    </button>
+                    <div class="setup-step-content" id="setupStep2Content">
+                        <p class="setup-step-placeholder">Step 2 content will be added next.</p>
+                    </div>
+                </div>
+                <div class="setup-step-card" data-step="3">
+                    <button class="setup-step-toggle" type="button" onclick="toggleSetupStep(3)">
+                        <div class="setup-step-icon">➡️</div>
+                        <div class="setup-step-body">
+                            <div class="setup-step-title">3) Cooking preferences</div>
+                        </div>
+                        <div class="setup-step-tags">
+                            <span class="setup-tag">Meals + Leftovers</span>
+                            <span class="setup-tag setup-tag-warm">Set once</span>
+                        </div>
+                    </button>
+                    <div class="setup-step-content" id="setupStep3Content">
+                        <p class="setup-step-placeholder">Step 3 content will be added next.</p>
+                    </div>
+                </div>
+                <div class="setup-step-card" data-step="4">
+                    <button class="setup-step-toggle" type="button" onclick="toggleSetupStep(4)">
+                        <div class="setup-step-icon">➡️</div>
+                        <div class="setup-step-body">
+                            <div class="setup-step-title">4) Create Week</div>
+                        </div>
+                        <div class="setup-step-tags">
+                            <span class="setup-tag">Week start date</span>
+                        </div>
+                    </button>
+                    <div class="setup-step-content" id="setupStep4Content">
+                        <p class="setup-step-placeholder">Step 4 content will be added next.</p>
+                    </div>
+                </div>
+                <div class="setup-step-card" data-step="5">
+                    <button class="setup-step-toggle" type="button" onclick="toggleSetupStep(5)">
+                        <div class="setup-step-icon">➡️</div>
+                        <div class="setup-step-body">
+                            <div class="setup-step-title">5) Shopping day & time</div>
+                        </div>
+                        <div class="setup-step-tags">
+                            <span class="setup-tag">Optional</span>
+                            <span class="setup-tag">Weekly slot</span>
+                        </div>
+                    </button>
+                    <div class="setup-step-content" id="setupStep5Content">
+                        <p class="setup-step-placeholder">Step 5 content will be added next.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="setup-wizard-footer">
+                <div class="setup-wizard-hint">All steps are collapsed on open. Use Continue to jump to the next step.</div>
+                <div class="setup-wizard-actions">
+                    <button class="btn btn-secondary" onclick="closeSetupWizard()">Close</button>
+                    <button class="btn btn-primary">Continue</button>
+                </div>
+            </div>
         </div>
     </div>
 
