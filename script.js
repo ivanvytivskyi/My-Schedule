@@ -1137,27 +1137,144 @@ function setDefaultActiveDay() {
 function showWelcomeScreen() {
     const container = document.getElementById('scheduleContent');
     container.innerHTML = `
-        <div style="background: white; border-radius: 15px; padding: 40px; text-align: center; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);">
-            <h2 style="color: #667eea; margin-bottom: 20px; font-size: 32px;">👋 Welcome to Your Schedule Manager!</h2>
-            <p style="color: #666; font-size: 18px; margin-bottom: 30px; line-height: 1.6;">
-                Your schedule is empty. Let's get started by adding your first day or week!
-            </p>
-            <div style="margin: 30px 0;">
-                <h3 style="color: #2d3436; margin-bottom: 15px;">Quick Start:</h3>
-                <ol style="text-align: left; max-width: 500px; margin: 0 auto; line-height: 2;">
-                    <li>Click <strong>"Edit"</strong> mode button above</li>
-                    <li>Click the <strong>➕</strong> button in the navigation bar</li>
-                    <li>Choose "Single Day" or "Whole Week"</li>
-                    <li>Enter a date and click Add</li>
-                    <li>Start scheduling! 🎉</li>
+        <div class="welcome-screen">
+            <div class="welcome-card">
+                <div class="welcome-title">👋 Welcome to your personal schedule system.</div>
+                <p class="welcome-subtitle">
+                    This app automatically builds your weekly schedule using your daily template, work shifts, meals, and routines — so you don’t have to plan everything by hand.
+                </p>
+                <p class="welcome-lead">
+                    To generate weeks quickly in the future, you’ll set up a few things once:
+                </p>
+                <ol class="welcome-steps">
+                    <li><span class="welcome-step-number">1</span> Create your daily template</li>
+                    <li><span class="welcome-step-number">2</span> Enter your work schedule</li>
+                    <li><span class="welcome-step-number">3</span> Set your cooking preferences</li>
+                    <li><span class="welcome-step-number">4</span> Create your week</li>
+                    <li><span class="welcome-step-number">5</span> Choose a shopping day and time</li>
                 </ol>
+                <p class="welcome-footnote">
+                    Let’s start with Step 1 — building your daily template.<br />
+                    This will be the base for every week you generate.
+                </p>
+                <button class="welcome-cta" onclick="openSetupWizard()">
+                    🚀 Get Started
+                </button>
             </div>
-            <button onclick="document.getElementById('toggleModeBtn').click(); setTimeout(() => document.getElementById('addDayBtn').click(), 100);" 
-                style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 30px; border: none; border-radius: 10px; cursor: pointer; font-size: 18px; font-weight: 600; margin-top: 20px; box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);">
-                🚀 Get Started
-            </button>
         </div>
     `;
+}
+
+let currentSetupStep = 1;
+
+function updateSetupWizardHeader() {
+    const title = document.getElementById('setupWizardTitle');
+    const stepPill = document.getElementById('setupWizardStepPill');
+    if (title) {
+        title.textContent = `Setup – Step ${currentSetupStep} of 5: ${getSetupStepTitle(currentSetupStep)}`;
+    }
+    if (stepPill) {
+        stepPill.textContent = `Step ${currentSetupStep} / 5`;
+    }
+}
+
+function getSetupStepTitle(stepNumber) {
+    switch (stepNumber) {
+        case 1:
+            return 'Daily Template';
+        case 2:
+            return 'Work schedule';
+        case 3:
+            return 'Cooking preferences';
+        case 4:
+            return 'Create Week';
+        case 5:
+            return 'Shopping day & time';
+        default:
+            return 'Daily Template';
+    }
+}
+
+function openSetupWizard() {
+    const modal = document.getElementById('setupWizardModal');
+    if (modal) {
+        embedDefaultsInSetup();
+        currentSetupStep = 1;
+        updateSetupWizardHeader();
+        document.querySelectorAll('.setup-step-card').forEach(card => card.classList.remove('is-open'));
+        modal.classList.add('active');
+    }
+}
+
+function closeSetupWizard() {
+    const modal = document.getElementById('setupWizardModal');
+    if (modal) {
+        modal.classList.remove('active');
+    }
+    restoreDefaultsModalContent();
+}
+
+let defaultsModalContent = null;
+let defaultsModalHome = null;
+
+function cacheDefaultsModalContent() {
+    if (!defaultsModalContent) {
+        defaultsModalContent = document.querySelector('#manageDefaultsModal .modal-content');
+        defaultsModalHome = defaultsModalContent?.parentElement || null;
+    }
+}
+
+function embedDefaultsInSetup() {
+    cacheDefaultsModalContent();
+    const container = document.getElementById('setupStepDefaultsContainer');
+    if (!container || !defaultsModalContent) return;
+    if (defaultsModalContent.parentElement !== container) {
+        container.appendChild(defaultsModalContent);
+        defaultsModalContent.classList.add('embedded-defaults');
+    }
+    renderDefaultBlocksList();
+    ensureMedicineButton();
+}
+
+function restoreDefaultsModalContent() {
+    if (!defaultsModalContent || !defaultsModalHome) return;
+    if (defaultsModalContent.parentElement !== defaultsModalHome) {
+        defaultsModalHome.appendChild(defaultsModalContent);
+        defaultsModalContent.classList.remove('embedded-defaults');
+    }
+}
+
+function toggleSetupStep(stepNumber) {
+    const stepCard = document.querySelector(`.setup-step-card[data-step="${stepNumber}"]`);
+    if (!stepCard) return;
+    const isOpen = stepCard.classList.contains('is-open');
+    document.querySelectorAll('.setup-step-card').forEach(card => card.classList.remove('is-open'));
+    if (!isOpen) {
+        stepCard.classList.add('is-open');
+        currentSetupStep = stepNumber;
+        updateSetupWizardHeader();
+        if (stepNumber === 1) {
+            embedDefaultsInSetup();
+        }
+    }
+}
+
+function openSetupStep(stepNumber) {
+    document.querySelectorAll('.setup-step-card').forEach(card => card.classList.remove('is-open'));
+    const stepCard = document.querySelector(`.setup-step-card[data-step="${stepNumber}"]`);
+    if (stepCard) {
+        stepCard.classList.add('is-open');
+        currentSetupStep = stepNumber;
+        updateSetupWizardHeader();
+        if (stepNumber === 1) {
+            embedDefaultsInSetup();
+        }
+    }
+}
+
+function advanceSetupStep(currentStep) {
+    const nextStep = Math.min(currentStep + 1, 5);
+    openSetupStep(nextStep);
 }
 
 // ========================================
@@ -8201,6 +8318,7 @@ function buildBreakfastQueue() {
 }
 
 function openDefaultsModal() {
+    restoreDefaultsModalContent();
     const modal = document.getElementById('manageDefaultsModal');
     if (!modal) {
         console.error('Manage Defaults modal not found in HTML');
@@ -8216,6 +8334,7 @@ function openDefaultsModal() {
     const endInput = document.getElementById('dayWindowEnd');
     if (startInput) startInput.value = scheduleData.dayWindow?.start || '07:00';
     if (endInput) endInput.value = scheduleData.dayWindow?.end || '23:00';
+    ensureMedicineButton();
     
     modal.style.zIndex = '2100';
     modal.classList.add('active');
@@ -8440,7 +8559,7 @@ function addBedtimeRoutineTemplate() {
     
     const bedtimeRoutine = {
         time: "22:30-23:00",
-        title: "🌙 Bedtime Routine",
+        title: "🌙 Evening Routine",
         tasks: [
             "Shower",
             "Brush your teeth",
@@ -8454,7 +8573,7 @@ function addBedtimeRoutineTemplate() {
     scheduleData.defaultBlocks.push(bedtimeRoutine);
     saveToLocalStorage();
     renderDefaultBlocksList();
-    showToast('🌙 Bedtime Routine added to defaults!');
+    showToast('🌙 Evening Routine added to defaults!');
 }
 
 function renderDefaultBlocksList() {
@@ -9354,6 +9473,8 @@ function switchAddType(type) {
     const wholeWeekBtn = document.getElementById('wholeWeekBtn');
     const dayRadio = document.getElementById('dayTypeRadio');
     const weekRadio = document.getElementById('weekTypeRadio');
+    const weekRangePreview = document.getElementById('weekRangePreview');
+    const weekStartDateInput = document.getElementById('weekStartDateInput');
     
     const singleDayDateSection = document.getElementById('singleDayDateSection');
     const weekStartDateSection = document.getElementById('weekStartDateSection');
@@ -9381,6 +9502,7 @@ function switchAddType(type) {
         
         // Hide Whole Week sections
         if (weekStartDateSection) weekStartDateSection.style.display = 'none';
+        if (weekRangePreview) weekRangePreview.style.display = 'none';
         if (workScheduleCheckboxSection) workScheduleCheckboxSection.style.display = 'none';
         if (workDaysSection) workDaysSection.style.display = 'none';
         if (commuteSettingsNew) commuteSettingsNew.style.display = 'none';
@@ -9409,6 +9531,9 @@ function switchAddType(type) {
         
         // Show Whole Week sections
         if (weekStartDateSection) weekStartDateSection.style.display = 'block';
+        if (weekRangePreview && weekStartDateInput && weekStartDateInput.value) {
+            weekRangePreview.style.display = 'block';
+        }
         if (workScheduleCheckboxSection) workScheduleCheckboxSection.style.display = 'block';
         
         // Trigger existing logic
@@ -9437,8 +9562,30 @@ document.addEventListener('DOMContentLoaded', function() {
     // Sync week start date
     const weekStartDateInput = document.getElementById('weekStartDateInput');
     const oldWeekStartDate = document.getElementById('weekStartDate');
+    const weekRangePreview = document.getElementById('weekRangePreview');
+    const weekRangeText = document.getElementById('weekRangeText');
+    const weekRangeSubtext = document.getElementById('weekRangeSubtext');
     
     if (weekStartDateInput) {
+        const updateWeekRangePreview = () => {
+            if (!weekRangePreview || !weekRangeText) return;
+            if (!weekStartDateInput.value) {
+                weekRangePreview.style.display = 'none';
+                return;
+            }
+            const startDate = new Date(weekStartDateInput.value);
+            const endDate = new Date(startDate);
+            endDate.setDate(startDate.getDate() + 6);
+            const formatOptions = { weekday: 'short', day: 'numeric', month: 'short' };
+            const startLabel = startDate.toLocaleDateString('en-GB', formatOptions);
+            const endLabel = endDate.toLocaleDateString('en-GB', formatOptions);
+            weekRangeText.textContent = `${startLabel} – ${endLabel}`;
+            if (weekRangeSubtext) {
+                weekRangeSubtext.textContent = '7 days starting from your selected date.';
+            }
+            weekRangePreview.style.display = 'block';
+        };
+
         weekStartDateInput.addEventListener('input', function() {
             if (this.value) {
                 const parts = this.value.split('-');
@@ -9452,7 +9599,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (oldWeekStartDate) oldWeekStartDate.value = '';
                 if (oldDayDate) oldDayDate.value = '';
             }
+            updateWeekRangePreview();
         });
+        updateWeekRangePreview();
     }
     
     // Function to update manual work days based on selected start date
@@ -10381,30 +10530,27 @@ window.openAddDefaultModal = function() {
 
 // ===== MEDICINE SCHEDULE BUTTON & MODAL =====
 
-// Add "Take Medicine" button next to "Add New Default Block"
+function ensureMedicineButton() {
+    const actionsRow = document.querySelector('.default-actions-row');
+    const addButton = actionsRow?.querySelector('.default-add-btn');
+    
+    if (addButton && !document.getElementById('takeMedicineBtn')) {
+        const medicineBtn = document.createElement('button');
+        medicineBtn.id = 'takeMedicineBtn';
+        medicineBtn.type = 'button';
+        medicineBtn.innerHTML = '💊 Take Medicine';
+        medicineBtn.className = 'default-action-btn medicine-action-btn';
+        medicineBtn.onclick = openMedicineScheduleModal;
+        
+        actionsRow.appendChild(medicineBtn);
+        console.log('✅ Take Medicine button added');
+    }
+}
+
+// Add "Take Medicine" button next to "Template"
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
-        // Find the "Add New Default Block" button
-        const buttons = Array.from(document.querySelectorAll('button'));
-        const addButton = buttons.find(btn => btn.textContent.includes('Add New Default Block'));
-        
-        if (addButton && !document.getElementById('takeMedicineBtn')) {
-            const medicineBtn = document.createElement('button');
-            medicineBtn.id = 'takeMedicineBtn';
-            medicineBtn.type = 'button';
-            medicineBtn.innerHTML = '💊 Take Medicine';
-            medicineBtn.className = 'default-action-btn medicine-action-btn';
-            medicineBtn.onclick = openMedicineScheduleModal;
-            
-            addButton.classList.add('default-action-btn', 'default-add-btn');
-            const actionsRow = addButton.closest('.default-actions-row');
-            if (actionsRow) {
-                actionsRow.appendChild(medicineBtn);
-            } else {
-                addButton.parentNode.insertBefore(medicineBtn, addButton.nextSibling);
-            }
-            console.log('✅ Take Medicine button added');
-        }
+        ensureMedicineButton();
     }, 500);
 });
 
