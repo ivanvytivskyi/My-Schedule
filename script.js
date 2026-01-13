@@ -1137,27 +1137,308 @@ function setDefaultActiveDay() {
 function showWelcomeScreen() {
     const container = document.getElementById('scheduleContent');
     container.innerHTML = `
-        <div style="background: white; border-radius: 15px; padding: 40px; text-align: center; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);">
-            <h2 style="color: #667eea; margin-bottom: 20px; font-size: 32px;">👋 Welcome to Your Schedule Manager!</h2>
-            <p style="color: #666; font-size: 18px; margin-bottom: 30px; line-height: 1.6;">
-                Your schedule is empty. Let's get started by adding your first day or week!
-            </p>
-            <div style="margin: 30px 0;">
-                <h3 style="color: #2d3436; margin-bottom: 15px;">Quick Start:</h3>
-                <ol style="text-align: left; max-width: 500px; margin: 0 auto; line-height: 2;">
-                    <li>Click <strong>"Edit"</strong> mode button above</li>
-                    <li>Click the <strong>➕</strong> button in the navigation bar</li>
-                    <li>Choose "Single Day" or "Whole Week"</li>
-                    <li>Enter a date and click Add</li>
-                    <li>Start scheduling! 🎉</li>
+        <div class="welcome-screen">
+            <div class="welcome-card">
+                <div class="welcome-title">👋 Welcome to your personal schedule system.</div>
+                <p class="welcome-subtitle">
+                    This app automatically builds your weekly schedule using your daily template, work shifts, meals, and routines — so you don’t have to plan everything by hand.
+                </p>
+                <p class="welcome-lead">
+                    To generate weeks quickly in the future, you’ll set up a few things once:
+                </p>
+                <ol class="welcome-steps">
+                    <li><span class="welcome-step-number">1</span> Create your daily template</li>
+                    <li><span class="welcome-step-number">2</span> Enter your work schedule</li>
+                    <li><span class="welcome-step-number">3</span> Set your cooking preferences</li>
+                    <li><span class="welcome-step-number">4</span> Create your week</li>
+                    <li><span class="welcome-step-number">5</span> Choose a shopping day and time</li>
                 </ol>
+                <p class="welcome-footnote">
+                    Let’s start with Step 1 — building your daily template.<br />
+                    This will be the base for every week you generate.
+                </p>
+                <button class="welcome-cta" onclick="openSetupWizard()">
+                    🚀 Get Started
+                </button>
             </div>
-            <button onclick="document.getElementById('toggleModeBtn').click(); setTimeout(() => document.getElementById('addDayBtn').click(), 100);" 
-                style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 30px; border: none; border-radius: 10px; cursor: pointer; font-size: 18px; font-weight: 600; margin-top: 20px; box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);">
-                🚀 Get Started
-            </button>
         </div>
     `;
+}
+
+let currentSetupStep = 1;
+
+function updateSetupWizardHeader() {
+    const title = document.getElementById('setupWizardTitle');
+    const stepPill = document.getElementById('setupWizardStepPill');
+    if (title) {
+        title.textContent = `Setup – Step ${currentSetupStep} of 5: ${getSetupStepTitle(currentSetupStep)}`;
+    }
+    if (stepPill) {
+        stepPill.textContent = `Step ${currentSetupStep} / 5`;
+    }
+}
+
+function getSetupStepTitle(stepNumber) {
+    switch (stepNumber) {
+        case 1:
+            return 'Daily Template';
+        case 2:
+            return 'Work schedule';
+        case 3:
+            return 'Cooking preferences';
+        case 4:
+            return 'Create Week';
+        case 5:
+            return 'Shopping day & time';
+        default:
+            return 'Daily Template';
+    }
+}
+
+function openSetupWizard() {
+    const modal = document.getElementById('setupWizardModal');
+    if (modal) {
+        embedDefaultsInSetup();
+        initWorkScheduleSetup();
+        currentSetupStep = 1;
+        updateSetupWizardHeader();
+        document.querySelectorAll('.setup-step-card').forEach(card => card.classList.remove('is-open'));
+        modal.classList.add('active');
+    }
+}
+
+function closeSetupWizard() {
+    const modal = document.getElementById('setupWizardModal');
+    if (modal) {
+        modal.classList.remove('active');
+    }
+    restoreDefaultsModalContent();
+    restoreAdjustableWorkSchedule();
+}
+
+let defaultsModalContent = null;
+let defaultsModalHome = null;
+
+function cacheDefaultsModalContent() {
+    if (!defaultsModalContent) {
+        defaultsModalContent = document.querySelector('#manageDefaultsModal .modal-content');
+        defaultsModalHome = defaultsModalContent?.parentElement || null;
+    }
+}
+
+function embedDefaultsInSetup() {
+    cacheDefaultsModalContent();
+    const container = document.getElementById('setupStepDefaultsContainer');
+    if (!container || !defaultsModalContent) return;
+    if (defaultsModalContent.parentElement !== container) {
+        container.appendChild(defaultsModalContent);
+        defaultsModalContent.classList.add('embedded-defaults');
+    }
+    renderDefaultBlocksList();
+    ensureMedicineButton();
+}
+
+function restoreDefaultsModalContent() {
+    if (!defaultsModalContent || !defaultsModalHome) return;
+    if (defaultsModalContent.parentElement !== defaultsModalHome) {
+        defaultsModalHome.appendChild(defaultsModalContent);
+        defaultsModalContent.classList.remove('embedded-defaults');
+    }
+}
+
+function toggleSetupStep(stepNumber) {
+    const stepCard = document.querySelector(`.setup-step-card[data-step="${stepNumber}"]`);
+    if (!stepCard) return;
+    const isOpen = stepCard.classList.contains('is-open');
+    document.querySelectorAll('.setup-step-card').forEach(card => card.classList.remove('is-open'));
+    if (!isOpen) {
+        stepCard.classList.add('is-open');
+        currentSetupStep = stepNumber;
+        updateSetupWizardHeader();
+        if (stepNumber === 1) {
+            embedDefaultsInSetup();
+        }
+        if (stepNumber === 2) {
+            initWorkScheduleSetup();
+        }
+    }
+}
+
+function openSetupStep(stepNumber) {
+    document.querySelectorAll('.setup-step-card').forEach(card => card.classList.remove('is-open'));
+    const stepCard = document.querySelector(`.setup-step-card[data-step="${stepNumber}"]`);
+    if (stepCard) {
+        stepCard.classList.add('is-open');
+        currentSetupStep = stepNumber;
+        updateSetupWizardHeader();
+        if (stepNumber === 1) {
+            embedDefaultsInSetup();
+        }
+        if (stepNumber === 2) {
+            initWorkScheduleSetup();
+        }
+    }
+}
+
+function advanceSetupStep(currentStep) {
+    const nextStep = Math.min(currentStep + 1, 5);
+    openSetupStep(nextStep);
+}
+
+const WORK_PATTERN_KEY = 'weeklyWorkPattern';
+const WORK_PATTERN_MODE_KEY = 'weeklyWorkPatternMode';
+const WORK_PATTERN_PREP_KEY = 'weeklyWorkPatternPrep';
+
+let adjustableWorkScheduleHome = null;
+let adjustableWorkScheduleNodes = null;
+
+function initWorkScheduleSetup() {
+    const modeInputs = document.querySelectorAll('input[name="workScheduleMode"]');
+    if (!modeInputs.length) return;
+    if (modeInputs[0].dataset.bound === 'true') {
+        loadWorkPattern();
+        return;
+    }
+    const savedMode = localStorage.getItem(WORK_PATTERN_MODE_KEY) || 'same';
+    modeInputs.forEach(input => {
+        input.checked = input.value === savedMode;
+        input.addEventListener('change', () => setWorkScheduleMode(input.value));
+    });
+    modeInputs[0].dataset.bound = 'true';
+    setWorkScheduleMode(savedMode);
+    loadWorkPattern();
+}
+
+function setWorkScheduleMode(mode) {
+    localStorage.setItem(WORK_PATTERN_MODE_KEY, mode);
+    const sameForm = document.getElementById('workScheduleSameForm');
+    const adjustableForm = document.getElementById('workScheduleAdjustableForm');
+    if (sameForm) sameForm.style.display = mode === 'same' ? 'block' : 'none';
+    if (adjustableForm) adjustableForm.style.display = mode === 'adjustable' ? 'block' : 'none';
+    if (mode === 'adjustable') {
+        embedAdjustableWorkSchedule();
+    } else {
+        restoreAdjustableWorkSchedule();
+    }
+}
+
+function embedAdjustableWorkSchedule() {
+    const container = document.getElementById('setupAdjustableWorkContainer');
+    const workScheduleCheckboxSection = document.getElementById('workScheduleCheckboxSection');
+    const workDaysSection = document.getElementById('workDaysSection');
+    if (!container || !workScheduleCheckboxSection || !workDaysSection) return;
+    if (!adjustableWorkScheduleNodes) {
+        adjustableWorkScheduleHome = workScheduleCheckboxSection.parentElement;
+        adjustableWorkScheduleNodes = [workScheduleCheckboxSection, workDaysSection];
+    }
+    adjustableWorkScheduleNodes.forEach(node => {
+        if (node.parentElement !== container) {
+            container.appendChild(node);
+        }
+    });
+    workScheduleCheckboxSection.style.display = 'block';
+    const addWorkScheduleNew = document.getElementById('addWorkScheduleNew');
+    if (addWorkScheduleNew && !addWorkScheduleNew.checked) {
+        addWorkScheduleNew.checked = true;
+        addWorkScheduleNew.dispatchEvent(new Event('change'));
+    }
+}
+
+function restoreAdjustableWorkSchedule() {
+    if (!adjustableWorkScheduleNodes || !adjustableWorkScheduleHome) return;
+    adjustableWorkScheduleNodes.forEach(node => {
+        if (node.parentElement !== adjustableWorkScheduleHome) {
+            adjustableWorkScheduleHome.appendChild(node);
+        }
+    });
+}
+
+function loadWorkPattern() {
+    const stored = localStorage.getItem(WORK_PATTERN_KEY);
+    const rows = stored ? JSON.parse(stored) : [];
+    const patternNameInput = document.getElementById('workPatternName');
+    const prepInput = document.getElementById('workPatternPrep');
+    if (patternNameInput) {
+        patternNameInput.value = localStorage.getItem('weeklyWorkPatternName') || 'My Regular Shifts';
+    }
+    if (prepInput) {
+        prepInput.value = localStorage.getItem(WORK_PATTERN_PREP_KEY) || '30';
+    }
+    const container = document.getElementById('workPatternRows');
+    if (!container) return;
+    container.innerHTML = '';
+    if (!rows.length) {
+        addWorkPatternRow();
+        return;
+    }
+    rows.forEach(row => addWorkPatternRow(row));
+}
+
+function addWorkPatternRow(data = {}) {
+    const container = document.getElementById('workPatternRows');
+    if (!container) return;
+    const row = document.createElement('div');
+    row.className = 'setup-work-row';
+    row.innerHTML = `
+        <select class="work-pattern-day">
+            <option value="Monday">Mon</option>
+            <option value="Tuesday">Tue</option>
+            <option value="Wednesday">Wed</option>
+            <option value="Thursday">Thu</option>
+            <option value="Friday">Fri</option>
+            <option value="Saturday">Sat</option>
+            <option value="Sunday">Sun</option>
+        </select>
+        <input type="time" class="work-pattern-start" />
+        <input type="time" class="work-pattern-end" />
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#374151;">
+            <input type="checkbox" class="work-pattern-prep" checked />
+            Prep
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:#374151;">
+            <input type="checkbox" class="work-pattern-commute" checked />
+            Commute
+        </label>
+        <input type="text" class="work-pattern-notes" placeholder="Notes" />
+        <button type="button" onclick="this.closest('.setup-work-row').remove()">✕</button>
+    `;
+    container.appendChild(row);
+    row.querySelector('.work-pattern-day').value = data.day || 'Monday';
+    row.querySelector('.work-pattern-start').value = data.start || '';
+    row.querySelector('.work-pattern-end').value = data.end || '';
+    row.querySelector('.work-pattern-prep').checked = data.prep ?? true;
+    row.querySelector('.work-pattern-commute').checked = data.commute ?? true;
+    row.querySelector('.work-pattern-notes').value = data.notes || '';
+}
+
+function saveWorkPattern() {
+    const container = document.getElementById('workPatternRows');
+    if (!container) return;
+    const rows = Array.from(container.querySelectorAll('.setup-work-row')).map(row => ({
+        day: row.querySelector('.work-pattern-day')?.value || 'Monday',
+        start: row.querySelector('.work-pattern-start')?.value || '',
+        end: row.querySelector('.work-pattern-end')?.value || '',
+        prep: row.querySelector('.work-pattern-prep')?.checked || false,
+        commute: row.querySelector('.work-pattern-commute')?.checked || false,
+        notes: row.querySelector('.work-pattern-notes')?.value || ''
+    })).filter(row => row.start && row.end);
+    localStorage.setItem(WORK_PATTERN_KEY, JSON.stringify(rows));
+    const patternNameInput = document.getElementById('workPatternName');
+    if (patternNameInput) {
+        localStorage.setItem('weeklyWorkPatternName', patternNameInput.value.trim() || 'My Regular Shifts');
+    }
+    const prepInput = document.getElementById('workPatternPrep');
+    if (prepInput) {
+        localStorage.setItem(WORK_PATTERN_PREP_KEY, prepInput.value || '30');
+    }
+    showToast('✅ Work pattern saved!');
+}
+
+function clearWorkPattern() {
+    localStorage.removeItem(WORK_PATTERN_KEY);
+    const container = document.getElementById('workPatternRows');
+    if (container) container.innerHTML = '';
+    addWorkPatternRow();
 }
 
 // ========================================
@@ -2127,10 +2408,34 @@ async function addWeek() {
     }
     
     // Get work schedule if checkbox is checked
-    const addWorkSchedule = document.getElementById('addWorkScheduleNew')?.checked || document.getElementById('addWorkSchedule').checked;
+    let addWorkSchedule = document.getElementById('addWorkScheduleNew')?.checked || document.getElementById('addWorkSchedule').checked;
     const workSchedule = {}; // Map of dayOfWeek -> {start, end, date}
     
-    if (addWorkSchedule) {
+    const storedPattern = localStorage.getItem(WORK_PATTERN_KEY);
+    const patternMode = localStorage.getItem(WORK_PATTERN_MODE_KEY) || 'same';
+    const patternRows = storedPattern ? JSON.parse(storedPattern) : [];
+
+    if (!addWorkSchedule && patternMode === 'same' && patternRows.length) {
+        addWorkSchedule = true;
+        const dayIndexMap = {
+            Sunday: 0,
+            Monday: 1,
+            Tuesday: 2,
+            Wednesday: 3,
+            Thursday: 4,
+            Friday: 5,
+            Saturday: 6
+        };
+        orderedDays.forEach(({ date }) => {
+            const dayOfWeek = date.getDay();
+            const match = patternRows.find(row => dayIndexMap[row.day] === dayOfWeek);
+            if (match && match.start && match.end) {
+                workSchedule[dayOfWeek] = { start: match.start, end: match.end, date: new Date(date) };
+            }
+        });
+    }
+
+    if (addWorkSchedule && Object.keys(workSchedule).length === 0) {
         orderedDays.forEach(({ key, date }) => {
             const startInput = document.querySelector(`.day-work-start[data-day="${key}"]`);
             const endInput = document.querySelector(`.day-work-end[data-day="${key}"]`);
@@ -8201,6 +8506,7 @@ function buildBreakfastQueue() {
 }
 
 function openDefaultsModal() {
+    restoreDefaultsModalContent();
     const modal = document.getElementById('manageDefaultsModal');
     if (!modal) {
         console.error('Manage Defaults modal not found in HTML');
@@ -8216,6 +8522,7 @@ function openDefaultsModal() {
     const endInput = document.getElementById('dayWindowEnd');
     if (startInput) startInput.value = scheduleData.dayWindow?.start || '07:00';
     if (endInput) endInput.value = scheduleData.dayWindow?.end || '23:00';
+    ensureMedicineButton();
     
     modal.style.zIndex = '2100';
     modal.classList.add('active');
@@ -8440,7 +8747,7 @@ function addBedtimeRoutineTemplate() {
     
     const bedtimeRoutine = {
         time: "22:30-23:00",
-        title: "🌙 Bedtime Routine",
+        title: "🌙 Evening Routine",
         tasks: [
             "Shower",
             "Brush your teeth",
@@ -8454,7 +8761,7 @@ function addBedtimeRoutineTemplate() {
     scheduleData.defaultBlocks.push(bedtimeRoutine);
     saveToLocalStorage();
     renderDefaultBlocksList();
-    showToast('🌙 Bedtime Routine added to defaults!');
+    showToast('🌙 Evening Routine added to defaults!');
 }
 
 function renderDefaultBlocksList() {
@@ -9354,6 +9661,8 @@ function switchAddType(type) {
     const wholeWeekBtn = document.getElementById('wholeWeekBtn');
     const dayRadio = document.getElementById('dayTypeRadio');
     const weekRadio = document.getElementById('weekTypeRadio');
+    const weekRangePreview = document.getElementById('weekRangePreview');
+    const weekStartDateInput = document.getElementById('weekStartDateInput');
     
     const singleDayDateSection = document.getElementById('singleDayDateSection');
     const weekStartDateSection = document.getElementById('weekStartDateSection');
@@ -9381,6 +9690,7 @@ function switchAddType(type) {
         
         // Hide Whole Week sections
         if (weekStartDateSection) weekStartDateSection.style.display = 'none';
+        if (weekRangePreview) weekRangePreview.style.display = 'none';
         if (workScheduleCheckboxSection) workScheduleCheckboxSection.style.display = 'none';
         if (workDaysSection) workDaysSection.style.display = 'none';
         if (commuteSettingsNew) commuteSettingsNew.style.display = 'none';
@@ -9409,6 +9719,9 @@ function switchAddType(type) {
         
         // Show Whole Week sections
         if (weekStartDateSection) weekStartDateSection.style.display = 'block';
+        if (weekRangePreview && weekStartDateInput && weekStartDateInput.value) {
+            weekRangePreview.style.display = 'block';
+        }
         if (workScheduleCheckboxSection) workScheduleCheckboxSection.style.display = 'block';
         
         // Trigger existing logic
@@ -9437,8 +9750,30 @@ document.addEventListener('DOMContentLoaded', function() {
     // Sync week start date
     const weekStartDateInput = document.getElementById('weekStartDateInput');
     const oldWeekStartDate = document.getElementById('weekStartDate');
+    const weekRangePreview = document.getElementById('weekRangePreview');
+    const weekRangeText = document.getElementById('weekRangeText');
+    const weekRangeSubtext = document.getElementById('weekRangeSubtext');
     
     if (weekStartDateInput) {
+        const updateWeekRangePreview = () => {
+            if (!weekRangePreview || !weekRangeText) return;
+            if (!weekStartDateInput.value) {
+                weekRangePreview.style.display = 'none';
+                return;
+            }
+            const startDate = new Date(weekStartDateInput.value);
+            const endDate = new Date(startDate);
+            endDate.setDate(startDate.getDate() + 6);
+            const formatOptions = { weekday: 'short', day: 'numeric', month: 'short' };
+            const startLabel = startDate.toLocaleDateString('en-GB', formatOptions);
+            const endLabel = endDate.toLocaleDateString('en-GB', formatOptions);
+            weekRangeText.textContent = `${startLabel} – ${endLabel}`;
+            if (weekRangeSubtext) {
+                weekRangeSubtext.textContent = '7 days starting from your selected date.';
+            }
+            weekRangePreview.style.display = 'block';
+        };
+
         weekStartDateInput.addEventListener('input', function() {
             if (this.value) {
                 const parts = this.value.split('-');
@@ -9452,7 +9787,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (oldWeekStartDate) oldWeekStartDate.value = '';
                 if (oldDayDate) oldDayDate.value = '';
             }
+            updateWeekRangePreview();
         });
+        updateWeekRangePreview();
     }
     
     // Function to update manual work days based on selected start date
@@ -10381,30 +10718,27 @@ window.openAddDefaultModal = function() {
 
 // ===== MEDICINE SCHEDULE BUTTON & MODAL =====
 
-// Add "Take Medicine" button next to "Add New Default Block"
+function ensureMedicineButton() {
+    const actionsRow = document.querySelector('.default-actions-row');
+    const addButton = actionsRow?.querySelector('.default-add-btn');
+    
+    if (addButton && !document.getElementById('takeMedicineBtn')) {
+        const medicineBtn = document.createElement('button');
+        medicineBtn.id = 'takeMedicineBtn';
+        medicineBtn.type = 'button';
+        medicineBtn.innerHTML = '💊 Take Medicine';
+        medicineBtn.className = 'default-action-btn medicine-action-btn';
+        medicineBtn.onclick = openMedicineScheduleModal;
+        
+        actionsRow.appendChild(medicineBtn);
+        console.log('✅ Take Medicine button added');
+    }
+}
+
+// Add "Take Medicine" button next to "Template"
 document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => {
-        // Find the "Add New Default Block" button
-        const buttons = Array.from(document.querySelectorAll('button'));
-        const addButton = buttons.find(btn => btn.textContent.includes('Add New Default Block'));
-        
-        if (addButton && !document.getElementById('takeMedicineBtn')) {
-            const medicineBtn = document.createElement('button');
-            medicineBtn.id = 'takeMedicineBtn';
-            medicineBtn.type = 'button';
-            medicineBtn.innerHTML = '💊 Take Medicine';
-            medicineBtn.className = 'default-action-btn medicine-action-btn';
-            medicineBtn.onclick = openMedicineScheduleModal;
-            
-            addButton.classList.add('default-action-btn', 'default-add-btn');
-            const actionsRow = addButton.closest('.default-actions-row');
-            if (actionsRow) {
-                actionsRow.appendChild(medicineBtn);
-            } else {
-                addButton.parentNode.insertBefore(medicineBtn, addButton.nextSibling);
-            }
-            console.log('✅ Take Medicine button added');
-        }
+        ensureMedicineButton();
     }, 500);
 });
 
