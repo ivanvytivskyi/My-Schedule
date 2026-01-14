@@ -432,6 +432,12 @@ function getLeftoverAllowance(recipe) {
 // Insert cooking blocks before meal blocks
 function insertCookingBlocksForMeals(blocks, dayKey) {
     const result = [];
+    const parsedDayKey = typeof dayKey === 'string' && dayKey.startsWith('day_')
+        ? new Date(Number(dayKey.replace('day_', '')))
+        : null;
+    const dateKey = parsedDayKey && !isNaN(parsedDayKey.getTime())
+        ? parsedDayKey.toISOString().split('T')[0]
+        : (dayKey || 'day');
     
     for (let i = 0; i < blocks.length; i++) {
         const block = blocks[i];
@@ -482,6 +488,13 @@ function insertCookingBlocksForMeals(blocks, dayKey) {
                         sourceDefaultId: block.sourceDefaultId,
                         scaledRecipe: scaledRecipe // Store scaled recipe if applicable
                     };
+                    if (block.id) {
+                        cookingBlock.linkedBlockId = block.id;
+                    }
+                    const mealBaseKey = block.groupId || block.id || block.stableId || `${category}:${block.recipeID || block.title || 'meal'}`;
+                    const groupId = block.groupId || `${mealBaseKey}:${dateKey}`;
+                    assignGroupMetadata(block, groupId, 'meal', 1, parsedDayKey, true);
+                    assignGroupMetadata(cookingBlock, groupId, 'cook', 0, parsedDayKey, true);
                     
                     result.push(cookingBlock);
                 }
@@ -2897,6 +2910,16 @@ function addSingleDay() {
             if (isEnabled && appliesToThisDay) {
                 const { todayBlock, nextDayBlock } = splitOvernightBlock(defaultBlock);
                 const copyToday = { ...todayBlock, fromDefault: true, sourceDefaultId: defaultBlock.id };
+                const templateGroupKey = copyToday.groupId || copyToday.id || copyToday.sourceDefaultId || copyToday.title || 'template';
+                const templateGroupId = copyToday.groupId || `${templateGroupKey}:${getStableDateKey(date)}`;
+                assignGroupMetadata(
+                    copyToday,
+                    templateGroupId,
+                    'main',
+                    copyToday.hasPrepTravel ? 2 : 0,
+                    date,
+                    !!copyToday.hasPrepTravel
+                );
                 
                 // CRITICAL FIX: Clear any pre-existing recipe from the default block
                 delete copyToday.recipeID;
@@ -2918,6 +2941,14 @@ function addSingleDay() {
                 // For single-day add, if overnight, append the next-day piece into the same day so data isn't lost
                 if (nextDayBlock) {
                     const copyNext = { ...nextDayBlock, fromDefault: true, sourceDefaultId: defaultBlock.id };
+                    assignGroupMetadata(
+                        copyNext,
+                        templateGroupId,
+                        'main',
+                        copyNext.hasPrepTravel ? 2 : 0,
+                        date,
+                        !!copyNext.hasPrepTravel
+                    );
                     
                     // Clear recipe from next day block too
                     delete copyNext.recipeID;
@@ -2940,13 +2971,14 @@ function addSingleDay() {
     }
 
     
+    const finalizedBlocks = finalizeDayBlocks(blocks, date);
     scheduleData.days[dayKey] = {
         name: dayName,
         date: date.toISOString().split('T')[0],
         displayDate: date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
         subtitle: 'Plan your day',
         motivation: '✨ Make today count!',
-        blocks: blocks
+        blocks: finalizedBlocks
     };
     
     renderDayTabs();
@@ -3405,6 +3437,7 @@ async function addWeek(options = {}) {
         if (isWorkDay) {
             const workTimes = workSchedule[dayOfWeek];
             const workBlockId = `work_${date.getTime()}`;
+            const workGroupId = `work:${workBlockId}`;
             if (MEAL_DEBUG) {
                 console.groupCollapsed(`🍽️ Meal Debug — ${dayLabel}`);
                 mealLog(`Work: yes (${workTimes.start}-${workTimes.end})`);
@@ -3414,7 +3447,7 @@ async function addWeek(options = {}) {
             if (addCommute && addCommutePrep && commutePrepDuration > 0) {
                 const commuteStart = subtractMinutesFromTime(workTimes.start, commuteDuration);
                 const prepStart = subtractMinutesFromTime(commuteStart, commutePrepDuration);
-                blocks.push({
+                const prepBlock = {
                     linkedBlockId: workBlockId,
                     time: `${prepStart}-${commuteStart}`,
                     title: '🧰 Commute prep',
@@ -3423,13 +3456,15 @@ async function addWeek(options = {}) {
                     tasks: ['Pack meals / snacks', 'Check route', 'Get ready to leave'],
                     note: '',
                     video: ''
-                });
+                };
+                assignGroupMetadata(prepBlock, workGroupId, 'prep', 0, date, true);
+                blocks.push(prepBlock);
             }
 
             // Add commute TO work if enabled
             if (addCommute) {
                 const commuteStart = subtractMinutesFromTime(workTimes.start, commuteDuration);
-                blocks.push({
+                const commuteToBlock = {
                     linkedBlockId: workBlockId,
                     time: `${commuteStart}-${workTimes.start}`,
                     title: '🚶 Commute to work',
@@ -3438,11 +3473,13 @@ async function addWeek(options = {}) {
                     tasks: ['Travel to work'],
                     note: '',
                     video: ''
-                });
+                };
+                assignGroupMetadata(commuteToBlock, workGroupId, 'travelTo', 1, date, true);
+                blocks.push(commuteToBlock);
             }
 
             // Add WORK block
-            blocks.push({
+            const workBlock = {
                 id: workBlockId,
                 time: `${workTimes.start}-${workTimes.end}`,
                 title: '💼 Work',
@@ -3451,7 +3488,9 @@ async function addWeek(options = {}) {
                 tasks: ['Work shift'],
                 note: '',
                 video: ''
-            });
+            };
+            assignGroupMetadata(workBlock, workGroupId, 'main', 2, date, true);
+            blocks.push(workBlock);
 
             // Add commute FROM work if enabled
             if (addCommute) {
@@ -3461,7 +3500,7 @@ async function addWeek(options = {}) {
                 if (timeIsEarlier(commuteEnd, workTimes.end)) {
                     commuteEndDateTime.setDate(commuteEndDateTime.getDate() + 1);
                 }
-                blocks.push({
+                const commuteHomeBlock = {
                     linkedBlockId: workBlockId,
                     time: `${workTimes.end}-${commuteEnd}`,
                     title: '🚶 Commute home',
@@ -3470,7 +3509,9 @@ async function addWeek(options = {}) {
                     tasks: ['Travel home'],
                     note: '',
                     video: ''
-                });
+                };
+                assignGroupMetadata(commuteHomeBlock, workGroupId, 'travelHome', 3, date, true);
+                blocks.push(commuteHomeBlock);
             }
         }
         if (!isWorkDay && MEAL_DEBUG) {
@@ -3540,6 +3581,16 @@ async function addWeek(options = {}) {
                 
                 // For non-sleep blocks, add normally
                 const copyToday = { ...defaultBlock, fromDefault: true, sourceDefaultId: defaultBlock.id };
+                const templateGroupKey = copyToday.groupId || copyToday.id || copyToday.sourceDefaultId || copyToday.title || 'template';
+                const templateGroupId = copyToday.groupId || `${templateGroupKey}:${getStableDateKey(date)}`;
+                assignGroupMetadata(
+                    copyToday,
+                    templateGroupId,
+                    'main',
+                    copyToday.hasPrepTravel ? 2 : 0,
+                    date,
+                    !!copyToday.hasPrepTravel
+                );
                 
                 // CRITICAL FIX: Clear any pre-existing recipe from the default block
                 // so a fresh recipe can be assigned each day
@@ -4276,26 +4327,28 @@ async function addWeek(options = {}) {
             }
         }
         
+        const finalizedBlocks = finalizeDayBlocks(dedupeSleepBlocks(blocks), date);
         scheduleData.days[dayKey] = {
             name: dayName,
             date: date.toISOString().split('T')[0],
             displayDate: date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
             subtitle: 'Plan your day',
             motivation: '✨ Make today count!',
-            blocks: dedupeSleepBlocks(blocks)
+            blocks: finalizedBlocks
         };
         orderedDays[i].blocks = scheduleData.days[dayKey].blocks;
         createdDays += 1;
         } catch (error) {
             console.error(`❌ Failed to build schedule for ${dayLabel}:`, error);
             try {
+                const finalizedBlocks = finalizeDayBlocks(dedupeSleepBlocks(blocks), date);
                 scheduleData.days[dayKey] = {
                     name: dayName,
                     date: date.toISOString().split('T')[0],
                     displayDate: date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
                     subtitle: 'Plan your day',
                     motivation: '✨ Make today count!',
-                    blocks: dedupeSleepBlocks(blocks)
+                    blocks: finalizedBlocks
                 };
                 orderedDays[i].blocks = scheduleData.days[dayKey].blocks;
                 createdDays += 1;
@@ -7722,6 +7775,38 @@ function formatMinutesToTime(mins) {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+function getStableDateKey(date) {
+    return date ? date.toISOString().split('T')[0] : 'unknown';
+}
+
+function ensureStableId(block, date) {
+    if (!block) return '';
+    if (block.stableId) return block.stableId;
+    if (block.groupId && block.memberRole) {
+        const roleKey = String(block.memberRole).replace(/\s+/g, '');
+        const indexKey = Number.isFinite(block.memberIndex) ? block.memberIndex : '';
+        block.stableId = `${block.groupId}:${roleKey}:${indexKey}`;
+        return block.stableId;
+    }
+    if (block.id) {
+        block.stableId = block.id;
+        return block.stableId;
+    }
+    const dateKey = getStableDateKey(date);
+    const titleKey = (block.title || 'block').toLowerCase().replace(/\s+/g, '-');
+    block.stableId = `${titleKey}:${dateKey}`;
+    return block.stableId;
+}
+
+function assignGroupMetadata(block, groupId, memberRole, memberIndex, date, locked = true) {
+    if (!block) return;
+    block.groupId = groupId;
+    if (!block.memberRole) block.memberRole = memberRole;
+    if (!Number.isFinite(block.memberIndex)) block.memberIndex = memberIndex;
+    block.groupLocked = locked;
+    ensureStableId(block, date);
+}
+
 function buildPrepTravelBlocks(baseBlock, date) {
     if (!baseBlock?.hasPrepTravel) return [];
     const prepDuration = Number(baseBlock.prepDuration) || 0;
@@ -7734,10 +7819,16 @@ function buildPrepTravelBlocks(baseBlock, date) {
 
     const blocks = [];
     const baseTitle = baseBlock.title || 'Event';
+    const dateKey = getStableDateKey(date);
+    const baseGroupKey = baseBlock.groupId || baseBlock.id || baseBlock.sourceDefaultId || baseTitle;
+    const groupId = baseBlock.groupId || `${baseGroupKey}:${dateKey}`;
+    assignGroupMetadata(baseBlock, groupId, 'main', 2, date, true);
     const sharedMeta = {
         fromDefault: baseBlock.fromDefault,
         sourceDefaultId: baseBlock.sourceDefaultId,
-        linkedBlockId: baseBlock.id
+        linkedBlockId: baseBlock.id,
+        groupId: groupId,
+        groupLocked: true
     };
 
     const applyDateTime = (block, blockStart, blockEnd) => {
@@ -7767,6 +7858,7 @@ function buildPrepTravelBlocks(baseBlock, date) {
             title: `🧰 Prep for ${baseTitle}`,
             tasks: ['Get ready', 'Gather items']
         }, prepStart, prepEnd);
+        assignGroupMetadata(prepBlock, groupId, 'prep', 0, date, true);
         blocks.push(prepBlock);
     }
 
@@ -7782,6 +7874,7 @@ function buildPrepTravelBlocks(baseBlock, date) {
             title: `🚗 Travel to ${baseTitle}`,
             tasks: ['Travel']
         }, travelToStart, travelToEnd);
+        assignGroupMetadata(travelToBlock, groupId, 'travelTo', 1, date, true);
         blocks.push(travelToBlock);
 
         const travelHomeBlock = applyDateTime({
@@ -7790,6 +7883,7 @@ function buildPrepTravelBlocks(baseBlock, date) {
             title: `🚗 Travel home`,
             tasks: ['Travel back']
         }, travelHomeStart, travelHomeEnd);
+        assignGroupMetadata(travelHomeBlock, groupId, 'travelHome', 3, date, true);
         blocks.push(travelHomeBlock);
     }
 
@@ -7857,8 +7951,23 @@ function updateBlockTimesForDate(block, startMins, endMins, date) {
     }
 }
 
-function classifyChainRole(block, anchorBlock) {
+function getChainOrderValue(block, anchorBlock) {
     if (!block) return 99;
+    if (Number.isFinite(block.memberIndex)) return block.memberIndex;
+    if (block.memberRole) {
+        const roleKey = String(block.memberRole).toLowerCase();
+        const roleOrder = {
+            prep: 0,
+            travelto: 1,
+            travelhome: 3,
+            main: 2,
+            cook: 0,
+            meal: 2,
+            commute: 1,
+            commuteprep: 0
+        };
+        if (roleOrder[roleKey] !== undefined) return roleOrder[roleKey];
+    }
     if (block.isCookingBlock) return 0;
     if (anchorBlock && block === anchorBlock) return 2;
     const title = (block.title || '').toLowerCase();
@@ -7866,6 +7975,10 @@ function classifyChainRole(block, anchorBlock) {
     if (title.includes('travel to')) return 1;
     if (title.includes('travel home')) return 3;
     return 99;
+}
+
+function classifyChainRole(block, anchorBlock) {
+    return getChainOrderValue(block, anchorBlock);
 }
 
 function orderChainBlocks(chainBlocks, anchorBlock) {
@@ -8091,16 +8204,7 @@ function enforceLinkedBlockChains(blocks, date) {
         }
     };
 
-    const classifyChainRole = (block, anchorBlock) => {
-        if (!block) return 99;
-        if (block.isCookingBlock) return 0;
-        if (anchorBlock && block === anchorBlock) return 2;
-        const title = (block.title || '').toLowerCase();
-        if (title.includes('prep for')) return 0;
-        if (title.includes('travel to')) return 1;
-        if (title.includes('travel home')) return 3;
-        return 99;
-    };
+    const classifyChainRole = (block, anchorBlock) => getChainOrderValue(block, anchorBlock);
 
     const orderChainBlocks = (chainBlocks, anchorBlock) => {
         const ordered = chainBlocks.slice().sort((a, b) => {
@@ -8207,6 +8311,180 @@ function enforceLinkedBlockChains(blocks, date) {
     });
 
     return blocks;
+}
+
+function applyImportantSplits(blocks, date) {
+    if (!Array.isArray(blocks) || blocks.length === 0) {
+        console.log('⚠️ Split: important=0 segmentsAdded=0');
+        return [];
+    }
+    const isImportantBlock = (block) =>
+        block?.blockType === 'important' || block?.canSplit === true;
+    const importantBlocks = blocks
+        .filter(isImportantBlock)
+        .map(block => ({ block, ...getBlockTimeRange(block) }))
+        .filter(item => !isNaN(item.start) && !isNaN(item.end))
+        .sort((a, b) => a.start - b.start);
+    let updatedBlocks = blocks.slice();
+    let segmentsAdded = 0;
+    importantBlocks.forEach(({ block: importantBlock, start: impStart, end: impEnd }) => {
+        updatedBlocks = updatedBlocks.flatMap(block => {
+            if (block === importantBlock || isImportantBlock(block)) return [block];
+            const { start, end } = getBlockTimeRange(block);
+            if (isNaN(start) || isNaN(end)) return [block];
+            if (!(start < impStart && end > impEnd)) return [block];
+
+            const originalStableId = ensureStableId(block, date);
+            const baseStableId = originalStableId.split(':seg')[0];
+            let segmentIndex = 1;
+            const segments = [];
+            const buildSegment = (segStart, segEnd) => {
+                const segment = { ...block };
+                segment.time = `${formatMinutesToTime(segStart)}-${formatMinutesToTime(segEnd)}`;
+                if (segment.startDateTime && segment.endDateTime && date) {
+                    segment.startDateTime = createDateTimeFromTimeStr(date, formatMinutesToTime(segStart)).toISOString();
+                    segment.endDateTime = createDateTimeFromTimeStr(date, formatMinutesToTime(segEnd)).toISOString();
+                }
+                if (segmentIndex > 1) {
+                    delete segment.id;
+                }
+                if (segment.groupLocked) {
+                    segment.segmentIndex = segmentIndex;
+                    segment.stableId = `${baseStableId}:seg${segmentIndex}`;
+                } else {
+                    segment.stableId = `${baseStableId}:seg${segmentIndex}`;
+                }
+                segmentIndex += 1;
+                return segment;
+            };
+
+            if (start < impStart) {
+                segments.push(buildSegment(start, impStart));
+            }
+            if (impEnd < end) {
+                segments.push(buildSegment(impEnd, end));
+            }
+            segmentsAdded += segments.length;
+            return segments;
+        });
+    });
+
+    console.log(`⚠️ Split: important=${importantBlocks.length} segmentsAdded=${segmentsAdded}`);
+    return updatedBlocks;
+}
+
+function enforceLockedGroupOrderAndContiguity(blocks) {
+    if (!Array.isArray(blocks) || blocks.length === 0) {
+        return { blocks: [], groupCount: 0 };
+    }
+    const isImportantBlock = (block) =>
+        block?.blockType === 'important' || block?.canSplit === true;
+    const groupMap = new Map();
+    blocks.forEach(block => {
+        if (block?.groupId && block.groupLocked === true) {
+            if (!groupMap.has(block.groupId)) groupMap.set(block.groupId, []);
+            groupMap.get(block.groupId).push(block);
+        }
+    });
+    if (groupMap.size === 0) {
+        return { blocks: blocks.slice(), groupCount: 0 };
+    }
+    let arranged = blocks.slice().sort((a, b) => {
+        const aStart = getBlockTimeRange(a).start;
+        const bStart = getBlockTimeRange(b).start;
+        return aStart - bStart;
+    });
+
+    groupMap.forEach(members => {
+        if (members.length < 2) return;
+        const anchorBlock = members.find(block => block.memberRole === 'main') || null;
+        const orderedMembers = members.slice().sort((a, b) => {
+            const roleA = Number.isFinite(a.memberIndex) ? a.memberIndex : getChainOrderValue(a, anchorBlock);
+            const roleB = Number.isFinite(b.memberIndex) ? b.memberIndex : getChainOrderValue(b, anchorBlock);
+            if (roleA !== roleB) return roleA - roleB;
+            const aStart = getBlockTimeRange(a).start;
+            const bStart = getBlockTimeRange(b).start;
+            return aStart - bStart;
+        });
+
+        const memberStarts = orderedMembers.map(block => getBlockTimeRange(block).start);
+        const memberEnds = orderedMembers.map(block => getBlockTimeRange(block).end);
+        const groupStart = Math.min(...memberStarts.filter(val => !isNaN(val)));
+        const groupEnd = Math.max(...memberEnds.filter(val => !isNaN(val)));
+        if (!isFinite(groupStart) || !isFinite(groupEnd)) return;
+
+        const inRange = (block) => {
+            const { start } = getBlockTimeRange(block);
+            return !isNaN(start) && start >= groupStart && start <= groupEnd;
+        };
+        const otherWithin = arranged.filter(block => !members.includes(block) && inRange(block));
+        const importantWithin = otherWithin.filter(isImportantBlock);
+        const nonImportantWithin = otherWithin.filter(block => !isImportantBlock(block));
+        arranged = arranged.filter(block => !members.includes(block) && !otherWithin.includes(block));
+
+        const importantSorted = importantWithin.slice().sort((a, b) => {
+            const aStart = getBlockTimeRange(a).start;
+            const bStart = getBlockTimeRange(b).start;
+            return aStart - bStart;
+        });
+        const segment = [];
+        const placedImportant = new Set();
+        const firstStart = Number.isFinite(memberStarts[0]) ? memberStarts[0] : groupStart;
+        importantSorted.forEach(block => {
+            const start = getBlockTimeRange(block).start;
+            if (!placedImportant.has(block) && start < firstStart) {
+                segment.push(block);
+                placedImportant.add(block);
+            }
+        });
+        orderedMembers.forEach((member, index) => {
+            segment.push(member);
+            const memberStart = memberStarts[index];
+            const nextStart = memberStarts[index + 1] ?? (groupEnd + 1);
+            importantSorted.forEach(block => {
+                const start = getBlockTimeRange(block).start;
+                if (!placedImportant.has(block) && start >= memberStart && start < nextStart) {
+                    segment.push(block);
+                    placedImportant.add(block);
+                }
+            });
+        });
+        importantSorted.forEach(block => {
+            if (!placedImportant.has(block)) {
+                segment.push(block);
+                placedImportant.add(block);
+            }
+        });
+
+        const insertIndex = arranged.findIndex(block => {
+            const { start } = getBlockTimeRange(block);
+            return !isNaN(start) && start >= groupStart;
+        });
+        if (insertIndex === -1) {
+            arranged.push(...segment, ...nonImportantWithin);
+        } else {
+            arranged.splice(insertIndex, 0, ...segment, ...nonImportantWithin);
+        }
+    });
+
+    return { blocks: arranged, groupCount: groupMap.size };
+}
+
+function finalizeDayBlocks(blocks, date) {
+    let workingBlocks = Array.isArray(blocks) ? blocks.slice() : [];
+    workingBlocks = applyImportantSplits(workingBlocks, date);
+    const { blocks: groupedBlocks, groupCount } = enforceLockedGroupOrderAndContiguity(workingBlocks);
+    console.log(`🔗 Finalize: groups=${groupCount} blocks=${groupedBlocks.length}`);
+    const sortedBlocks = groupedBlocks.slice().sort((a, b) => {
+        const aStart = getBlockTimeRange(a).start;
+        const bStart = getBlockTimeRange(b).start;
+        return aStart - bStart;
+    });
+    sortedBlocks.forEach((block, index) => {
+        block.orderId = index + 1;
+    });
+    console.log(`✅ OrderId assigned: ${sortedBlocks.length} blocks`);
+    return sortedBlocks;
 }
 
 function isMorningCandidate(block) {
@@ -10421,13 +10699,14 @@ function parseAndCreateSchedule(response) {
         const { blocks: adjustedBlocks } = applyPriorityNudges(blocks, date, { maxShiftMinutes: 15 });
         blocks = adjustedBlocks;
         
+        const finalizedBlocks = finalizeDayBlocks(blocks, date);
         scheduleData.days[dayKey] = {
             name: dayName,
             date: date.toISOString().split('T')[0],
             displayDate: date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
             subtitle: 'Imported Schedule',
             motivation: '✨ Your schedule!',
-            blocks: blocks
+            blocks: finalizedBlocks
         };
     }
     
@@ -12124,66 +12403,13 @@ const originalCopyDefaults = window.copyDefaultsToDay;
 
 // Re-apply splitting to all days (called on app load)
 function reapplySplittingToAllDays() {
-    console.log('🔄 Re-applying splitting to all days...');
-    let totalSplits = 0;
-    
     Object.keys(scheduleData.days).forEach(dayKey => {
         const day = scheduleData.days[dayKey];
         if (!day || !day.blocks) return;
-        
-        const importantBlocks = day.blocks.filter(b => b.canSplit === true || b.blockType === 'important');
-        if (importantBlocks.length === 0) return;
-        
-        importantBlocks.forEach(importantBlock => {
-            const [impStart, impEnd] = importantBlock.time.split('-');
-            const impStartMins = timeStrToMinutes(impStart);
-            const impEndMins = timeStrToMinutes(impEnd);
-            
-            const overlappingBlocks = day.blocks.filter(block => {
-                if (block === importantBlock) return false;
-                if (block.canSplit) return false;
-                
-                const [start, end] = block.time.split('-');
-                const startMins = timeStrToMinutes(start);
-                const endMins = timeStrToMinutes(end);
-                
-                return (startMins < impEndMins && endMins > impStartMins);
-            });
-            
-            if (overlappingBlocks.length > 0) {
-                console.log(`🔪 Splitting ${overlappingBlocks.length} blocks in ${dayKey}`);
-                totalSplits += overlappingBlocks.length;
-            }
-            
-            overlappingBlocks.forEach(overlappingBlock => {
-                const [overStart, overEnd] = overlappingBlock.time.split('-');
-                const overStartMins = timeStrToMinutes(overStart);
-                const overEndMins = timeStrToMinutes(overEnd);
-                
-                const index = day.blocks.indexOf(overlappingBlock);
-                day.blocks.splice(index, 1);
-                
-                if (overStartMins < impStartMins) {
-                    day.blocks.push({
-                        ...overlappingBlock,
-                        time: `${overStart}-${impStart}`
-                    });
-                }
-                
-                if (overEndMins > impEndMins) {
-                    day.blocks.push({
-                        ...overlappingBlock,
-                        time: `${impEnd}-${overEnd}`
-                    });
-                }
-            });
-        });
+        const dayDate = day.date ? new Date(day.date) : null;
+        day.blocks = finalizeDayBlocks(day.blocks, dayDate);
     });
-    
-    if (totalSplits > 0) {
-        console.log(`✅ Split ${totalSplits} blocks across all days`);
-        saveToLocalStorage();
-    }
+    saveToLocalStorage();
 }
 window.reapplySplittingToAllDays = reapplySplittingToAllDays;
 
@@ -12193,57 +12419,8 @@ if (originalCopyDefaults) {
         
         const day = scheduleData.days[dayKey];
         if (!day || !day.blocks) return;
-        
-        const importantBlocks = day.blocks.filter(b => b.canSplit === true || b.blockType === 'important');
-        if (importantBlocks.length === 0) return;
-        
-        console.log(`🔪 Splitting ${importantBlocks.length} important blocks`);
-        
-        importantBlocks.forEach(importantBlock => {
-            const [impStart, impEnd] = importantBlock.time.split('-');
-            const impStartMins = timeStrToMinutes(impStart);
-            const impEndMins = timeStrToMinutes(impEnd);
-            
-            const overlappingBlocks = day.blocks.filter(block => {
-                if (block === importantBlock) return false;
-                if (block.canSplit) return false;
-                
-                const [start, end] = block.time.split('-');
-                const startMins = timeStrToMinutes(start);
-                const endMins = timeStrToMinutes(end);
-                
-                return (startMins < impEndMins && endMins > impStartMins);
-            });
-            
-            overlappingBlocks.forEach(overlappingBlock => {
-                const [overStart, overEnd] = overlappingBlock.time.split('-');
-                const overStartMins = timeStrToMinutes(overStart);
-                const overEndMins = timeStrToMinutes(overEnd);
-                
-                const index = day.blocks.indexOf(overlappingBlock);
-                day.blocks.splice(index, 1);
-                
-                if (overStartMins < impStartMins) {
-                    day.blocks.push({
-                        ...overlappingBlock,
-                        time: `${overStart}-${impStart}`
-                    });
-                }
-                
-                if (overEndMins > impEndMins) {
-                    day.blocks.push({
-                        ...overlappingBlock,
-                        time: `${impEnd}-${overEnd}`
-                    });
-                }
-            });
-        });
-        
-        day.blocks.sort((a, b) => {
-            const [aStart] = a.time.split('-');
-            const [bStart] = b.time.split('-');
-            return timeStrToMinutes(aStart) - timeStrToMinutes(bStart);
-        });
+        const dayDate = day.date ? new Date(day.date) : null;
+        day.blocks = finalizeDayBlocks(day.blocks, dayDate);
     };
 }
 
