@@ -432,6 +432,12 @@ function getLeftoverAllowance(recipe) {
 // Insert cooking blocks before meal blocks
 function insertCookingBlocksForMeals(blocks, dayKey) {
     const result = [];
+    const parsedDayKey = typeof dayKey === 'string' && dayKey.startsWith('day_')
+        ? new Date(Number(dayKey.replace('day_', '')))
+        : null;
+    const dateKey = parsedDayKey && !isNaN(parsedDayKey.getTime())
+        ? parsedDayKey.toISOString().split('T')[0]
+        : (dayKey || 'day');
     
     for (let i = 0; i < blocks.length; i++) {
         const block = blocks[i];
@@ -482,6 +488,13 @@ function insertCookingBlocksForMeals(blocks, dayKey) {
                         sourceDefaultId: block.sourceDefaultId,
                         scaledRecipe: scaledRecipe // Store scaled recipe if applicable
                     };
+                    if (block.id) {
+                        cookingBlock.linkedBlockId = block.id;
+                    }
+                    const mealBaseKey = block.groupId || block.id || block.stableId || `${category}:${block.recipeID || block.title || 'meal'}`;
+                    const groupId = block.groupId || `${mealBaseKey}:${dateKey}`;
+                    assignGroupMetadata(block, groupId, 'meal', 1, parsedDayKey, true);
+                    assignGroupMetadata(cookingBlock, groupId, 'cook', 0, parsedDayKey, true);
                     
                     result.push(cookingBlock);
                 }
@@ -2897,6 +2910,16 @@ function addSingleDay() {
             if (isEnabled && appliesToThisDay) {
                 const { todayBlock, nextDayBlock } = splitOvernightBlock(defaultBlock);
                 const copyToday = { ...todayBlock, fromDefault: true, sourceDefaultId: defaultBlock.id };
+                const templateGroupKey = copyToday.groupId || copyToday.id || copyToday.sourceDefaultId || copyToday.title || 'template';
+                const templateGroupId = copyToday.groupId || `${templateGroupKey}:${getStableDateKey(date)}`;
+                assignGroupMetadata(
+                    copyToday,
+                    templateGroupId,
+                    'main',
+                    copyToday.hasPrepTravel ? 2 : 0,
+                    date,
+                    !!copyToday.hasPrepTravel
+                );
                 
                 // CRITICAL FIX: Clear any pre-existing recipe from the default block
                 delete copyToday.recipeID;
@@ -2918,6 +2941,14 @@ function addSingleDay() {
                 // For single-day add, if overnight, append the next-day piece into the same day so data isn't lost
                 if (nextDayBlock) {
                     const copyNext = { ...nextDayBlock, fromDefault: true, sourceDefaultId: defaultBlock.id };
+                    assignGroupMetadata(
+                        copyNext,
+                        templateGroupId,
+                        'main',
+                        copyNext.hasPrepTravel ? 2 : 0,
+                        date,
+                        !!copyNext.hasPrepTravel
+                    );
                     
                     // Clear recipe from next day block too
                     delete copyNext.recipeID;
@@ -2940,13 +2971,14 @@ function addSingleDay() {
     }
 
     
+    const finalizedBlocks = finalizeDayBlocks(blocks, date, dayKey);
     scheduleData.days[dayKey] = {
         name: dayName,
         date: date.toISOString().split('T')[0],
         displayDate: date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
         subtitle: 'Plan your day',
         motivation: '✨ Make today count!',
-        blocks: blocks
+        blocks: finalizedBlocks
     };
     
     renderDayTabs();
@@ -3405,6 +3437,7 @@ async function addWeek(options = {}) {
         if (isWorkDay) {
             const workTimes = workSchedule[dayOfWeek];
             const workBlockId = `work_${date.getTime()}`;
+            const workGroupId = `work:${workBlockId}`;
             if (MEAL_DEBUG) {
                 console.groupCollapsed(`🍽️ Meal Debug — ${dayLabel}`);
                 mealLog(`Work: yes (${workTimes.start}-${workTimes.end})`);
@@ -3414,7 +3447,7 @@ async function addWeek(options = {}) {
             if (addCommute && addCommutePrep && commutePrepDuration > 0) {
                 const commuteStart = subtractMinutesFromTime(workTimes.start, commuteDuration);
                 const prepStart = subtractMinutesFromTime(commuteStart, commutePrepDuration);
-                blocks.push({
+                const prepBlock = {
                     linkedBlockId: workBlockId,
                     time: `${prepStart}-${commuteStart}`,
                     title: '🧰 Commute prep',
@@ -3423,13 +3456,15 @@ async function addWeek(options = {}) {
                     tasks: ['Pack meals / snacks', 'Check route', 'Get ready to leave'],
                     note: '',
                     video: ''
-                });
+                };
+                assignGroupMetadata(prepBlock, workGroupId, 'prep', 0, date, true);
+                blocks.push(prepBlock);
             }
 
             // Add commute TO work if enabled
             if (addCommute) {
                 const commuteStart = subtractMinutesFromTime(workTimes.start, commuteDuration);
-                blocks.push({
+                const commuteToBlock = {
                     linkedBlockId: workBlockId,
                     time: `${commuteStart}-${workTimes.start}`,
                     title: '🚶 Commute to work',
@@ -3438,11 +3473,13 @@ async function addWeek(options = {}) {
                     tasks: ['Travel to work'],
                     note: '',
                     video: ''
-                });
+                };
+                assignGroupMetadata(commuteToBlock, workGroupId, 'travelTo', 1, date, true);
+                blocks.push(commuteToBlock);
             }
 
             // Add WORK block
-            blocks.push({
+            const workBlock = {
                 id: workBlockId,
                 time: `${workTimes.start}-${workTimes.end}`,
                 title: '💼 Work',
@@ -3451,7 +3488,9 @@ async function addWeek(options = {}) {
                 tasks: ['Work shift'],
                 note: '',
                 video: ''
-            });
+            };
+            assignGroupMetadata(workBlock, workGroupId, 'main', 2, date, true);
+            blocks.push(workBlock);
 
             // Add commute FROM work if enabled
             if (addCommute) {
@@ -3461,7 +3500,7 @@ async function addWeek(options = {}) {
                 if (timeIsEarlier(commuteEnd, workTimes.end)) {
                     commuteEndDateTime.setDate(commuteEndDateTime.getDate() + 1);
                 }
-                blocks.push({
+                const commuteHomeBlock = {
                     linkedBlockId: workBlockId,
                     time: `${workTimes.end}-${commuteEnd}`,
                     title: '🚶 Commute home',
@@ -3470,7 +3509,9 @@ async function addWeek(options = {}) {
                     tasks: ['Travel home'],
                     note: '',
                     video: ''
-                });
+                };
+                assignGroupMetadata(commuteHomeBlock, workGroupId, 'travelHome', 3, date, true);
+                blocks.push(commuteHomeBlock);
             }
         }
         if (!isWorkDay && MEAL_DEBUG) {
@@ -3540,6 +3581,16 @@ async function addWeek(options = {}) {
                 
                 // For non-sleep blocks, add normally
                 const copyToday = { ...defaultBlock, fromDefault: true, sourceDefaultId: defaultBlock.id };
+                const templateGroupKey = copyToday.groupId || copyToday.id || copyToday.sourceDefaultId || copyToday.title || 'template';
+                const templateGroupId = copyToday.groupId || `${templateGroupKey}:${getStableDateKey(date)}`;
+                assignGroupMetadata(
+                    copyToday,
+                    templateGroupId,
+                    'main',
+                    copyToday.hasPrepTravel ? 2 : 0,
+                    date,
+                    !!copyToday.hasPrepTravel
+                );
                 
                 // CRITICAL FIX: Clear any pre-existing recipe from the default block
                 // so a fresh recipe can be assigned each day
@@ -4276,26 +4327,28 @@ async function addWeek(options = {}) {
             }
         }
         
+        const finalizedBlocks = finalizeDayBlocks(dedupeSleepBlocks(blocks), date, dayKey);
         scheduleData.days[dayKey] = {
             name: dayName,
             date: date.toISOString().split('T')[0],
             displayDate: date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
             subtitle: 'Plan your day',
             motivation: '✨ Make today count!',
-            blocks: dedupeSleepBlocks(blocks)
+            blocks: finalizedBlocks
         };
         orderedDays[i].blocks = scheduleData.days[dayKey].blocks;
         createdDays += 1;
         } catch (error) {
             console.error(`❌ Failed to build schedule for ${dayLabel}:`, error);
             try {
+                const finalizedBlocks = finalizeDayBlocks(dedupeSleepBlocks(blocks), date, dayKey);
                 scheduleData.days[dayKey] = {
                     name: dayName,
                     date: date.toISOString().split('T')[0],
                     displayDate: date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
                     subtitle: 'Plan your day',
                     motivation: '✨ Make today count!',
-                    blocks: dedupeSleepBlocks(blocks)
+                    blocks: finalizedBlocks
                 };
                 orderedDays[i].blocks = scheduleData.days[dayKey].blocks;
                 createdDays += 1;
@@ -7465,6 +7518,60 @@ function applyWorkMealRules(blocks, workRange, daySummary, options = {}) {
         return busy;
     };
 
+    const mergeBusyIntervals = (intervals) => {
+        const sorted = intervals.slice().sort((a, b) => a.start - b.start);
+        const merged = [];
+        sorted.forEach(interval => {
+            if (!merged.length) {
+                merged.push({ ...interval });
+                return;
+            }
+            const last = merged[merged.length - 1];
+            if (interval.start <= last.end) {
+                last.end = Math.max(last.end, interval.end);
+            } else {
+                merged.push({ ...interval });
+            }
+        });
+        return merged;
+    };
+
+    const findLunchPlacement = (startMins, duration, busy, latestEnd) => {
+        const merged = mergeBusyIntervals(busy);
+        let cursor = Math.max(0, startMins);
+        for (const interval of merged) {
+            if (interval.end <= cursor) continue;
+            if (interval.start - cursor >= duration) {
+                const end = cursor + duration;
+                if (end <= latestEnd) return { start: cursor, end };
+                return null;
+            }
+            cursor = Math.max(cursor, interval.end);
+            if (cursor + duration > latestEnd) return null;
+        }
+        const finalEnd = cursor + duration;
+        if (finalEnd <= latestEnd) return { start: cursor, end: finalEnd };
+        return null;
+    };
+
+    const findArrivalHomeMinutes = () => {
+        let arrival = workWindow ? workWindow.end : NaN;
+        blocks.forEach(block => {
+            const title = (block.title || '').toLowerCase();
+            const isCommuteHome = title.includes('commute home') || title.includes('commute from work');
+            const isWorkChainHome = block.memberRole === 'travelHome' && block.groupId && block.groupId.startsWith('work:');
+            if (!isCommuteHome && !isWorkChainHome) return;
+            const { end } = getBlockTimeRange(block);
+            if (!isNaN(end) && (isNaN(arrival) || end > arrival)) {
+                arrival = end;
+            }
+        });
+        if (!isNaN(arrival)) {
+            arrival = Math.min(arrival, 24 * 60);
+        }
+        return arrival;
+    };
+
     const findPlacement = (initialStart, packageDuration, busy) => {
         const dayEnd = 24 * 60;
         let chainStart = Math.max(0, initialStart);
@@ -7536,6 +7643,10 @@ function applyWorkMealRules(blocks, workRange, daySummary, options = {}) {
                 return;
             }
             const { start, end } = getBlockTimeRange(mealBlock);
+            if (isNaN(start) || isNaN(end)) {
+                record(type, 'kept', 'INVALID_MEAL_TIME');
+                return;
+            }
             const saneTime = type === 'lunch'
                 ? (start >= timeStrToMinutes('11:00') && start <= timeStrToMinutes('15:00'))
                 : (start >= timeStrToMinutes('17:00') && start <= timeStrToMinutes('21:30'));
@@ -7562,7 +7673,72 @@ function applyWorkMealRules(blocks, workRange, daySummary, options = {}) {
             return;
         }
 
-        const { start } = getBlockTimeRange(mealBlock);
+        const mealRange = getBlockTimeRange(mealBlock);
+        if (isNaN(mealRange.start) || isNaN(mealRange.end)) {
+            state.remove = true;
+            record(type, 'removed', 'INVALID_MEAL_TIME');
+            return;
+        }
+
+        if (type === 'lunch' && workWindow) {
+            const cookingBlock = state.cookingBlocks[0] || null;
+            const mealDuration = getBlockDurationMinutes(mealBlock);
+            const cookingDuration = cookingBlock ? getBlockDurationMinutes(cookingBlock) : 0;
+            const arrivalHome = findArrivalHomeMinutes();
+            const latestLunchEnd = timeStrToMinutes('15:30');
+            const packageDuration = cookingDuration + mealDuration;
+
+            const hasValidDurations = Number.isFinite(mealDuration) && mealDuration > 0;
+            if (!hasValidDurations || isNaN(arrivalHome)) {
+                state.remove = true;
+                record(type, 'removed', 'INVALID_RESCHEDULE_DATA');
+                console.log(`🥪 Lunch decision: arrival=${formatMinutesToTime(arrivalHome || 0)} cook=${cookingDuration} eat=${mealDuration} end=-- decision=REMOVE reason=INVALID_DATA`);
+                return;
+            }
+
+            const busyIntervals = buildBusyIntervals([mealBlock, ...(cookingBlock ? [cookingBlock] : [])]);
+            const overlapsBusy = (startTime, endTime) =>
+                busyIntervals.some(interval => startTime < interval.end && endTime > interval.start);
+            const originalCookStart = mealRange.start - cookingDuration;
+            const originalMealEnd = mealRange.end;
+            const originalFits = originalCookStart >= arrivalHome &&
+                originalMealEnd <= latestLunchEnd &&
+                !overlapsBusy(originalCookStart, originalMealEnd);
+            if (originalFits) {
+                record(type, 'kept', 'KEPT_NO_OVERLAP');
+                console.log(`🥪 Lunch decision: arrival=${formatMinutesToTime(arrivalHome)} cook=${cookingDuration} eat=${mealDuration} end=${formatMinutesToTime(originalMealEnd)} decision=KEEP reason=ALREADY_FITS`);
+                return;
+            }
+
+            const placement = findLunchPlacement(arrivalHome, packageDuration, busyIntervals, latestLunchEnd);
+
+            if (!placement) {
+                state.remove = true;
+                record(type, 'removed', 'NO_FIT');
+                console.log(`🥪 Lunch decision: arrival=${formatMinutesToTime(arrivalHome)} cook=${cookingDuration} eat=${mealDuration} end=-- decision=REMOVE reason=NO_FIT`);
+                return;
+            }
+
+            const cookingStart = placement.start;
+            const cookingEnd = cookingStart + cookingDuration;
+            const mealStart = cookingEnd;
+            const mealEnd = mealStart + mealDuration;
+
+            if (mealEnd > latestLunchEnd) {
+                state.remove = true;
+                record(type, 'removed', 'AFTER_CUTOFF');
+                console.log(`🥪 Lunch decision: arrival=${formatMinutesToTime(arrivalHome)} cook=${cookingDuration} eat=${mealDuration} end=${formatMinutesToTime(mealEnd)} decision=REMOVE reason=AFTER_CUTOFF`);
+                return;
+            }
+
+            updateBlockTimes(mealBlock, mealStart, mealEnd);
+            updateBlockTimes(cookingBlock, cookingStart, cookingEnd);
+            record(type, 'kept', 'KEPT_NO_OVERLAP');
+            console.log(`🥪 Lunch decision: arrival=${formatMinutesToTime(arrivalHome)} cook=${cookingDuration} eat=${mealDuration} end=${formatMinutesToTime(mealEnd)} decision=KEEP reason=FIT`);
+            return;
+        }
+
+        const { start } = mealRange;
         const saneTime = type === 'lunch'
             ? (start >= timeStrToMinutes('11:00') && start <= timeStrToMinutes('15:00'))
             : (start >= timeStrToMinutes('17:00') && start <= timeStrToMinutes('21:30'));
@@ -7722,6 +7898,38 @@ function formatMinutesToTime(mins) {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+function getStableDateKey(date) {
+    return date ? date.toISOString().split('T')[0] : 'unknown';
+}
+
+function ensureStableId(block, date) {
+    if (!block) return '';
+    if (block.stableId) return block.stableId;
+    if (block.groupId && block.memberRole) {
+        const roleKey = String(block.memberRole).replace(/\s+/g, '');
+        const indexKey = Number.isFinite(block.memberIndex) ? block.memberIndex : '';
+        block.stableId = `${block.groupId}:${roleKey}:${indexKey}`;
+        return block.stableId;
+    }
+    if (block.id) {
+        block.stableId = block.id;
+        return block.stableId;
+    }
+    const dateKey = getStableDateKey(date);
+    const titleKey = (block.title || 'block').toLowerCase().replace(/\s+/g, '-');
+    block.stableId = `${titleKey}:${dateKey}`;
+    return block.stableId;
+}
+
+function assignGroupMetadata(block, groupId, memberRole, memberIndex, date, locked = true) {
+    if (!block) return;
+    block.groupId = groupId;
+    if (!block.memberRole) block.memberRole = memberRole;
+    if (!Number.isFinite(block.memberIndex)) block.memberIndex = memberIndex;
+    block.groupLocked = locked;
+    ensureStableId(block, date);
+}
+
 function buildPrepTravelBlocks(baseBlock, date) {
     if (!baseBlock?.hasPrepTravel) return [];
     const prepDuration = Number(baseBlock.prepDuration) || 0;
@@ -7734,10 +7942,16 @@ function buildPrepTravelBlocks(baseBlock, date) {
 
     const blocks = [];
     const baseTitle = baseBlock.title || 'Event';
+    const dateKey = getStableDateKey(date);
+    const baseGroupKey = baseBlock.groupId || baseBlock.id || baseBlock.sourceDefaultId || baseTitle;
+    const groupId = baseBlock.groupId || `${baseGroupKey}:${dateKey}`;
+    assignGroupMetadata(baseBlock, groupId, 'main', 2, date, true);
     const sharedMeta = {
         fromDefault: baseBlock.fromDefault,
         sourceDefaultId: baseBlock.sourceDefaultId,
-        linkedBlockId: baseBlock.id
+        linkedBlockId: baseBlock.id,
+        groupId: groupId,
+        groupLocked: true
     };
 
     const applyDateTime = (block, blockStart, blockEnd) => {
@@ -7767,6 +7981,7 @@ function buildPrepTravelBlocks(baseBlock, date) {
             title: `🧰 Prep for ${baseTitle}`,
             tasks: ['Get ready', 'Gather items']
         }, prepStart, prepEnd);
+        assignGroupMetadata(prepBlock, groupId, 'prep', 0, date, true);
         blocks.push(prepBlock);
     }
 
@@ -7782,6 +7997,7 @@ function buildPrepTravelBlocks(baseBlock, date) {
             title: `🚗 Travel to ${baseTitle}`,
             tasks: ['Travel']
         }, travelToStart, travelToEnd);
+        assignGroupMetadata(travelToBlock, groupId, 'travelTo', 1, date, true);
         blocks.push(travelToBlock);
 
         const travelHomeBlock = applyDateTime({
@@ -7790,6 +8006,7 @@ function buildPrepTravelBlocks(baseBlock, date) {
             title: `🚗 Travel home`,
             tasks: ['Travel back']
         }, travelHomeStart, travelHomeEnd);
+        assignGroupMetadata(travelHomeBlock, groupId, 'travelHome', 3, date, true);
         blocks.push(travelHomeBlock);
     }
 
@@ -7857,8 +8074,23 @@ function updateBlockTimesForDate(block, startMins, endMins, date) {
     }
 }
 
-function classifyChainRole(block, anchorBlock) {
+function getChainOrderValue(block, anchorBlock) {
     if (!block) return 99;
+    if (Number.isFinite(block.memberIndex)) return block.memberIndex;
+    if (block.memberRole) {
+        const roleKey = String(block.memberRole).toLowerCase();
+        const roleOrder = {
+            prep: 0,
+            travelto: 1,
+            travelhome: 3,
+            main: 2,
+            cook: 0,
+            meal: 2,
+            commute: 1,
+            commuteprep: 0
+        };
+        if (roleOrder[roleKey] !== undefined) return roleOrder[roleKey];
+    }
     if (block.isCookingBlock) return 0;
     if (anchorBlock && block === anchorBlock) return 2;
     const title = (block.title || '').toLowerCase();
@@ -7866,6 +8098,10 @@ function classifyChainRole(block, anchorBlock) {
     if (title.includes('travel to')) return 1;
     if (title.includes('travel home')) return 3;
     return 99;
+}
+
+function classifyChainRole(block, anchorBlock) {
+    return getChainOrderValue(block, anchorBlock);
 }
 
 function orderChainBlocks(chainBlocks, anchorBlock) {
@@ -8091,16 +8327,7 @@ function enforceLinkedBlockChains(blocks, date) {
         }
     };
 
-    const classifyChainRole = (block, anchorBlock) => {
-        if (!block) return 99;
-        if (block.isCookingBlock) return 0;
-        if (anchorBlock && block === anchorBlock) return 2;
-        const title = (block.title || '').toLowerCase();
-        if (title.includes('prep for')) return 0;
-        if (title.includes('travel to')) return 1;
-        if (title.includes('travel home')) return 3;
-        return 99;
-    };
+    const classifyChainRole = (block, anchorBlock) => getChainOrderValue(block, anchorBlock);
 
     const orderChainBlocks = (chainBlocks, anchorBlock) => {
         const ordered = chainBlocks.slice().sort((a, b) => {
@@ -8207,6 +8434,293 @@ function enforceLinkedBlockChains(blocks, date) {
     });
 
     return blocks;
+}
+
+function applyImportantSplits(blocks, date) {
+    if (!Array.isArray(blocks) || blocks.length === 0) {
+        console.log('⚠️ Split: important=0 segmentsAdded=0');
+        return [];
+    }
+    const isImportantBlock = (block) =>
+        block?.blockType === 'important' || block?.canSplit === true;
+    const importantBlocks = blocks
+        .filter(isImportantBlock)
+        .map(block => ({ block, ...getBlockTimeRange(block) }))
+        .filter(item => !isNaN(item.start) && !isNaN(item.end))
+        .sort((a, b) => a.start - b.start);
+    let updatedBlocks = blocks.slice();
+    let segmentsAdded = 0;
+    importantBlocks.forEach(({ block: importantBlock, start: impStart, end: impEnd }) => {
+        updatedBlocks = updatedBlocks.flatMap(block => {
+            if (block === importantBlock || isImportantBlock(block)) return [block];
+            const { start, end } = getBlockTimeRange(block);
+            if (isNaN(start) || isNaN(end)) return [block];
+            if (!(start < impStart && end > impEnd)) return [block];
+
+            const originalStableId = ensureStableId(block, date);
+            const baseStableId = originalStableId.split(':seg')[0];
+            let segmentIndex = 1;
+            const segments = [];
+            const buildSegment = (segStart, segEnd) => {
+                const segment = { ...block };
+                segment.time = `${formatMinutesToTime(segStart)}-${formatMinutesToTime(segEnd)}`;
+                if (segment.startDateTime && segment.endDateTime && date) {
+                    segment.startDateTime = createDateTimeFromTimeStr(date, formatMinutesToTime(segStart)).toISOString();
+                    segment.endDateTime = createDateTimeFromTimeStr(date, formatMinutesToTime(segEnd)).toISOString();
+                }
+                if (segmentIndex > 1) {
+                    delete segment.id;
+                }
+                if (segment.groupLocked) {
+                    segment.segmentIndex = segmentIndex;
+                    segment.stableId = `${baseStableId}:seg${segmentIndex}`;
+                } else {
+                    segment.stableId = `${baseStableId}:seg${segmentIndex}`;
+                }
+                segmentIndex += 1;
+                return segment;
+            };
+
+            if (start < impStart) {
+                segments.push(buildSegment(start, impStart));
+            }
+            if (impEnd < end) {
+                segments.push(buildSegment(impEnd, end));
+            }
+            segmentsAdded += segments.length;
+            return segments;
+        });
+    });
+
+    console.log(`⚠️ Split: important=${importantBlocks.length} segmentsAdded=${segmentsAdded}`);
+    return updatedBlocks;
+}
+
+function enforceLockedGroupOrderAndContiguity(blocks) {
+    if (!Array.isArray(blocks) || blocks.length === 0) {
+        return { blocks: [], groupCount: 0 };
+    }
+    const isImportantBlock = (block) =>
+        block?.blockType === 'important' || block?.canSplit === true;
+    const groupMap = new Map();
+    blocks.forEach(block => {
+        if (block?.groupId && block.groupLocked === true) {
+            if (!groupMap.has(block.groupId)) groupMap.set(block.groupId, []);
+            groupMap.get(block.groupId).push(block);
+        }
+    });
+    if (groupMap.size === 0) {
+        return { blocks: blocks.slice(), groupCount: 0 };
+    }
+    let arranged = blocks.slice().sort((a, b) => {
+        const aStart = getBlockTimeRange(a).start;
+        const bStart = getBlockTimeRange(b).start;
+        return aStart - bStart;
+    });
+
+    groupMap.forEach(members => {
+        if (members.length < 2) return;
+        const anchorBlock = members.find(block => block.memberRole === 'main') || null;
+        const orderedMembers = members.slice().sort((a, b) => {
+            const roleA = Number.isFinite(a.memberIndex) ? a.memberIndex : getChainOrderValue(a, anchorBlock);
+            const roleB = Number.isFinite(b.memberIndex) ? b.memberIndex : getChainOrderValue(b, anchorBlock);
+            if (roleA !== roleB) return roleA - roleB;
+            const aStart = getBlockTimeRange(a).start;
+            const bStart = getBlockTimeRange(b).start;
+            return aStart - bStart;
+        });
+
+        const memberStarts = orderedMembers.map(block => getBlockTimeRange(block).start);
+        const memberEnds = orderedMembers.map(block => getBlockTimeRange(block).end);
+        const groupStart = Math.min(...memberStarts.filter(val => !isNaN(val)));
+        const groupEnd = Math.max(...memberEnds.filter(val => !isNaN(val)));
+        if (!isFinite(groupStart) || !isFinite(groupEnd)) return;
+
+        const inRange = (block) => {
+            const { start } = getBlockTimeRange(block);
+            return !isNaN(start) && start >= groupStart && start <= groupEnd;
+        };
+        const otherWithin = arranged.filter(block => !members.includes(block) && inRange(block));
+        const importantWithin = otherWithin.filter(isImportantBlock);
+        const nonImportantWithin = otherWithin.filter(block => !isImportantBlock(block));
+        arranged = arranged.filter(block => !members.includes(block) && !otherWithin.includes(block));
+
+        const importantSorted = importantWithin.slice().sort((a, b) => {
+            const aStart = getBlockTimeRange(a).start;
+            const bStart = getBlockTimeRange(b).start;
+            return aStart - bStart;
+        });
+        const segment = [];
+        const placedImportant = new Set();
+        const firstStart = Number.isFinite(memberStarts[0]) ? memberStarts[0] : groupStart;
+        importantSorted.forEach(block => {
+            const start = getBlockTimeRange(block).start;
+            if (!placedImportant.has(block) && start < firstStart) {
+                segment.push(block);
+                placedImportant.add(block);
+            }
+        });
+        orderedMembers.forEach((member, index) => {
+            segment.push(member);
+            const memberStart = memberStarts[index];
+            const nextStart = memberStarts[index + 1] ?? (groupEnd + 1);
+            importantSorted.forEach(block => {
+                const start = getBlockTimeRange(block).start;
+                if (!placedImportant.has(block) && start >= memberStart && start < nextStart) {
+                    segment.push(block);
+                    placedImportant.add(block);
+                }
+            });
+        });
+        importantSorted.forEach(block => {
+            if (!placedImportant.has(block)) {
+                segment.push(block);
+                placedImportant.add(block);
+            }
+        });
+
+        const insertIndex = arranged.findIndex(block => {
+            const { start } = getBlockTimeRange(block);
+            return !isNaN(start) && start >= groupStart;
+        });
+        if (insertIndex === -1) {
+            arranged.push(...segment, ...nonImportantWithin);
+        } else {
+            arranged.splice(insertIndex, 0, ...segment, ...nonImportantWithin);
+        }
+    });
+
+    return { blocks: arranged, groupCount: groupMap.size };
+}
+
+function enforceCookBeforeMealWithPull(blocks, dayKey) {
+    if (!Array.isArray(blocks) || blocks.length === 0) return blocks;
+    const isFixedBlock = (block) => {
+        const title = (block.title || '').toLowerCase();
+        return block?.fixedTime === true ||
+            block?.blockType === 'important' ||
+            block?.canSplit === true ||
+            block?.blockType === 'work' ||
+            title.includes('work');
+    };
+    const isCookBlock = (block) => {
+        if (!block?.linkedBlockId) return false;
+        if (block.isCookingBlock === true) return true;
+        const title = (block.title || '').trim();
+        return title.toLowerCase().startsWith('cook ');
+    };
+    const getRange = (block) => {
+        if (!block?.time) return { start: NaN, end: NaN };
+        const [startStr, endStr] = block.time.split('-');
+        return {
+            start: timeStrToMinutes(startStr),
+            end: timeStrToMinutes(endStr)
+        };
+    };
+    const overlaps = (aStart, aEnd, bStart, bEnd) =>
+        aStart < bEnd && bStart < aEnd;
+
+    const allBlocks = blocks;
+    allBlocks.forEach(cookBlock => {
+        if (!isCookBlock(cookBlock)) return;
+        const mealBlock = allBlocks.find(block => block?.id && block.id === cookBlock.linkedBlockId);
+        if (!mealBlock) return;
+        const cookRange = getRange(cookBlock);
+        const mealRange = getRange(mealBlock);
+        if (isNaN(cookRange.start) || isNaN(cookRange.end) || isNaN(mealRange.start)) return;
+
+        const cookDuration = cookRange.end - cookRange.start;
+        const mealStart = mealRange.start;
+        const requiredCookStart = mealStart - cookDuration;
+        const requiredCookEnd = mealStart;
+        let effectiveCookStart = Math.max(0, requiredCookStart);
+
+        let movedBlocks = new Set();
+        let totalShift = 0;
+        let fullyCleared = true;
+
+        const shiftBlockEarlier = (block, shiftBy, visited = new Set()) => {
+            if (shiftBy <= 0) return true;
+            if (visited.has(block)) return true;
+            visited.add(block);
+            const { start, end } = getRange(block);
+            const newStart = start - shiftBy;
+            const newEnd = end - shiftBy;
+            if (newStart < 0) return false;
+            for (const other of allBlocks) {
+                if (other === block || other === cookBlock) continue;
+                const otherRange = getRange(other);
+                if (isNaN(otherRange.start) || isNaN(otherRange.end)) continue;
+                if (overlaps(newStart, newEnd, otherRange.start, otherRange.end)) {
+                    if (isFixedBlock(other)) return false;
+                    const neededShift = otherRange.end - newStart;
+                    if (!shiftBlockEarlier(other, neededShift, visited)) return false;
+                }
+            }
+            block.time = `${formatMinutesToTime(newStart)}-${formatMinutesToTime(newEnd)}`;
+            movedBlocks.add(block);
+            totalShift += shiftBy;
+            return true;
+        };
+
+        if (requiredCookStart < 0) {
+            fullyCleared = false;
+        }
+
+        while (true) {
+            const overlapper = allBlocks.find(block => {
+                if (block === cookBlock) return false;
+                const { start, end } = getRange(block);
+                if (isNaN(start) || isNaN(end)) return false;
+                return overlaps(effectiveCookStart, requiredCookEnd, start, end);
+            });
+            if (!overlapper) break;
+            if (isFixedBlock(overlapper)) {
+                fullyCleared = false;
+                break;
+            }
+            const { end } = getRange(overlapper);
+            const shiftBy = end - effectiveCookStart;
+            if (!shiftBlockEarlier(overlapper, shiftBy)) {
+                fullyCleared = false;
+                break;
+            }
+        }
+
+        if (mealStart < cookDuration) {
+            fullyCleared = false;
+        }
+
+        cookBlock.time = `${formatMinutesToTime(effectiveCookStart)}-${formatMinutesToTime(requiredCookEnd)}`;
+        const mealType = mealBlock.mealType || inferMealCategoryFromTitle(mealBlock.title) || 'meal';
+        console.log(`🍳 Cook anchored: ${mealType} ${formatMinutesToTime(effectiveCookStart)}-${formatMinutesToTime(mealStart)}`);
+        if (totalShift > 0) {
+            console.log(`⏪ Pulled earlier to fit cook: shifted=${totalShift} minutes, movedBlocks=${movedBlocks.size}`);
+        }
+        if (!fullyCleared) {
+            console.warn(`⚠️ Could not fully make room for cook-before-meal: ${mealBlock.title || 'Meal'} ${dayKey}`);
+        }
+    });
+
+    return blocks;
+}
+
+function finalizeDayBlocks(blocks, date, dayKey) {
+    let workingBlocks = Array.isArray(blocks) ? blocks.slice() : [];
+    workingBlocks = applyImportantSplits(workingBlocks, date);
+    const { blocks: groupedBlocks, groupCount } = enforceLockedGroupOrderAndContiguity(workingBlocks);
+    console.log(`🔗 Finalize: groups=${groupCount} blocks=${groupedBlocks.length}`);
+    const cookAdjustedBlocks = enforceCookBeforeMealWithPull(groupedBlocks, dayKey);
+    const sortedBlocks = cookAdjustedBlocks.slice().sort((a, b) => {
+        const aStart = getBlockTimeRange(a).start;
+        const bStart = getBlockTimeRange(b).start;
+        return aStart - bStart;
+    });
+    sortedBlocks.forEach((block, index) => {
+        block.orderId = index + 1;
+    });
+    console.log(`✅ OrderId assigned: ${sortedBlocks.length} blocks`);
+    return sortedBlocks;
 }
 
 function isMorningCandidate(block) {
@@ -8475,7 +8989,6 @@ function findAvailableShoppingSlots(orderedDays, beforeDayIndex, minDurationMins
     console.log(`🔍 Finding shopping slots before Day ${beforeDayIndex}...`);
     
     const availableSlots = [];
-    const defaultReservedRangesByDay = {};
     const addRange = (ranges, start, end) => {
         if (isNaN(start) || isNaN(end)) return;
         if (end < start) {
@@ -8486,47 +8999,6 @@ function findAvailableShoppingSlots(orderedDays, beforeDayIndex, minDurationMins
         ranges.push({ start, end });
     };
 
-    const getDefaultReservedRanges = (dayName) => {
-        if (defaultReservedRangesByDay[dayName]) return defaultReservedRangesByDay[dayName];
-        const ranges = [];
-        if (!scheduleData.defaultBlocks || scheduleData.defaultBlocks.length === 0) {
-            defaultReservedRangesByDay[dayName] = ranges;
-            return ranges;
-        }
-
-        scheduleData.defaultBlocks.forEach(defaultBlock => {
-            const isEnabled = defaultBlock.enabled !== false;
-            const days = defaultBlock.days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-            if (!isEnabled || !days.includes(dayName) || !defaultBlock.time) return;
-
-            const [start, end] = defaultBlock.time.split('-');
-            addRange(ranges, timeStrToMinutes(start), timeStrToMinutes(end));
-
-            const prepDuration = Number(defaultBlock.prepDuration) || 0;
-            const travelDuration = Number(defaultBlock.travelDuration) || 0;
-            if (defaultBlock.hasPrepTravel && (prepDuration || travelDuration)) {
-                const startMins = timeStrToMinutes(start);
-                const endMins = timeStrToMinutes(end);
-                if (!isNaN(startMins) && !isNaN(endMins)) {
-                    if (prepDuration > 0) {
-                        addRange(
-                            ranges,
-                            startMins - travelDuration - prepDuration,
-                            startMins - travelDuration
-                        );
-                    }
-                    if (travelDuration > 0) {
-                        addRange(ranges, startMins - travelDuration, startMins);
-                        addRange(ranges, endMins, endMins + travelDuration);
-                    }
-                }
-            }
-        });
-
-        defaultReservedRangesByDay[dayName] = ranges;
-        return ranges;
-    };
-    
     // FIX: If coverage is 0 days (beforeDayIndex = 1), search Day 0 itself
     // If user has no ingredients, they need to shop on Day 0 before cooking
     const searchUntilDay = beforeDayIndex <= 1 ? 1 : beforeDayIndex;
@@ -8536,48 +9008,9 @@ function findAvailableShoppingSlots(orderedDays, beforeDayIndex, minDurationMins
         if (!day) return;
         const date = day.date;
         const dayName = getDayName(date); // FIX: Use getDayName() instead of day.day
-        
-        // Get work hours for this day
-        const workSchedule = day.work; // This includes commute time
-        const workActual = day.workActual; // This is just the actual work time
-        let workStart = null;
-        let workEnd = null;
-        let actualWorkStart = null; // For label generation
+        let actualWorkStart = null;
         let actualWorkEnd = null;
-        
-        if (workSchedule) {
-            const [start, end] = workSchedule.split('-');
-            workStart = timeStrToMinutes(start); // Includes commute
-            workEnd = timeStrToMinutes(end);
-            console.log(`   Day ${dayIndex} (${dayName}): Reserved ${workSchedule} (${workStart}-${workEnd} mins)`);
-            
-            // Parse actual work time for labels
-            if (workActual) {
-                const [actualStart, actualEnd] = workActual.split('-');
-                actualWorkStart = timeStrToMinutes(actualStart);
-                actualWorkEnd = timeStrToMinutes(actualEnd);
-                console.log(`   Actual work: ${workActual} (commute/prep time included in reserved range)`);
-            } else {
-                actualWorkStart = workStart;
-                actualWorkEnd = workEnd;
-            }
-        } else {
-            console.log(`   Day ${dayIndex} (${dayName}): No work`);
-        }
-        
-        // FIX: Account for default blocks that WILL be created (sleep, morning routine, breakfast)
-        // AND meal/cooking blocks that WILL be created
-        const fallbackRanges = [
-            { start: 0, end: 360 },      // 00:00-06:00 (sleep)
-            { start: 360, end: 480 },    // 06:00-08:00 (morning routine + breakfast)
-            { start: 1320, end: 1440 }   // 22:00-24:00 (evening routine + sleep)
-        ];
 
-        const defaultReservedRanges = getDefaultReservedRanges(dayName);
-        const allReservedRanges = defaultReservedRanges.length > 0
-            ? defaultReservedRanges
-            : fallbackRanges;
-        
         const busyIntervals = [];
         const addBusyRange = (start, end) => {
             if (isNaN(start) || isNaN(end)) return;
@@ -8589,15 +9022,6 @@ function findAvailableShoppingSlots(orderedDays, beforeDayIndex, minDurationMins
             busyIntervals.push({ start, end });
         };
 
-        // Work schedule (includes commute/prep)
-        if (workStart && workEnd) {
-            addBusyRange(workStart, workEnd);
-        }
-
-        // Default blocks (or fallbacks)
-        allReservedRanges.forEach(range => addBusyRange(range.start, range.end));
-
-        // Existing blocks
         if (day.blocks) {
             day.blocks.forEach(block => {
                 const [blockStart, blockEnd] = block.time.split('-');
@@ -8646,6 +9070,7 @@ function findAvailableShoppingSlots(orderedDays, beforeDayIndex, minDurationMins
             }
 
             label += `${label ? ', ' : ''}Free window: ${formatMinutesAsHoursAndMinutes(gap.duration)}`;
+            console.log(`🕒 Free slot computed from FINAL blocks: start=${formatMinutesToTime(gap.start)} end=${formatMinutesToTime(gap.end)} (busyCount=${mergedBusy.length})`);
 
             availableSlots.push({
                 dayIndex: dayIndex,
@@ -10421,13 +10846,14 @@ function parseAndCreateSchedule(response) {
         const { blocks: adjustedBlocks } = applyPriorityNudges(blocks, date, { maxShiftMinutes: 15 });
         blocks = adjustedBlocks;
         
+        const finalizedBlocks = finalizeDayBlocks(blocks, date, dayKey);
         scheduleData.days[dayKey] = {
             name: dayName,
             date: date.toISOString().split('T')[0],
             displayDate: date.toLocaleDateString('en-GB', { month: 'short', day: 'numeric' }),
             subtitle: 'Imported Schedule',
             motivation: '✨ Your schedule!',
-            blocks: blocks
+            blocks: finalizedBlocks
         };
     }
     
@@ -11674,68 +12100,52 @@ const COMMON_TITLES = {
 
 window.calculateFreeTimeSlots = function(selectedDays) {
     const freeSlots = {};
-    const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
     
     selectedDays.forEach(day => { freeSlots[day] = []; });
-    
-    const enabledBlocks = (scheduleData.defaultBlocks || []).filter(b => b.enabled !== false);
-    
+
+    const dayEntries = Object.values(scheduleData.days || {});
+    const usableStart = timeStrToMinutes(scheduleData?.dayWindow?.start || '07:00');
+    const usableEnd = timeStrToMinutes(scheduleData?.dayWindow?.end || '23:00');
+
     selectedDays.forEach(dayName => {
-        const dayBlocks = enabledBlocks.filter(block => 
-            (block.days || DAYS).includes(dayName)
-        );
-        
-        const sorted = dayBlocks.map(block => {
-            const [start, end] = block.time.split('-');
-            return {
-                title: block.title,
-                startMins: timeStrToMinutes(start),
-                endMins: timeStrToMinutes(end)
-            };
-        }).sort((a, b) => a.startMins - b.startMins);
-        
-        const usableStart = 420;
-        const usableEnd = 1380;
-        
-        if (sorted.length === 0) {
-            freeSlots[dayName].push({
-                start: formatMinutesToTime(usableStart),
-                end: formatMinutesToTime(usableEnd),
-                duration: usableEnd - usableStart,
-                description: 'All day free'
+        const day = dayEntries.find(entry => entry?.name === dayName);
+        const dayBlocks = day?.blocks || [];
+        const busyIntervals = [];
+        dayBlocks.forEach(block => {
+            busyIntervals.push(...getBlockIntervalsWithinWindow(block, usableStart, usableEnd));
+        });
+        const mergedBusy = mergeIntervals(busyIntervals);
+        const gaps = [];
+        let cursor = usableStart;
+        mergedBusy.forEach(interval => {
+            if (interval.start > cursor) {
+                gaps.push({
+                    start: cursor,
+                    end: interval.start,
+                    duration: interval.start - cursor
+                });
+            }
+            cursor = Math.max(cursor, interval.end);
+        });
+        if (cursor < usableEnd) {
+            gaps.push({
+                start: cursor,
+                end: usableEnd,
+                duration: usableEnd - cursor
             });
-        } else {
-            if (sorted[0].startMins > usableStart) {
-                freeSlots[dayName].push({
-                    start: formatMinutesToTime(usableStart),
-                    end: formatMinutesToTime(sorted[0].startMins),
-                    duration: sorted[0].startMins - usableStart,
-                    description: `Free until ${sorted[0].title}`
-                });
-            }
-            
-            for (let i = 0; i < sorted.length - 1; i++) {
-                const gap = sorted[i + 1].startMins - sorted[i].endMins;
-                if (gap >= 5) {
-                    freeSlots[dayName].push({
-                        start: formatMinutesToTime(sorted[i].endMins),
-                        end: formatMinutesToTime(sorted[i + 1].startMins),
-                        duration: gap,
-                        description: `Between ${sorted[i].title} and ${sorted[i + 1].title}`
-                    });
-                }
-            }
-            
-            const lastEnd = sorted[sorted.length - 1].endMins;
-            if (lastEnd < usableEnd) {
-                freeSlots[dayName].push({
-                    start: formatMinutesToTime(lastEnd),
-                    end: formatMinutesToTime(usableEnd),
-                    duration: usableEnd - lastEnd,
-                    description: `After ${sorted[sorted.length - 1].title}`
-                });
-            }
         }
+
+        gaps.forEach(gap => {
+            if (gap.duration < 5) return;
+            const slot = {
+                start: formatMinutesToTime(gap.start),
+                end: formatMinutesToTime(gap.end),
+                duration: gap.duration,
+                description: 'Free time'
+            };
+            console.log(`🕒 Free slot computed from FINAL blocks: start=${slot.start} end=${slot.end} (busyCount=${mergedBusy.length})`);
+            freeSlots[dayName].push(slot);
+        });
     });
     
     return freeSlots;
@@ -12124,66 +12534,13 @@ const originalCopyDefaults = window.copyDefaultsToDay;
 
 // Re-apply splitting to all days (called on app load)
 function reapplySplittingToAllDays() {
-    console.log('🔄 Re-applying splitting to all days...');
-    let totalSplits = 0;
-    
     Object.keys(scheduleData.days).forEach(dayKey => {
         const day = scheduleData.days[dayKey];
         if (!day || !day.blocks) return;
-        
-        const importantBlocks = day.blocks.filter(b => b.canSplit === true || b.blockType === 'important');
-        if (importantBlocks.length === 0) return;
-        
-        importantBlocks.forEach(importantBlock => {
-            const [impStart, impEnd] = importantBlock.time.split('-');
-            const impStartMins = timeStrToMinutes(impStart);
-            const impEndMins = timeStrToMinutes(impEnd);
-            
-            const overlappingBlocks = day.blocks.filter(block => {
-                if (block === importantBlock) return false;
-                if (block.canSplit) return false;
-                
-                const [start, end] = block.time.split('-');
-                const startMins = timeStrToMinutes(start);
-                const endMins = timeStrToMinutes(end);
-                
-                return (startMins < impEndMins && endMins > impStartMins);
-            });
-            
-            if (overlappingBlocks.length > 0) {
-                console.log(`🔪 Splitting ${overlappingBlocks.length} blocks in ${dayKey}`);
-                totalSplits += overlappingBlocks.length;
-            }
-            
-            overlappingBlocks.forEach(overlappingBlock => {
-                const [overStart, overEnd] = overlappingBlock.time.split('-');
-                const overStartMins = timeStrToMinutes(overStart);
-                const overEndMins = timeStrToMinutes(overEnd);
-                
-                const index = day.blocks.indexOf(overlappingBlock);
-                day.blocks.splice(index, 1);
-                
-                if (overStartMins < impStartMins) {
-                    day.blocks.push({
-                        ...overlappingBlock,
-                        time: `${overStart}-${impStart}`
-                    });
-                }
-                
-                if (overEndMins > impEndMins) {
-                    day.blocks.push({
-                        ...overlappingBlock,
-                        time: `${impEnd}-${overEnd}`
-                    });
-                }
-            });
-        });
+        const dayDate = day.date ? new Date(day.date) : null;
+        day.blocks = finalizeDayBlocks(day.blocks, dayDate, dayKey);
     });
-    
-    if (totalSplits > 0) {
-        console.log(`✅ Split ${totalSplits} blocks across all days`);
-        saveToLocalStorage();
-    }
+    saveToLocalStorage();
 }
 window.reapplySplittingToAllDays = reapplySplittingToAllDays;
 
@@ -12193,57 +12550,8 @@ if (originalCopyDefaults) {
         
         const day = scheduleData.days[dayKey];
         if (!day || !day.blocks) return;
-        
-        const importantBlocks = day.blocks.filter(b => b.canSplit === true || b.blockType === 'important');
-        if (importantBlocks.length === 0) return;
-        
-        console.log(`🔪 Splitting ${importantBlocks.length} important blocks`);
-        
-        importantBlocks.forEach(importantBlock => {
-            const [impStart, impEnd] = importantBlock.time.split('-');
-            const impStartMins = timeStrToMinutes(impStart);
-            const impEndMins = timeStrToMinutes(impEnd);
-            
-            const overlappingBlocks = day.blocks.filter(block => {
-                if (block === importantBlock) return false;
-                if (block.canSplit) return false;
-                
-                const [start, end] = block.time.split('-');
-                const startMins = timeStrToMinutes(start);
-                const endMins = timeStrToMinutes(end);
-                
-                return (startMins < impEndMins && endMins > impStartMins);
-            });
-            
-            overlappingBlocks.forEach(overlappingBlock => {
-                const [overStart, overEnd] = overlappingBlock.time.split('-');
-                const overStartMins = timeStrToMinutes(overStart);
-                const overEndMins = timeStrToMinutes(overEnd);
-                
-                const index = day.blocks.indexOf(overlappingBlock);
-                day.blocks.splice(index, 1);
-                
-                if (overStartMins < impStartMins) {
-                    day.blocks.push({
-                        ...overlappingBlock,
-                        time: `${overStart}-${impStart}`
-                    });
-                }
-                
-                if (overEndMins > impEndMins) {
-                    day.blocks.push({
-                        ...overlappingBlock,
-                        time: `${impEnd}-${overEnd}`
-                    });
-                }
-            });
-        });
-        
-        day.blocks.sort((a, b) => {
-            const [aStart] = a.time.split('-');
-            const [bStart] = b.time.split('-');
-            return timeStrToMinutes(aStart) - timeStrToMinutes(bStart);
-        });
+        const dayDate = day.date ? new Date(day.date) : null;
+        day.blocks = finalizeDayBlocks(day.blocks, dayDate, dayKey);
     };
 }
 
@@ -12322,66 +12630,50 @@ function calculateDayFreeSlots(dayKey) {
     const day = scheduleData.days?.[dayKey];
     if (!day?.blocks) return [];
     
-    const blocks = day.blocks
-        .map(block => ({
-            title: block.title || 'Untitled',
-            startMins: timeStrToMinutes(block.time.split('-')[0]),
-            endMins: timeStrToMinutes(block.time.split('-')[1])
-        }))
-        .filter(b => !isNaN(b.startMins) && !isNaN(b.endMins))
-        .sort((a, b) => a.startMins - b.startMins);
-    
     const freeSlots = [];
-    const usableStart = 420;  // 07:00
-    const usableEnd = 1380;   // 23:00
-    
-    if (blocks.length === 0) {
-        freeSlots.push({
-            start: '07:00',
-            end: '23:00',
-            duration: 960,
-            description: 'All day free'
-        });
-        return freeSlots;
-    }
-    
-    // Before first block
-    if (blocks[0].startMins > usableStart) {
-        freeSlots.push({
-            start: formatMinutesToTime(usableStart),
-            end: formatMinutesToTime(blocks[0].startMins),
-            duration: blocks[0].startMins - usableStart,
-            description: `Until ${blocks[0].title}`
-        });
-    }
-    
-    // Between blocks
-    for (let i = 0; i < blocks.length - 1; i++) {
-        const gap = blocks[i + 1].startMins - blocks[i].endMins;
-        if (gap >= 5) {
-            freeSlots.push({
-                start: formatMinutesToTime(blocks[i].endMins),
-                end: formatMinutesToTime(blocks[i + 1].startMins),
-                duration: gap,
-                description: `Between ${blocks[i].title} and ${blocks[i + 1].title}`
-            });
+    const usableStart = timeStrToMinutes(scheduleData?.dayWindow?.start || '07:00');
+    const usableEnd = timeStrToMinutes(scheduleData?.dayWindow?.end || '23:00');
+    const busyIntervals = [];
+    day.blocks.forEach(block => {
+        busyIntervals.push(...getBlockIntervalsWithinWindow(block, usableStart, usableEnd));
+    });
+    const mergedBusy = mergeIntervals(busyIntervals);
+    let cursor = usableStart;
+    mergedBusy.forEach(interval => {
+        if (interval.start > cursor) {
+            const gap = {
+                start: cursor,
+                end: interval.start,
+                duration: interval.start - cursor
+            };
+            if (gap.duration >= 5) {
+                const slot = {
+                    start: formatMinutesToTime(gap.start),
+                    end: formatMinutesToTime(gap.end),
+                    duration: gap.duration,
+                    description: 'Free time'
+                };
+                console.log(`🕒 Free slot computed from FINAL blocks: start=${slot.start} end=${slot.end} (busyCount=${mergedBusy.length})`);
+                freeSlots.push(slot);
+            }
         }
-    }
-    
-    // After last block - but ONLY if it's a reasonable gap (< 3 hours)
-    // Don't create fake "After Sleep" slots that span the entire day
-    const lastBlock = blocks[blocks.length - 1];
-    if (lastBlock.endMins < usableEnd) {
-        const gap = usableEnd - lastBlock.endMins;
-        // Only add if gap is meaningful (> 0) AND not too long (< 180 mins = 3 hours)
-        // A 16-hour "after sleep" gap means we're missing the real blocks
-        if (gap > 0 && gap < 180) {
-            freeSlots.push({
-                start: formatMinutesToTime(lastBlock.endMins),
-                end: formatMinutesToTime(usableEnd),
-                duration: gap,
-                description: `After ${lastBlock.title}`
-            });
+        cursor = Math.max(cursor, interval.end);
+    });
+    if (cursor < usableEnd) {
+        const gap = {
+            start: cursor,
+            end: usableEnd,
+            duration: usableEnd - cursor
+        };
+        if (gap.duration >= 5) {
+            const slot = {
+                start: formatMinutesToTime(gap.start),
+                end: formatMinutesToTime(gap.end),
+                duration: gap.duration,
+                description: 'Free time'
+            };
+            console.log(`🕒 Free slot computed from FINAL blocks: start=${slot.start} end=${slot.end} (busyCount=${mergedBusy.length})`);
+            freeSlots.push(slot);
         }
     }
     
