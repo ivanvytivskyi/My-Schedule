@@ -191,6 +191,74 @@ function ensureDefaultBlockIds() {
     });
 }
 
+function ensureDayBlockIds() {
+    if (!scheduleData.days || typeof scheduleData.days !== 'object') return;
+    Object.values(scheduleData.days).forEach(day => {
+        if (!Array.isArray(day.blocks)) return;
+        day.blocks.forEach(block => {
+            if (!block.id) {
+                block.id = generateBlockId();
+            }
+        });
+    });
+}
+
+function normalizeBlockTitle(title) {
+    return (title || '')
+        .toLowerCase()
+        .replace(/[^\w\s]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+function repairPrepTravelLinks() {
+    if (!scheduleData.days || typeof scheduleData.days !== 'object') return;
+    Object.values(scheduleData.days).forEach(day => {
+        if (!Array.isArray(day.blocks)) return;
+        const blocks = day.blocks;
+        const normalizedTitles = new Map();
+        blocks.forEach(block => {
+            if (!block?.id) return;
+            const normalized = normalizeBlockTitle(block.title);
+            if (normalized) normalizedTitles.set(block.id, normalized);
+        });
+
+        blocks.forEach(block => {
+            if (!block || block.linkedBlockId) return;
+            const normalized = normalizeBlockTitle(block.title);
+            if (!normalized) return;
+            let baseTitle = null;
+            if (normalized.startsWith('prep for ')) {
+                baseTitle = normalized.replace(/^prep for /, '');
+            } else if (normalized.startsWith('travel to ')) {
+                baseTitle = normalized.replace(/^travel to /, '');
+            }
+            if (!baseTitle) return;
+
+            const baseBlock = blocks.find(item => normalizeBlockTitle(item.title) === baseTitle);
+            if (baseBlock?.id) {
+                block.linkedBlockId = baseBlock.id;
+            }
+        });
+
+        blocks.forEach(block => {
+            if (!block || block.linkedBlockId) return;
+            const normalized = normalizeBlockTitle(block.title);
+            if (!normalized.includes('travel home') && !normalized.includes('travel back')) return;
+            const travelRange = getBlockTimeRange(block);
+            if (isNaN(travelRange.start)) return;
+            const candidate = blocks.find(item => {
+                if (item === block) return false;
+                const itemRange = getBlockTimeRange(item);
+                return !isNaN(itemRange.end) && itemRange.end === travelRange.start;
+            });
+            if (candidate?.id) {
+                block.linkedBlockId = candidate.id;
+            }
+        });
+    });
+}
+
 function isWorkBlock(block) {
     const title = (block.title || '').toLowerCase();
     return title.includes('work') && !title.includes('commute');
@@ -493,6 +561,50 @@ function insertCookingBlocksForMeals(blocks, dayKey) {
     }
     
     return result;
+}
+
+function preventCookingOverlapWithPreviousBlocks(blocks, date) {
+    const sorted = blocks
+        .map(block => ({ block, ...getBlockTimeRange(block) }))
+        .filter(item => !isNaN(item.start) && !isNaN(item.end))
+        .sort((a, b) => a.start - b.start);
+
+    const findMealForCooking = (cookingBlock) => {
+        const mealType = mealTypeOf(cookingBlock);
+        if (!mealType) return null;
+        const recipeId = cookingBlock.recipeID || '';
+        return blocks.find(block =>
+            mealTypeOf(block) === mealType &&
+            !block.isCookingBlock &&
+            (recipeId ? block.recipeID === recipeId : true)
+        );
+    };
+
+    sorted.forEach((item, index) => {
+        const block = item.block;
+        if (!block || !isCookingBlock(block)) return;
+        const prev = sorted[index - 1];
+        if (!prev) return;
+        const prevEnd = prev.end;
+        const cookingDuration = getBlockDurationMinutes(block);
+        if (!cookingDuration) return;
+        if (prevEnd <= item.start) return;
+
+        const mealBlock = findMealForCooking(block);
+        if (!mealBlock) return;
+        const mealDuration = getBlockDurationMinutes(mealBlock);
+        if (!mealDuration) return;
+
+        const newCookingStart = prevEnd;
+        const newCookingEnd = newCookingStart + cookingDuration;
+        const newMealStart = newCookingEnd;
+        const newMealEnd = newMealStart + mealDuration;
+
+        updateBlockTimesForDate(block, newCookingStart, newCookingEnd, date);
+        updateBlockTimesForDate(mealBlock, newMealStart, newMealEnd, date);
+    });
+
+    return blocks;
 }
 
 // Fix Cook → Breakfast ordering by pushing breakfast forward if needed
@@ -1324,7 +1436,7 @@ function applyWorkScheduleToOrderedDays(orderedDays) {
     const patternCommute = parseInt(localStorage.getItem(WORK_PATTERN_COMMUTE_KEY) || '15', 10);
     const patternPrep = parseInt(localStorage.getItem(WORK_PATTERN_PREP_KEY) || '20', 10);
 
-    if (!addWorkSchedule && patternMode === 'same' && patternRows.length) {
+    if (patternMode === 'same' && patternRows.length) {
         addWorkSchedule = true;
         const dayIndexMap = {
             Sunday: 0,
@@ -3749,6 +3861,7 @@ async function addWeek(options = {}) {
         // This ensures the packing system can adjust all morning blocks including cooking
         
         blocks = insertCookingBlocksForMeals(blocks, dayKey);
+        blocks = preventCookingOverlapWithPreviousBlocks(blocks, date);
         
         if (MEAL_DEBUG) {
             const cookLunch = blocks.find(b => b.isCookingBlock && mealTypeOf(b) === 'lunch');
@@ -5410,6 +5523,7 @@ document.getElementById('editForm').addEventListener('submit', (e) => {
     
     const newBlock = {
         ...existingBlock,
+        id: existingBlock.id || generateBlockId(),
         time: time,
         title: title,
         tasks: tasks,
@@ -7141,6 +7255,8 @@ function loadFromLocalStorage() {
                 };
                 
                 ensureDefaultBlockIds();
+                ensureDayBlockIds();
+                repairPrepTravelLinks();
                 
                 console.log('Loaded data from localStorage:', Object.keys(scheduleData.days).length, 'days');
             } else {
@@ -7722,6 +7838,10 @@ function formatMinutesToTime(mins) {
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
+function generateBlockId(prefix = 'blk') {
+    return `${prefix}_${Date.now()}_${Math.random().toString(16).slice(2, 8)}`;
+}
+
 function buildPrepTravelBlocks(baseBlock, date) {
     if (!baseBlock?.hasPrepTravel) return [];
     const prepDuration = Number(baseBlock.prepDuration) || 0;
@@ -7734,6 +7854,9 @@ function buildPrepTravelBlocks(baseBlock, date) {
 
     const blocks = [];
     const baseTitle = baseBlock.title || 'Event';
+    if (!baseBlock.id) {
+        baseBlock.id = generateBlockId();
+    }
     const sharedMeta = {
         fromDefault: baseBlock.fromDefault,
         sourceDefaultId: baseBlock.sourceDefaultId,
@@ -10336,6 +10459,7 @@ function parseAndCreateSchedule(response) {
                     }
                     
                     blocks.push({
+                        id: generateBlockId(),
                         time: `${startTime}-${endTime}`,
                         title: cleanTitle,
                         tasks: cleanTasks.length > 0 ? cleanTasks : ['Activity'],
@@ -10416,6 +10540,7 @@ function parseAndCreateSchedule(response) {
         
         // Insert cooking blocks before meal blocks
         blocks = insertCookingBlocksForMeals(blocks, dayKey);
+        blocks = preventCookingOverlapWithPreviousBlocks(blocks, date);
         console.log(`  → After cooking insertion: ${blocks.length} blocks`);
 
         const { blocks: adjustedBlocks } = applyPriorityNudges(blocks, date, { maxShiftMinutes: 15 });
