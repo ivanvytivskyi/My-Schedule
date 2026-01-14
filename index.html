@@ -314,9 +314,9 @@
     <!-- Manage Defaults Modal -->
     <div class="modal" id="manageDefaultsModal">
         <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <div class="manage-defaults-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h2 style="margin: 0;">⚙️ Manage Default Blocks</h2>
-                <button type="button" onclick="closeDefaultsModal()" style="background: #e0e0e0; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600;">✕ Close</button>
+                <button type="button" onclick="closeDefaultsModal()" class="manage-defaults-close" style="background: #e0e0e0; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: 600;">✕ Close</button>
             </div>
             
             <p style="color: #666; margin-bottom: 12px;">Default blocks automatically appear on new days you create. Enable/disable, edit, or delete them below.</p>
@@ -337,7 +337,7 @@
             
             <div class="default-actions-row">
                 <button type="button" onclick="openAddDefaultModal()" class="default-action-btn default-add-btn">
-                    ➕ Add New Default Block
+                    ➕ Template
                 </button>
             </div>
             
@@ -347,7 +347,7 @@
                     🌅 Add Morning Routine
                 </button>
                 <button type="button" onclick="addBedtimeRoutineTemplate()" style="padding: 12px; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(139,92,246,0.3);">
-                    🌙 Add Bedtime Routine
+                    🌙 Evening Routine
                 </button>
             </div>
             
@@ -481,6 +481,14 @@
                             <label style="font-weight: 600; color: #333; white-space: nowrap;">Week Start Date:</label>
                             <input type="date" id="weekStartDateInput" style="flex: 0 0 150px; padding: 8px 12px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px;" />
                         </div>
+                        <p style="margin: 6px 0 0 0; font-size: 12px; color: #6b7280;">
+                            Choose any start date. The week will run for 7 days starting from this date.
+                        </p>
+                        <div id="weekRangePreview" style="display: none; margin-top: 10px; padding: 10px 12px; background: #f8fafc; border: 1px solid #e5e7eb; border-radius: 8px;">
+                            <div style="font-size: 11px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.05em;">Week preview</div>
+                            <div id="weekRangeText" style="font-weight: 600; color: #1f2937; margin-top: 4px;"></div>
+                            <div id="weekRangeSubtext" style="font-size: 12px; color: #6b7280; margin-top: 4px;">7 days starting from your selected date.</div>
+                        </div>
                     </div>
                     
                     <!-- Work Schedule Checkbox - Only shown for Whole Week -->
@@ -569,7 +577,7 @@
                             
                             <div id="commuteSettingsNew" style="display: none; margin-top: 10px; padding-left: 28px;">
                                 <div style="display: flex; flex-direction: column; gap: 8px;">
-                                    <label style="font-size: 14px; color: #666; display: flex; align-items: center; gap: 8px;">
+                                    <label for="commuteDurationNew" style="font-size: 14px; color: #666; display: flex; align-items: center; gap: 8px;">
                                         One-way commute duration:
                                         <input type="number" id="commuteDurationNew" value="15" min="1" max="120" style="width: 70px; padding: 6px; border: 1px solid #ddd; border-radius: 4px;" /> minutes
                                     </label>
@@ -580,7 +588,7 @@
                                     </label>
                                     
                                     <div id="commutePrepRowNew" style="display: none; padding-left: 26px;">
-                                        <label style="font-size: 14px; color: #666; display: flex; align-items: center; gap: 8px;">
+                                        <label for="commutePrepDurationNew" style="font-size: 14px; color: #666; display: flex; align-items: center; gap: 8px;">
                                             Prep duration:
                                             <input type="number" id="commutePrepDurationNew" value="20" min="5" max="180" style="width: 70px; padding: 6px; border: 1px solid #ddd; border-radius: 4px;" /> minutes
                                         </label>
@@ -634,6 +642,261 @@
                 </div>
                 </div> <!-- Close manual section -->
             </form>
+        </div>
+    </div>
+
+    <!-- Setup Wizard Modal -->
+    <div class="modal" id="setupWizardModal">
+        <div class="modal-content setup-wizard-content">
+            <div class="setup-wizard-header">
+                <div>
+                    <h2 id="setupWizardTitle">Setup – Step 1 of 5: Daily Template</h2>
+                    <p>Build the default blocks for a normal day (wake, meals, routines, etc.).</p>
+                </div>
+                <div class="setup-wizard-meta">
+                    <span class="setup-pill">Mode: Setup</span>
+                    <span class="setup-pill" id="setupWizardStepPill">Step 1 / 5</span>
+                    <button class="setup-close" onclick="closeSetupWizard()" aria-label="Close setup">✕</button>
+                </div>
+            </div>
+            <div class="setup-wizard-steps">
+                <div class="setup-step-card" data-step="1">
+                    <button class="setup-step-toggle" type="button" onclick="toggleSetupStep(1)">
+                        <div class="setup-step-icon">➡️</div>
+                        <div class="setup-step-body">
+                            <div class="setup-step-title">1) Daily Template</div>
+                        </div>
+                        <div class="setup-step-tags">
+                            <span class="setup-tag">Manage Default Blocks</span>
+                        </div>
+                    </button>
+                    <div class="setup-step-content" id="setupStep1Content">
+                        <div id="setupStepDefaultsContainer"></div>
+                        <div class="setup-step-actions">
+                            <button class="btn btn-primary" type="button" onclick="advanceSetupStep(1)">Continue to Step 2</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="setup-step-card" data-step="2">
+                    <button class="setup-step-toggle" type="button" onclick="toggleSetupStep(2)">
+                        <div class="setup-step-icon">➡️</div>
+                        <div class="setup-step-body">
+                            <div class="setup-step-title">2) Work schedule</div>
+                        </div>
+                        <div class="setup-step-tags">
+                            <span class="setup-tag">Prep & Commute per shift</span>
+                            <span class="setup-tag setup-tag-alt">Two modes</span>
+                        </div>
+                    </button>
+                    <div class="setup-step-content" id="setupStep2Content">
+                        <p class="setup-step-subtitle">Choose your work schedule type: same weekly pattern or adjustable shifts.</p>
+                        <div class="setup-work-modes">
+                            <label class="setup-work-mode">
+                                <input type="radio" name="workScheduleMode" value="same" checked />
+                                <div>
+                                    <div class="setup-work-title">Same shifts every week</div>
+                                    <div class="setup-work-desc">Same days and times. Save once, reuse it.</div>
+                                </div>
+                            </label>
+                            <label class="setup-work-mode">
+                                <input type="radio" name="workScheduleMode" value="adjustable" />
+                                <div>
+                                    <div class="setup-work-title">Adjustable (this week)</div>
+                                    <div class="setup-work-desc">Your current app-style shift editor.</div>
+                                </div>
+                            </label>
+                        </div>
+
+                        <div id="workScheduleSameForm" class="setup-work-panel">
+                            <div class="setup-work-table">
+                                <div class="setup-work-row setup-work-header">
+                                    <span>Day</span>
+                                    <span>Start</span>
+                                    <span>End</span>
+                                </div>
+                                <div id="workPatternRows"></div>
+                            </div>
+                            <div class="setup-work-actions">
+                                <button class="btn btn-secondary" type="button" onclick="clearWorkPattern()">🧹 Clear</button>
+                            </div>
+                            <div class="setup-work-commute">
+                                <label>
+                                    🚶 Commute
+                                    <input type="number" id="workPatternCommute" value="15" min="1" max="120" />
+                                    <span>min</span>
+                                </label>
+                                <label>
+                                    🧰 Prep
+                                    <input type="number" id="workPatternPrep" value="20" min="0" max="180" />
+                                    <span>min</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="workScheduleAdjustableForm" class="setup-work-panel" style="display: none;">
+                            <div class="setup-adjustable-card">
+                                <div class="setup-adjustable-header">
+                                    <label class="setup-adjustable-date">
+                                        Week start date
+                                        <input type="date" id="setupWeekStartDateInput" />
+                                    </label>
+                                </div>
+                                <div class="setup-adjustable-body">
+                                    <div id="setupAdjustableWorkContainer"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="setup-step-card" data-step="3">
+                    <button class="setup-step-toggle" type="button" onclick="toggleSetupStep(3)">
+                        <div class="setup-step-icon">➡️</div>
+                        <div class="setup-step-body">
+                            <div class="setup-step-title">3) Cooking preferences</div>
+                        </div>
+                        <div class="setup-step-tags">
+                            <span class="setup-tag">Meals + Leftovers</span>
+                            <span class="setup-tag setup-tag-warm">Set once</span>
+                        </div>
+                    </button>
+                    <div class="setup-step-content" id="setupStep3Content">
+                        <div class="cooking-config-body">
+                            
+                            <!-- Question 1: People Count -->
+                            <div class="config-section">
+                                <label for="peopleCount">
+                                    👥 How many people are eating?
+                                    <span class="helper-text">This helps calculate portions and leftovers</span>
+                                </label>
+                                <input type="number" id="peopleCount" min="1" max="10" value="2">
+                            </div>
+                            
+                            <!-- Question 2: Allow Leftovers -->
+                            <div class="config-section">
+                                <label>
+                                    🍱 Allow leftovers?
+                                    <span class="helper-text">Cook once, eat multiple meals</span>
+                                </label>
+                                <div class="radio-group">
+                                    <div class="radio-option">
+                                        <input type="radio" id="allowLeftoversYes" name="allowLeftovers" value="yes" checked>
+                                        <label for="allowLeftoversYes">Yes</label>
+                                    </div>
+                                    <div class="radio-option">
+                                        <input type="radio" id="allowLeftoversNo" name="allowLeftovers" value="no">
+                                        <label for="allowLeftoversNo">No (cook fresh each meal)</label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Question 3: Max Leftover Days (conditional) -->
+                            <div id="leftoverDaysSection" class="config-section">
+                                <label for="maxLeftoverDays">
+                                    📅 Maximum leftover days
+                                    <span class="helper-text">How many days will you eat leftovers?</span>
+                                </label>
+                                <select id="maxLeftoverDays">
+                                    <option value="1">1 day (same day only)</option>
+                                    <option value="2" selected>2 days</option>
+                                    <option value="3">3 days</option>
+                                </select>
+                                <div class="info-box">
+                                    <p><strong>Example:</strong> If you cook a recipe that serves 6 and you're 2 people, you'll have 3 meals. With "2 days" selected, that's dinner today, lunch tomorrow, dinner tomorrow.</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Question 4: Batch Cooking Days -->
+                            <div class="config-section">
+                                <label>
+                                    🍲 Batch cooking days
+                                    <span class="helper-text">Select days to cook larger batches (serves 6+)</span>
+                                </label>
+                                <div class="checkbox-grid">
+                                    <div class="checkbox-option">
+                                        <input type="checkbox" id="batch-sunday" value="sunday">
+                                        <label for="batch-sunday">Sunday</label>
+                                    </div>
+                                    <div class="checkbox-option">
+                                        <input type="checkbox" id="batch-monday" value="monday">
+                                        <label for="batch-monday">Monday</label>
+                                    </div>
+                                    <div class="checkbox-option">
+                                        <input type="checkbox" id="batch-tuesday" value="tuesday">
+                                        <label for="batch-tuesday">Tuesday</label>
+                                    </div>
+                                    <div class="checkbox-option">
+                                        <input type="checkbox" id="batch-wednesday" value="wednesday">
+                                        <label for="batch-wednesday">Wednesday</label>
+                                    </div>
+                                    <div class="checkbox-option">
+                                        <input type="checkbox" id="batch-thursday" value="thursday">
+                                        <label for="batch-thursday">Thursday</label>
+                                    </div>
+                                    <div class="checkbox-option">
+                                        <input type="checkbox" id="batch-friday" value="friday">
+                                        <label for="batch-friday">Friday</label>
+                                    </div>
+                                    <div class="checkbox-option">
+                                        <input type="checkbox" id="batch-saturday" value="saturday">
+                                        <label for="batch-saturday">Saturday</label>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Question 5: Max Cooking Time on Work Days -->
+                            <div class="config-section">
+                                <label for="maxCookingTime">
+                                    ⏱️ Max cooking time on work days
+                                    <span class="helper-text">Filter out long recipes on busy days</span>
+                                </label>
+                                <select id="maxCookingTime">
+                                    <option value="30">30 minutes</option>
+                                    <option value="45" selected>45 minutes</option>
+                                    <option value="60">60 minutes</option>
+                                    <option value="90">90 minutes (any recipe)</option>
+                                </select>
+                                <div class="info-box">
+                                    <p>Long recipes (2-4 hours) will only appear on your days off.</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Recipe Variety Info -->
+                            <div class="config-section">
+                                <div class="info-box">
+                                    <p><strong>✨ Recipe Variety:</strong> The system automatically rotates through all 50+ recipes before repeating, so you'll try everything!</p>
+                                </div>
+                            </div>
+                            
+                        </div>
+                        
+                    </div>
+                </div>
+                <div class="setup-step-card" data-step="4">
+                    <button class="setup-step-toggle" type="button" onclick="toggleSetupStep(4)">
+                        <div class="setup-step-icon">➡️</div>
+                        <div class="setup-step-body">
+                            <div class="setup-step-title">4) Shopping day & time</div>
+                        </div>
+                        <div class="setup-step-tags">
+                            <span class="setup-tag">Optional</span>
+                            <span class="setup-tag">Weekly slot</span>
+                        </div>
+                    </button>
+                    <div class="setup-step-content" id="setupStep4Content">
+                        <div id="setupShoppingContainer"></div>
+                        <div class="setup-step-actions">
+                            <button class="btn btn-primary" type="button" id="createWeekFromSetup" onclick="createWeekFromSetup()">Create your week</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="setup-wizard-footer">
+                <div class="setup-wizard-hint">All steps are collapsed on open. Use Continue to jump to the next step.</div>
+                <div class="setup-wizard-actions">
+                    <button class="btn btn-secondary" onclick="closeSetupWizard()">Close</button>
+                    <button class="btn btn-primary" type="button" onclick="advanceSetupStep(currentSetupStep)">Continue</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1152,121 +1415,8 @@ The app will parse and beautify automatically!" style="width: 100%; height: 300p
                 <button id="closeCookingConfig" class="cooking-config-close" aria-label="Close">×</button>
             </div>
             
-            <!-- Body -->
-            <div class="cooking-config-body">
-                
-                <!-- Question 1: People Count -->
-                <div class="config-section">
-                    <label for="peopleCount">
-                        👥 How many people are eating?
-                        <span class="helper-text">This helps calculate portions and leftovers</span>
-                    </label>
-                    <input type="number" id="peopleCount" min="1" max="10" value="2">
-                </div>
-                
-                <!-- Question 2: Allow Leftovers -->
-                <div class="config-section">
-                    <label>
-                        🍱 Allow leftovers?
-                        <span class="helper-text">Cook once, eat multiple meals</span>
-                    </label>
-                    <div class="radio-group">
-                        <div class="radio-option">
-                            <input type="radio" id="allowLeftoversYes" name="allowLeftovers" value="yes" checked>
-                            <label for="allowLeftoversYes">Yes</label>
-                        </div>
-                        <div class="radio-option">
-                            <input type="radio" id="allowLeftoversNo" name="allowLeftovers" value="no">
-                            <label for="allowLeftoversNo">No (cook fresh each meal)</label>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Question 3: Max Leftover Days (conditional) -->
-                <div id="leftoverDaysSection" class="config-section">
-                    <label for="maxLeftoverDays">
-                        📅 Maximum leftover days
-                        <span class="helper-text">How many days will you eat leftovers?</span>
-                    </label>
-                    <select id="maxLeftoverDays">
-                        <option value="1">1 day (same day only)</option>
-                        <option value="2" selected>2 days</option>
-                        <option value="3">3 days</option>
-                    </select>
-                    <div class="info-box">
-                        <p><strong>Example:</strong> If you cook a recipe that serves 6 and you're 2 people, you'll have 3 meals. With "2 days" selected, that's dinner today, lunch tomorrow, dinner tomorrow.</p>
-                    </div>
-                </div>
-                
-                <!-- Question 4: Batch Cooking Days -->
-                <div class="config-section">
-                    <label>
-                        🍲 Batch cooking days
-                        <span class="helper-text">Select days to cook larger batches (serves 6+)</span>
-                    </label>
-                    <div class="checkbox-grid">
-                        <div class="checkbox-option">
-                            <input type="checkbox" id="batch-sunday" value="sunday">
-                            <label for="batch-sunday">Sunday</label>
-                        </div>
-                        <div class="checkbox-option">
-                            <input type="checkbox" id="batch-monday" value="monday">
-                            <label for="batch-monday">Monday</label>
-                        </div>
-                        <div class="checkbox-option">
-                            <input type="checkbox" id="batch-tuesday" value="tuesday">
-                            <label for="batch-tuesday">Tuesday</label>
-                        </div>
-                        <div class="checkbox-option">
-                            <input type="checkbox" id="batch-wednesday" value="wednesday">
-                            <label for="batch-wednesday">Wednesday</label>
-                        </div>
-                        <div class="checkbox-option">
-                            <input type="checkbox" id="batch-thursday" value="thursday">
-                            <label for="batch-thursday">Thursday</label>
-                        </div>
-                        <div class="checkbox-option">
-                            <input type="checkbox" id="batch-friday" value="friday">
-                            <label for="batch-friday">Friday</label>
-                        </div>
-                        <div class="checkbox-option">
-                            <input type="checkbox" id="batch-saturday" value="saturday">
-                            <label for="batch-saturday">Saturday</label>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Question 5: Max Cooking Time on Work Days -->
-                <div class="config-section">
-                    <label for="maxCookingTime">
-                        ⏱️ Max cooking time on work days
-                        <span class="helper-text">Filter out long recipes on busy days</span>
-                    </label>
-                    <select id="maxCookingTime">
-                        <option value="30">30 minutes</option>
-                        <option value="45" selected>45 minutes</option>
-                        <option value="60">60 minutes</option>
-                        <option value="90">90 minutes (any recipe)</option>
-                    </select>
-                    <div class="info-box">
-                        <p>Long recipes (2-4 hours) will only appear on your days off.</p>
-                    </div>
-                </div>
-                
-                <!-- Recipe Variety Info -->
-                <div class="config-section">
-                    <div class="info-box">
-                        <p><strong>✨ Recipe Variety:</strong> The system automatically rotates through all 50+ recipes before repeating, so you'll try everything!</p>
-                    </div>
-                </div>
-                
-            </div>
-            
-            <!-- Footer -->
-            <div class="cooking-config-footer">
-                <button id="cancelCookingConfig" class="btn-config btn-config-cancel">Cancel</button>
-                <button id="saveCookingConfig" class="btn-config btn-config-save">Save Preferences</button>
-            </div>
+            <div class="cooking-config-body"></div>
+            <div class="cooking-config-footer"></div>
         </div>
     </div>
 
