@@ -501,14 +501,26 @@ function pushForwardBreakfastChain(blocks, date) {
     
     // Find morning routine, cook breakfast, and breakfast
     let morningRoutine = null;
+    let latestMorningEnd = NaN;
     let cookBreakfast = null;
     let breakfast = null;
     
     blocks.forEach(b => {
         const title = (b.title || '').toLowerCase();
         
-        if ((title.includes('morning routine') || (title.includes('morning') && !title.includes('cook') && !title.includes('breakfast'))) && !morningRoutine) {
+        const isMorningRoutine = title.includes('morning routine') ||
+            (title.includes('morning') && !title.includes('cook') && !title.includes('breakfast'));
+        const isPreBreakfastMorning = isMorningRoutine || title.includes('wake') || title.includes('get ready');
+        if (isMorningRoutine && !morningRoutine) {
             morningRoutine = b;
+        }
+        if (isPreBreakfastMorning) {
+            const range = getBlockTimeRange(b);
+            if (!isNaN(range.end)) {
+                if (isNaN(latestMorningEnd) || range.end > latestMorningEnd) {
+                    latestMorningEnd = range.end;
+                }
+            }
         }
         if (isCookingBlock(b) && b.mealType === 'breakfast') {
             cookBreakfast = b;
@@ -535,14 +547,16 @@ function pushForwardBreakfastChain(blocks, date) {
     
     let targetBreakfastStart = breakfastRange.start;
     
-    // Check if cooking would overlap morning routine
-    if (morningRoutine) {
-        const morningEnd = getBlockTimeRange(morningRoutine).end;
+    const morningAnchorEnd = !isNaN(latestMorningEnd)
+        ? latestMorningEnd
+        : (morningRoutine ? getBlockTimeRange(morningRoutine).end : NaN);
+    // Check if cooking would overlap morning routine (or other pre-breakfast morning blocks)
+    if (!isNaN(morningAnchorEnd)) {
         const cookWouldStart = targetBreakfastStart - cookDuration;
         
-        if (cookWouldStart < morningEnd) {
+        if (cookWouldStart < morningAnchorEnd) {
             // Push breakfast forward so cooking starts after morning routine
-            targetBreakfastStart = morningEnd + cookDuration;
+            targetBreakfastStart = morningAnchorEnd + cookDuration;
             
         }
     }
@@ -2658,6 +2672,13 @@ document.getElementById('addDayBtn').addEventListener('click', () => {
 });
 
 function openAddDayModal() {
+    if (typeof openSetupWizard === 'function') {
+        openSetupWizard();
+        if (typeof openSetupStep === 'function') {
+            openSetupStep(1);
+        }
+        return;
+    }
     const modal = document.getElementById('addDayModal');
     if (!modal) return;
     modal.classList.add('active');
