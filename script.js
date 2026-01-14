@@ -1324,7 +1324,7 @@ function applyWorkScheduleToOrderedDays(orderedDays) {
     const patternCommute = parseInt(localStorage.getItem(WORK_PATTERN_COMMUTE_KEY) || '15', 10);
     const patternPrep = parseInt(localStorage.getItem(WORK_PATTERN_PREP_KEY) || '20', 10);
 
-    if (!addWorkSchedule && patternMode === 'same' && patternRows.length) {
+    if (patternMode === 'same' && patternRows.length) {
         addWorkSchedule = true;
         const dayIndexMap = {
             Sunday: 0,
