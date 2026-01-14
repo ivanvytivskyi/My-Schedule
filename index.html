@@ -424,6 +424,15 @@
                     <label for="defaultTasks" style="font-weight: 600;">Tasks (optional, one per line):</label>
                     <textarea id="defaultTasks" placeholder="Meetings&#10;Emails&#10;Projects" style="width: 100%; min-height: 80px; padding: 10px; border: 2px solid #ddd; border-radius: 6px; font-size: 14px; resize: vertical;"></textarea>
                 </div>
+
+                <!-- Time lock -->
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 10px; font-weight: 600; cursor: pointer;">
+                        <input type="checkbox" id="defaultFixedTime" style="width: 18px; height: 18px;">
+                        <span>Lock this time (do not auto-move)</span>
+                    </label>
+                    <p style="font-size: 12px; color: #666; margin: 6px 0 0 0;">Leave unchecked to allow up to 15 minutes of automatic adjustment if needed.</p>
+                </div>
                 
                 <!-- Day-start override -->
                 <div class="form-group">
@@ -672,9 +681,6 @@
                     </button>
                     <div class="setup-step-content" id="setupStep1Content">
                         <div id="setupStepDefaultsContainer"></div>
-                        <div class="setup-step-actions">
-                            <button class="btn btn-primary" type="button" onclick="advanceSetupStep(1)">Continue to Step 2</button>
-                        </div>
                     </div>
                 </div>
                 <div class="setup-step-card" data-step="2">
@@ -888,10 +894,8 @@
                 </div>
             </div>
             <div class="setup-wizard-footer">
-                <div class="setup-wizard-hint">All steps are collapsed on open. Use Continue to jump to the next step.</div>
                 <div class="setup-wizard-actions">
                     <button class="btn btn-secondary" onclick="closeSetupWizard()">Close</button>
-                    <button class="btn btn-primary" type="button" onclick="advanceSetupStep(currentSetupStep)">Continue</button>
                 </div>
             </div>
         </div>

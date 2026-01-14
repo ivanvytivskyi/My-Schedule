@@ -1189,6 +1189,10 @@ body.edit-mode .recipe-table textarea {
     background: #f3f4ff;
 }
 
+.setup-step-card.is-open .setup-step-icon {
+    transform: rotate(90deg);
+}
+
 .setup-step {
     background: #f9fafb;
     border-radius: 16px;
@@ -1724,6 +1728,7 @@ body.edit-mode .recipe-table textarea {
     align-items: center;
     justify-content: center;
     font-size: 18px;
+    transition: transform 0.2s ease;
 }
 
 .setup-step-title {
