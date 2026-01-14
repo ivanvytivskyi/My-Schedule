@@ -501,14 +501,26 @@ function pushForwardBreakfastChain(blocks, date) {
     
     // Find morning routine, cook breakfast, and breakfast
     let morningRoutine = null;
+    let latestMorningEnd = NaN;
     let cookBreakfast = null;
     let breakfast = null;
     
     blocks.forEach(b => {
         const title = (b.title || '').toLowerCase();
         
-        if ((title.includes('morning routine') || (title.includes('morning') && !title.includes('cook') && !title.includes('breakfast'))) && !morningRoutine) {
+        const isMorningRoutine = title.includes('morning routine') ||
+            (title.includes('morning') && !title.includes('cook') && !title.includes('breakfast'));
+        const isPreBreakfastMorning = isMorningRoutine || title.includes('wake') || title.includes('get ready');
+        if (isMorningRoutine && !morningRoutine) {
             morningRoutine = b;
+        }
+        if (isPreBreakfastMorning) {
+            const range = getBlockTimeRange(b);
+            if (!isNaN(range.end)) {
+                if (isNaN(latestMorningEnd) || range.end > latestMorningEnd) {
+                    latestMorningEnd = range.end;
+                }
+            }
         }
         if (isCookingBlock(b) && b.mealType === 'breakfast') {
             cookBreakfast = b;
@@ -535,14 +547,16 @@ function pushForwardBreakfastChain(blocks, date) {
     
     let targetBreakfastStart = breakfastRange.start;
     
-    // Check if cooking would overlap morning routine
-    if (morningRoutine) {
-        const morningEnd = getBlockTimeRange(morningRoutine).end;
+    const morningAnchorEnd = !isNaN(latestMorningEnd)
+        ? latestMorningEnd
+        : (morningRoutine ? getBlockTimeRange(morningRoutine).end : NaN);
+    // Check if cooking would overlap morning routine (or other pre-breakfast morning blocks)
+    if (!isNaN(morningAnchorEnd)) {
         const cookWouldStart = targetBreakfastStart - cookDuration;
         
-        if (cookWouldStart < morningEnd) {
+        if (cookWouldStart < morningAnchorEnd) {
             // Push breakfast forward so cooking starts after morning routine
-            targetBreakfastStart = morningEnd + cookDuration;
+            targetBreakfastStart = morningAnchorEnd + cookDuration;
             
         }
     }
@@ -1780,8 +1794,7 @@ window.createWeekFromSetup = async function() {
                     alert('Selected shopping time no longer fits the chosen slot. Please reselect a time slot.');
                 }
             }
-            renderSetupShoppingNeeded();
-            openSetupStep(4);
+            closeSetupWizard();
         }
     } finally {
         if (submitButton) submitButton.disabled = false;
@@ -2658,6 +2671,10 @@ document.getElementById('addDayBtn').addEventListener('click', () => {
 });
 
 function openAddDayModal() {
+    if (typeof openSetupWizard === 'function') {
+        openSetupWizard();
+        return;
+    }
     const modal = document.getElementById('addDayModal');
     if (!modal) return;
     modal.classList.add('active');
@@ -4213,12 +4230,20 @@ async function addWeek(options = {}) {
             }
         });
         
-        // PUSH-FORWARD BREAKFAST CHAIN (after packing, runs on ALL days)
-        // Ensures: Morning Routine → Cook Breakfast → Breakfast → Commute prep → Commute → Work
-        // Never moves Work start time, compresses blocks if needed
-        blocks = pushForwardBreakfastChain(blocks, date);
-        blocks = enforceMealWindows(blocks, isWorkDay, date);
-        blocks = shiftBlocksAfterMeal(blocks, date);
+        const dayData = {
+            name: dayName,
+            date: date.toISOString().split('T')[0]
+        };
+
+        const { blocks: adjustedBlocks, conflicts } = applyPriorityNudges(blocks, date, { maxShiftMinutes: 15 });
+        blocks = adjustedBlocks;
+        if (conflicts.length > 0 && typeof window.resolveOverlapConflicts === 'function') {
+            try {
+                blocks = await window.resolveOverlapConflicts(dayData, blocks, conflicts, `Some blocks for ${dayName} overlap or need more than 15 minutes of movement. Choose what to do.`);
+            } catch (error) {
+                console.error('❌ Failed to resolve schedule overlaps:', error);
+            }
+        }
         
         // *** WORK-OVERLAP RESOLUTION ***
         // Check for conflicts with work hours and resolve them
@@ -4233,11 +4258,6 @@ async function addWeek(options = {}) {
                 
                 if (!isNaN(workRange.start) && !isNaN(workRange.end)) {
                     // Check for overlaps and resolve them (this will pause until user responds)
-                    const dayData = {
-                        name: dayName,
-                        date: date.toISOString().split('T')[0]
-                    };
-                    
                     if (typeof window.resolveWorkOverlaps === 'function') {
                         try {
                             blocks = await window.resolveWorkOverlaps(i, dayData, blocks, workRange);
@@ -7309,7 +7329,7 @@ function enforceMealWindows(blocks, isWorkDay, currentDate) {
 }
 
 function applyWorkMealRules(blocks, workRange, daySummary, options = {}) {
-    const { forceOverlapResolution = false } = options;
+    const { forceOverlapResolution = false, allowAutoReschedule = false } = options;
     if (!workRange || isNaN(workRange.start) || isNaN(workRange.end)) {
         if (daySummary && !forceOverlapResolution) {
             const mealBlocks = {
@@ -7362,6 +7382,56 @@ function applyWorkMealRules(blocks, workRange, daySummary, options = {}) {
         }
         
         return basicOverlap;
+    };
+
+    const isFixedBlockForMeals = (block) => {
+        const title = (block.title || '').toLowerCase();
+        if (isWorkBlock(block)) return true;
+        if (title.includes('commute')) return true;
+        if (title.includes('sleep')) return true;
+        if (isCookingBlock(block)) return true;
+        if (isLunchBlock(block) || isDinnerBlock(block) || isBreakfastBlock(block)) return true;
+        return false;
+    };
+
+    const getDayWindowEnd = () => {
+        const end = timeStrToMinutes(scheduleData?.dayWindow?.end || '23:00');
+        return isNaN(end) ? 24 * 60 : end;
+    };
+
+    const blockOverlapsRange = (block, rangeStart, rangeEnd) => {
+        const { start, end } = getBlockTimeRange(block);
+        if (isNaN(start) || isNaN(end)) return false;
+        const blockIntervals = toIntervals(start, end);
+        return blockIntervals.some(interval => rangeStart < interval.end && rangeEnd > interval.start);
+    };
+
+    const moveBlockAfterRange = (block, rangeEnd) => {
+        const duration = getBlockDurationMinutes(block);
+        if (!duration) return false;
+        const dayEnd = getDayWindowEnd();
+        const others = blocks.filter(other => other !== block);
+        const gaps = findAvailableGapsInDay(others, rangeEnd, dayEnd);
+        const slot = gaps.find(gap => gap.duration >= duration);
+        if (!slot) return false;
+        updateBlockTimes(block, slot.start, slot.start + duration);
+        return true;
+    };
+
+    const tryRelocateConflicts = (rangeStart, rangeEnd, mealBlock, cookingBlock) => {
+        const conflicting = blocks.filter(block => {
+            if (block === mealBlock || block === cookingBlock) return false;
+            return blockOverlapsRange(block, rangeStart, rangeEnd);
+        });
+        for (const block of conflicting) {
+            if (isFixedBlockForMeals(block)) {
+                return false;
+            }
+            if (!moveBlockAfterRange(block, rangeEnd)) {
+                return false;
+            }
+        }
+        return true;
     };
 
     const buildBusyIntervals = (excludeBlocks = []) => {
@@ -7448,6 +7518,35 @@ function applyWorkMealRules(blocks, workRange, daySummary, options = {}) {
         }
     };
 
+    if (!allowAutoReschedule) {
+        ['lunch', 'dinner'].forEach(type => {
+            const state = mealState[type];
+            const mealBlock = state.mealBlock;
+            if (!mealBlock) {
+                record(type, 'none', 'NO_MEAL_BLOCK');
+                return;
+            }
+            if (!workWindow) {
+                record(type, 'kept', 'NO_WORK_DAY');
+                return;
+            }
+            const { start, end } = getBlockTimeRange(mealBlock);
+            const saneTime = type === 'lunch'
+                ? (start >= timeStrToMinutes('11:00') && start <= timeStrToMinutes('15:00'))
+                : (start >= timeStrToMinutes('17:00') && start <= timeStrToMinutes('21:30'));
+            if (!saneTime) {
+                record(type, 'kept', 'INVALID_MEAL_TIME');
+                return;
+            }
+            if (overlapsWork(start, end)) {
+                record(type, 'kept', 'OVERLAPS_WORK');
+                return;
+            }
+            record(type, 'kept', 'KEPT_NO_OVERLAP');
+        });
+        return blocks;
+    }
+
     ['lunch', 'dinner'].forEach(type => {
         const state = mealState[type];
         const mealBlock = state.mealBlock;
@@ -7479,8 +7578,19 @@ function applyWorkMealRules(blocks, workRange, daySummary, options = {}) {
         const busyIntervals = buildBusyIntervals([mealBlock, ...(cookingBlock ? [cookingBlock] : [])]);
         const overlapsBusy = (startTime, endTime) =>
             busyIntervals.some(interval => startTime < interval.end && endTime > interval.start);
-        const initialConflict = overlapsBusy(initialChainStart, initialChainStart + packageDuration);
-        const placement = findPlacement(initialChainStart, packageDuration, busyIntervals);
+        const initialChainEnd = initialChainStart + packageDuration;
+        const initialConflict = overlapsBusy(initialChainStart, initialChainEnd);
+        let placement = null;
+        if (initialConflict) {
+            const movedConflicts = tryRelocateConflicts(initialChainStart, initialChainEnd, mealBlock, cookingBlock);
+            if (movedConflicts) {
+                placement = { start: initialChainStart, end: initialChainEnd };
+            }
+        }
+        if (!placement) {
+            const refreshedBusy = buildBusyIntervals([mealBlock, ...(cookingBlock ? [cookingBlock] : [])]);
+            placement = findPlacement(initialChainStart, packageDuration, refreshedBusy);
+        }
 
         if (!placement) {
             state.remove = true;
@@ -7681,9 +7791,280 @@ function buildPrepTravelBlocks(baseBlock, date) {
     return blocks;
 }
 
-function isWorkBlock(block) {
+function isStudyBlock(block) {
     const title = (block.title || '').toLowerCase();
-    return title.includes('work') && !title.includes('commute');
+    return title.includes('study') || title.includes('class') || title.includes('lecture');
+}
+
+function isFixedTimeBlock(block) {
+    if (!block) return false;
+    if (block.fixedTime === true) return true;
+    if (isWorkBlock(block)) return true;
+    if (isStudyBlock(block)) return true;
+    return false;
+}
+
+function updateBlockTimesForDate(block, startMins, endMins, date) {
+    if (!block) return;
+    const startStr = formatMinutesToTime(startMins);
+    const endStr = formatMinutesToTime(endMins);
+    block.time = `${startStr}-${endStr}`;
+    if (block.startDateTime && block.endDateTime && date) {
+        block.startDateTime = createDateTimeFromTimeStr(date, startStr).toISOString();
+        block.endDateTime = createDateTimeFromTimeStr(date, endStr).toISOString();
+    }
+}
+
+function buildPriorityChains(blocks) {
+    const chainMap = new Map();
+    const assigned = new Set();
+
+    blocks.forEach(block => {
+        if (block?.linkedBlockId) {
+            const key = `linked:${block.linkedBlockId}`;
+            if (!chainMap.has(key)) chainMap.set(key, []);
+            chainMap.get(key).push(block);
+        }
+    });
+    blocks.forEach(block => {
+        if (!block?.id) return;
+        const key = `linked:${block.id}`;
+        if (!chainMap.has(key)) return;
+        chainMap.get(key).push(block);
+    });
+
+    const mealBlocks = blocks.filter(block => mealTypeOf(block) && !block.isCookingBlock);
+    mealBlocks.forEach(mealBlock => {
+        const mealType = mealTypeOf(mealBlock);
+        const recipeId = mealBlock.recipeID || '';
+        const cookingBlock = blocks.find(block =>
+            block.isCookingBlock &&
+            mealTypeOf(block) === mealType &&
+            (recipeId ? block.recipeID === recipeId : true)
+        );
+        if (!cookingBlock) return;
+        const key = `meal:${mealType}:${recipeId || mealBlock.title || ''}`;
+        if (!chainMap.has(key)) chainMap.set(key, []);
+        chainMap.get(key).push(cookingBlock, mealBlock);
+    });
+
+    const chains = [];
+    chainMap.forEach((chainBlocks, chainKey) => {
+        const uniqueBlocks = Array.from(new Set(chainBlocks));
+        if (uniqueBlocks.length < 2) return;
+        const ordered = uniqueBlocks.slice().sort((a, b) => {
+            const aStart = getBlockTimeRange(a).start;
+            const bStart = getBlockTimeRange(b).start;
+            return aStart - bStart;
+        });
+        ordered.forEach(block => assigned.add(block));
+        chains.push({ id: chainKey, blocks: ordered });
+    });
+
+    blocks.forEach(block => {
+        if (assigned.has(block)) return;
+        chains.push({ id: `single:${block.id || block.title || Math.random()}`, blocks: [block] });
+    });
+
+    return chains;
+}
+
+function applyPriorityNudges(blocks, date, options = {}) {
+    const { maxShiftMinutes = 15 } = options;
+    if (!Array.isArray(blocks) || blocks.length === 0) {
+        return { blocks, conflicts: [] };
+    }
+
+    const chains = buildPriorityChains(blocks);
+    const chainSnapshots = chains.map(chain => {
+        const times = chain.blocks.map(block => getBlockTimeRange(block));
+        const starts = times.map(t => t.start).filter(v => !isNaN(v));
+        const ends = times.map(t => t.end).filter(v => !isNaN(v));
+        const start = starts.length ? Math.min(...starts) : NaN;
+        const end = ends.length ? Math.max(...ends) : NaN;
+        const fixed = chain.blocks.some(block => isFixedTimeBlock(block));
+        return { ...chain, start, end, fixed };
+    }).filter(chain => !isNaN(chain.start) && !isNaN(chain.end));
+
+    chainSnapshots.sort((a, b) => a.start - b.start);
+
+    const conflicts = new Set();
+    let cursor = null;
+
+    chainSnapshots.forEach(chain => {
+        if (cursor !== null && chain.start < cursor) {
+            const shiftBy = cursor - chain.start;
+            if (!chain.fixed && shiftBy <= maxShiftMinutes) {
+                chain.blocks.forEach(block => {
+                    const range = getBlockTimeRange(block);
+                    updateBlockTimesForDate(block, range.start + shiftBy, range.end + shiftBy, date);
+                });
+                chain.start += shiftBy;
+                chain.end += shiftBy;
+            } else {
+                chain.blocks.forEach(block => {
+                    if (!isFixedTimeBlock(block)) conflicts.add(block);
+                });
+            }
+        }
+        cursor = Math.max(cursor ?? chain.end, chain.end);
+    });
+
+    const sortedBlocks = blocks
+        .map(block => ({ block, ...getBlockTimeRange(block) }))
+        .filter(item => !isNaN(item.start) && !isNaN(item.end))
+        .sort((a, b) => a.start - b.start);
+
+    for (let i = 0; i < sortedBlocks.length; i += 1) {
+        const current = sortedBlocks[i];
+        for (let j = i + 1; j < sortedBlocks.length; j += 1) {
+            const next = sortedBlocks[j];
+            if (next.start >= current.end) break;
+            if (current.start < next.end && current.end > next.start) {
+                if (!isFixedTimeBlock(current.block)) conflicts.add(current.block);
+                if (!isFixedTimeBlock(next.block)) conflicts.add(next.block);
+            }
+        }
+    }
+
+    return { blocks, conflicts: Array.from(conflicts) };
+}
+
+function enforceLinkedBlockChains(blocks, date) {
+    if (!Array.isArray(blocks) || blocks.length === 0) return blocks;
+    const dayStart = timeStrToMinutes(scheduleData?.dayWindow?.start || '00:00');
+    const dayEnd = timeStrToMinutes(scheduleData?.dayWindow?.end || '23:59');
+    const safeDayStart = isNaN(dayStart) ? 0 : dayStart;
+    const safeDayEnd = isNaN(dayEnd) ? 24 * 60 : dayEnd;
+
+    const isImportantBlock = (block) =>
+        block?.blockType === 'important' || block?.canSplit === true;
+
+    const updateBlockTimes = (block, startMins, endMins) => {
+        if (!block) return;
+        block.time = `${formatMinutesToTime(startMins)}-${formatMinutesToTime(endMins)}`;
+        if (block.startDateTime && block.endDateTime && date) {
+            block.startDateTime = createDateTimeFromTimeStr(date, formatMinutesToTime(startMins)).toISOString();
+            block.endDateTime = createDateTimeFromTimeStr(date, formatMinutesToTime(endMins)).toISOString();
+        }
+    };
+
+    const classifyChainRole = (block, anchorBlock) => {
+        if (!block) return 99;
+        if (block.isCookingBlock) return 0;
+        if (anchorBlock && block === anchorBlock) return 2;
+        const title = (block.title || '').toLowerCase();
+        if (title.includes('prep for')) return 0;
+        if (title.includes('travel to')) return 1;
+        if (title.includes('travel home')) return 3;
+        return 99;
+    };
+
+    const orderChainBlocks = (chainBlocks, anchorBlock) => {
+        const ordered = chainBlocks.slice().sort((a, b) => {
+            const roleA = classifyChainRole(a, anchorBlock);
+            const roleB = classifyChainRole(b, anchorBlock);
+            if (roleA !== roleB) return roleA - roleB;
+            const aStart = getBlockTimeRange(a).start;
+            const bStart = getBlockTimeRange(b).start;
+            return aStart - bStart;
+        });
+        return ordered;
+    };
+
+    const pickGapForChain = (gaps, chainStart, chainDuration) => {
+        if (!gaps.length) return null;
+        let targetGap = gaps.find(gap => chainStart >= gap.start && (chainStart + chainDuration) <= gap.end);
+        if (!targetGap) {
+            targetGap = gaps.find(gap => gap.start >= chainStart && gap.duration >= chainDuration);
+        }
+        if (!targetGap) {
+            const backwards = gaps.filter(gap => gap.end <= chainStart && gap.duration >= chainDuration);
+            targetGap = backwards.length ? backwards[backwards.length - 1] : null;
+        }
+        return targetGap || null;
+    };
+
+    const chainMap = new Map();
+
+    blocks.forEach(block => {
+        if (block?.linkedBlockId) {
+            const key = `linked:${block.linkedBlockId}`;
+            if (!chainMap.has(key)) chainMap.set(key, []);
+            chainMap.get(key).push(block);
+        }
+    });
+    blocks.forEach(block => {
+        if (!block?.id) return;
+        const key = `linked:${block.id}`;
+        if (!chainMap.has(key)) return;
+        chainMap.get(key).push(block);
+    });
+
+    const mealBlocks = blocks.filter(block => mealTypeOf(block) && !block.isCookingBlock);
+    mealBlocks.forEach(mealBlock => {
+        const mealType = mealTypeOf(mealBlock);
+        const recipeId = mealBlock.recipeID || '';
+        const cookingBlock = blocks.find(block =>
+            block.isCookingBlock &&
+            mealTypeOf(block) === mealType &&
+            (recipeId ? block.recipeID === recipeId : true)
+        );
+        if (!cookingBlock) return;
+        const key = `meal:${mealType}:${recipeId || mealBlock.title || ''}`;
+        if (!chainMap.has(key)) chainMap.set(key, []);
+        chainMap.get(key).push(cookingBlock, mealBlock);
+    });
+
+    chainMap.forEach((chainBlocks, chainKey) => {
+        const uniqueBlocks = Array.from(new Set(chainBlocks));
+        if (uniqueBlocks.length < 2) return;
+        const anchorBlock = chainKey.startsWith('linked:')
+            ? blocks.find(block => block?.id && chainKey === `linked:${block.id}`)
+            : uniqueBlocks.find(block => mealTypeOf(block) && !block.isCookingBlock) || null;
+        const ordered = orderChainBlocks(uniqueBlocks, anchorBlock);
+        const chainDuration = ordered.reduce((sum, block) => sum + getBlockDurationMinutes(block), 0);
+        if (!chainDuration) return;
+
+        const anchorStart = anchorBlock ? getBlockTimeRange(anchorBlock).start : NaN;
+        const anchorIndex = anchorBlock ? ordered.indexOf(anchorBlock) : -1;
+        const durationBeforeAnchor = anchorIndex > -1
+            ? ordered.slice(0, anchorIndex).reduce((sum, block) => sum + getBlockDurationMinutes(block), 0)
+            : 0;
+        const desiredChainStart = !isNaN(anchorStart)
+            ? anchorStart - durationBeforeAnchor
+            : ordered.reduce((min, block) => {
+                const { start } = getBlockTimeRange(block);
+                return isNaN(start) ? min : Math.min(min, start);
+            }, Infinity);
+        if (!isFinite(desiredChainStart)) return;
+
+        const otherBlocks = blocks.filter(block => !ordered.includes(block));
+        const gaps = findAvailableGapsInDay(otherBlocks, safeDayStart, safeDayEnd);
+        if (gaps.length === 0) return;
+
+        const targetGap = pickGapForChain(gaps, desiredChainStart, chainDuration);
+        if (!targetGap) return;
+
+        const hasImportantConflict = otherBlocks.some(block => {
+            if (!isImportantBlock(block)) return false;
+            const { start, end } = getBlockTimeRange(block);
+            if (isNaN(start) || isNaN(end)) return false;
+            const chainStart = targetGap.start;
+            const chainEnd = targetGap.start + chainDuration;
+            return start < chainEnd && end > chainStart;
+        });
+        if (hasImportantConflict) return;
+
+        let cursor = targetGap.start;
+        ordered.forEach(block => {
+            const duration = getBlockDurationMinutes(block);
+            updateBlockTimes(block, cursor, cursor + duration);
+            cursor += duration;
+        });
+    });
+
+    return blocks;
 }
 
 function isMorningCandidate(block) {
@@ -9221,6 +9602,8 @@ function openAddDefaultModal() {
     document.getElementById('defaultBlockIndex').value = '-1';
     const dayStartOverride = document.getElementById('defaultDayStartOverride');
     if (dayStartOverride) dayStartOverride.value = '';
+    const fixedTimeCheckbox = document.getElementById('defaultFixedTime');
+    if (fixedTimeCheckbox) fixedTimeCheckbox.checked = true;
     
     // Set default checkboxes (active day selected by default)
     document.querySelectorAll('.default-day-checkbox').forEach(checkbox => {
@@ -9260,6 +9643,7 @@ function saveDefaultBlock(event) {
     const endTime = document.getElementById('defaultEndTime').value;
     const title = document.getElementById('defaultTitle').value;
     const tasks = document.getElementById('defaultTasks').value.split('\n').filter(t => t.trim());
+    const fixedTime = document.getElementById('defaultFixedTime')?.checked ?? true;
     
     if (!startTime || !endTime) {
         alert('⚠️ Please enter both start and end times.');
@@ -9293,7 +9677,8 @@ function saveDefaultBlock(event) {
         tasks: tasks,
         days: selectedDays,
         enabled: true,
-        dayStartOverride: document.getElementById('defaultDayStartOverride')?.value || ''
+        dayStartOverride: document.getElementById('defaultDayStartOverride')?.value || '',
+        fixedTime: fixedTime
     };
 
     // DON'T auto-assign recipes to default blocks themselves
@@ -9360,6 +9745,8 @@ function editDefaultBlock(index) {
     document.getElementById('defaultTasks').value = (block.tasks || []).join('\n');
     const dayStartOverride = document.getElementById('defaultDayStartOverride');
     if (dayStartOverride) dayStartOverride.value = block.dayStartOverride || '';
+    const fixedTimeCheckbox = document.getElementById('defaultFixedTime');
+    if (fixedTimeCheckbox) fixedTimeCheckbox.checked = block.fixedTime !== false;
     
     // Set day checkboxes
     const days = block.days || ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
@@ -9888,9 +10275,9 @@ function parseAndCreateSchedule(response) {
         // Insert cooking blocks before meal blocks
         blocks = insertCookingBlocksForMeals(blocks, dayKey);
         console.log(`  → After cooking insertion: ${blocks.length} blocks`);
-        
-        // PUSH-FORWARD BREAKFAST CHAIN (after cooking insertion)
-        blocks = pushForwardBreakfastChain(blocks, date);
+
+        const { blocks: adjustedBlocks } = applyPriorityNudges(blocks, date, { maxShiftMinutes: 15 });
+        blocks = adjustedBlocks;
         
         scheduleData.days[dayKey] = {
             name: dayName,
