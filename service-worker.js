@@ -4,18 +4,20 @@ const urlsToCache = [
     './',
     './index.html',
     './styles.css',
-    './script.js',
+    './src/engine/schedule-engine.js',
     './manifest.json',
-    './product-catalog.js',
-    './kitchen-stock.js',
-    './smart-shopping.js',
-    './cooking-integration.js',
-    './recipe-database.js',
-    './recipe-display.js',
-    './recipe-utils.js',
-    './shopping-quick-add.js',
-    './import-functions.js',
-    './pwa-manager.js'
+    './src/features/products/model/product-catalog.js',
+    './src/features/kitchen-stock/services/kitchen-stock.js',
+    './src/features/smart-shopping/services/smart-shopping.js',
+    './src/features/cooking/services/cooking-integration.js',
+    './src/features/recipes/model/recipe-database.js',
+    './src/features/recipes/ui/recipe-display.js',
+    './src/features/recipes/services/recipe-utils.js',
+    './src/features/shopping/ui/shopping-quick-add.js',
+    './src/features/schedule-ui/services/import-functions.js',
+    './src/features/pwa/services/pwa-manager.js',
+    './src/features/work-commute/services/overlap-resolver.js',
+    './src/features/products/services/product-management.js'
 ];
 
 self.addEventListener('install', (event) => {

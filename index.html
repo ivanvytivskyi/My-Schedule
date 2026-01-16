@@ -12,11 +12,11 @@
     <link rel="icon" href="icon-192-v2.1.0.png" sizes="192x192">
     <link rel="apple-touch-icon" href="/apple-touch-icon-v2.1.0.png">
     <link rel="stylesheet" href="styles.css">
-    <script src="import-functions.js" defer></script>
-    <script src="recipe-database.js" defer></script>
-    <script src="recipe-display.js" defer></script>
-    <script src="recipe-utils.js" defer></script>
-    <script src="pwa-manager.js" defer></script>
+    <script src="src/features/schedule-ui/services/import-functions.js" defer></script>
+    <script src="src/features/recipes/model/recipe-database.js" defer></script>
+    <script src="src/features/recipes/ui/recipe-display.js" defer></script>
+    <script src="src/features/recipes/services/recipe-utils.js" defer></script>
+    <script src="src/features/pwa/services/pwa-manager.js" defer></script>
 </head>
 <body>
     <div class="container">
@@ -1135,11 +1135,11 @@ The app will parse and beautify automatically!" style="width: 100%; height: 300p
     </div>
 
         <!-- V2.1.0 New Systems (Load in order) -->
-    <script src="product-catalog.js" defer></script>
-    <script src="kitchen-stock.js" defer></script>
-    <script src="smart-shopping.js" defer></script>
-    <script src="cooking-integration.js" defer></script>
-    <script src="overlap-resolver.js" defer></script>
+    <script src="src/features/products/model/product-catalog.js" defer></script>
+    <script src="src/features/kitchen-stock/services/kitchen-stock.js" defer></script>
+    <script src="src/features/smart-shopping/services/smart-shopping.js" defer></script>
+    <script src="src/features/cooking/services/cooking-integration.js" defer></script>
+    <script src="src/features/work-commute/services/overlap-resolver.js" defer></script>
     
     <!-- Product Management Modal -->
     <div id="productManagementModal" class="modal">
@@ -1413,8 +1413,8 @@ The app will parse and beautify automatically!" style="width: 100%; height: 300p
     </div>
 
     <!-- Core Scripts -->
-    <script src="script.js" defer></script>
-    <script src="shopping-quick-add.js" defer></script>
-    <script src="product-management.js" defer></script>
+    <script src="src/engine/schedule-engine.js" defer></script>
+    <script src="src/features/shopping/ui/shopping-quick-add.js" defer></script>
+    <script src="src/features/products/services/product-management.js" defer></script>
 </body>
 </html>
