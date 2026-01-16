@@ -6,7 +6,11 @@
 - Use plain `<script defer>` tags; no bundlers, no frameworks.
 - Maintain global function availability for inline handlers.
 
-## File Moves (Old → New)
+## Recent Moves (Old → New)
+- `src/engine/schedule-engine.js` → `src/features/wizard/services/setup-wizard.js` (setup wizard UI, work pattern helpers)
+- `src/engine/schedule-engine.js` → `src/features/settings-history/services/settings-history.js` (settings modal + schedule history)
+
+## Legacy Moves (Old → New)
 - `script.js` → `src/engine/schedule-engine.js`
 - `import-functions.js` → `src/features/schedule-ui/services/import-functions.js`
 - `recipe-database.js` → `src/features/recipes/model/recipe-database.js`
@@ -27,38 +31,48 @@
 3. `src/features/recipes/ui/recipe-display.js`
 4. `src/features/recipes/services/recipe-utils.js`
 5. `src/features/pwa/services/pwa-manager.js`
-6. `src/features/products/model/product-catalog.js`
-7. `src/features/kitchen-stock/services/kitchen-stock.js`
-8. `src/features/smart-shopping/services/smart-shopping.js`
-9. `src/features/cooking/services/cooking-integration.js`
-10. `src/features/work-commute/services/overlap-resolver.js`
-11. `src/engine/schedule-engine.js`
-12. `src/features/shopping/ui/shopping-quick-add.js`
-13. `src/features/products/services/product-management.js`
+6. `src/features/wizard/services/setup-wizard.js`
+7. `src/features/settings-history/services/settings-history.js`
+8. `src/features/products/model/product-catalog.js`
+9. `src/features/kitchen-stock/services/kitchen-stock.js`
+10. `src/features/smart-shopping/services/smart-shopping.js`
+11. `src/features/cooking/services/cooking-integration.js`
+12. `src/features/work-commute/services/overlap-resolver.js`
+13. `src/engine/schedule-engine.js`
+14. `src/features/shopping/ui/shopping-quick-add.js`
+15. `src/features/products/services/product-management.js`
 
 ## Engine Contracts (Single Source of Truth)
-- **Scheduling engine:** `src/engine/schedule-engine.js` remains the only implementation of:
-  - Week generation (`addWeek`)
-  - Prediction/slots (`buildPredictedDayBusyIntervals`, `findAvailableShoppingSlots`)
-  - Overlap resolution orchestration
-  - Finalization (`finalizeDayBlocks`) and rendering
+- **Shared engine file:** `src/engine/schedule-engine.js`
+- **Allowed engine API:**
+  - `addWeek`
+  - `buildPredictedDayBusyIntervals`
+  - `findAvailableShoppingSlots`
+  - `finalizeDayBlocks`
+  - `renderSchedule`
+  - `saveToLocalStorage`
+  - `loadFromLocalStorage`
 - **No duplication**: features call into the shared engine through existing globals.
+- **Engine never touches DOM for feature-specific views** (wizard/settings moved to their features).
 
-## Feature Folder Contracts
-Each feature folder includes:
-- `index.js` (placeholder for future `window.App.features.<name>` exports)
-- `ui/` (DOM rendering/handlers)
-- `model/` (data definitions, constants)
-- `services/` (logic/utilities)
+## Feature Boundaries
+- **wizard:** owns setup modal UI, work pattern storage, and shopping slot selection.
+- **settings-history:** owns settings modal UI, schedule history, and reset actions.
+- **recipes:** owns recipe library UI and usage tracking.
+- **shopping/smart-shopping:** own manual quick add vs recipe-driven lists.
+- **products/kitchen-stock:** own product catalog customizations + stock storage.
+- **work-commute:** owns overlap resolver UI.
 
-## Risky Couplings / Notes
-- **History persistence duplication:** `saveScheduleHistoryEntry` (engine) vs `saveScheduleToHistory` (recipes utils) both write `scheduleHistory_v2`.
-- **Work/commute logic duplication:** both preview and generation compute work schedule/commute.
-- **Cooking integration:** calls `saveSchedule()` (missing function), left unchanged to preserve behavior.
-- **Overlap resolver:** async modal flow; availability is required for conflict handling.
+## Known Fragile Areas
+- **Global state coupling:** `scheduleData` is shared across engine + features.
+- **History key duplication:** `scheduleHistory_v2` is written by both settings-history and recipe utils.
+- **Missing dependency:** `resetScheduleHistory()` calls `loadScheduleHistory()` which is not defined.
 
-## Storage Keys (Preserved)
-All keys remain unchanged (e.g., `weeklySchedule`, `shoppingTables_v2`, `kitchenStock_v2`, `recipeUsageHistory`, `scheduleHistory_v2`, `cookingConfig`).
+## Rules for Future Fixes
+1. Keep scheduling logic inside the engine (prediction/generation/finalization only).
+2. Feature UI should call engine APIs, not replicate scheduling logic.
+3. Preserve inline handler names used by HTML (global functions).
+4. Maintain storage keys and schemas; add new keys only in feature-owned modules.
 
 ## Documentation Outputs
 - `/docs/app-map.json`: machine-readable map

@@ -12,27 +12,28 @@
     .container { display: grid; grid-template-columns: 320px 1fr; gap: 16px; padding: 16px; }
     .panel { background: white; border-radius: 10px; padding: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
     .panel h2 { margin: 0 0 10px; font-size: 16px; }
-    .list { max-height: 360px; overflow: auto; border: 1px solid #e5e7eb; border-radius: 8px; }
+    .list { max-height: 280px; overflow: auto; border: 1px solid #e5e7eb; border-radius: 8px; }
     .list-item { padding: 8px 10px; border-bottom: 1px solid #eef2f7; cursor: pointer; }
     .list-item:last-child { border-bottom: none; }
     .list-item.active { background: #eef2ff; }
+    .list-item.highlight { background: #fef3c7; }
     .search { display: flex; gap: 8px; margin-bottom: 10px; }
     .search input { flex: 1; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; }
     .btn { padding: 8px 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
     .btn.primary { background: #667eea; color: white; }
     .btn.secondary { background: #eef2ff; color: #3730a3; }
-    .diagram { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 8px; }
-    .details { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .grid-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
     .table { width: 100%; border-collapse: collapse; }
     .table th, .table td { text-align: left; font-size: 12px; padding: 6px; border-bottom: 1px solid #eef2f7; }
     .muted { color: #6b7280; font-size: 12px; }
-    .pill { display: inline-block; padding: 2px 6px; background: #f3f4f6; border-radius: 999px; font-size: 11px; }
+    .pill { display: inline-block; padding: 2px 6px; background: #f3f4f6; border-radius: 999px; font-size: 11px; margin-right: 4px; }
+    .section { margin-top: 12px; }
   </style>
 </head>
 <body>
   <header>
     <h1>App Map — Weekly Schedule Manager</h1>
-    <p>End-to-end flow, feature ownership, engine pipeline, and storage index.</p>
+    <p>Feature ownership, engine pipeline, storage index, and coupling guide.</p>
   </header>
 
   <div class="container">
@@ -42,425 +43,757 @@
         <input id="searchInput" type="text" placeholder="Search functions or storage keys" />
         <button class="btn secondary" id="clearSearch">Clear</button>
       </div>
-      <h2>Functions</h2>
-      <div id="functionList" class="list"></div>
+      <h2>Features</h2>
+      <div id="featureList" class="list"></div>
+      <div class="section">
+        <h2>Functions</h2>
+        <div id="functionList" class="list"></div>
+      </div>
     </div>
 
     <div class="panel">
-      <h2>Diagram</h2>
-      <div class="diagram">
-        <svg id="diagramSvg" width="100%" viewBox="0 0 900 360" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <style>
-              .node { fill: #eef2ff; stroke: #4f46e5; stroke-width: 1.5; }
-              .node-label { font: 12px Arial; fill: #111; }
-              .link { stroke: #94a3b8; stroke-width: 1.5; }
-            </style>
-          </defs>
-          <rect x="20" y="30" width="140" height="50" rx="8" class="node" />
-          <text x="90" y="60" text-anchor="middle" class="node-label">App Boot</text>
-
-          <rect x="200" y="30" width="180" height="50" rx="8" class="node" />
-          <text x="290" y="60" text-anchor="middle" class="node-label">Entry Points</text>
-
-          <rect x="430" y="30" width="200" height="50" rx="8" class="node" />
-          <text x="530" y="60" text-anchor="middle" class="node-label">Shared Engine</text>
-
-          <rect x="670" y="30" width="200" height="50" rx="8" class="node" />
-          <text x="770" y="60" text-anchor="middle" class="node-label">Features</text>
-
-          <rect x="20" y="140" width="200" height="50" rx="8" class="node" />
-          <text x="120" y="170" text-anchor="middle" class="node-label">Storage (localStorage)</text>
-
-          <rect x="260" y="140" width="200" height="50" rx="8" class="node" />
-          <text x="360" y="170" text-anchor="middle" class="node-label">Render UI</text>
-
-          <rect x="500" y="140" width="200" height="50" rx="8" class="node" />
-          <text x="600" y="170" text-anchor="middle" class="node-label">Prediction/Slots</text>
-
-          <rect x="740" y="140" width="140" height="50" rx="8" class="node" />
-          <text x="810" y="170" text-anchor="middle" class="node-label">Week Gen</text>
-
-          <line x1="160" y1="55" x2="200" y2="55" class="link" />
-          <line x1="380" y1="55" x2="430" y2="55" class="link" />
-          <line x1="630" y1="55" x2="670" y2="55" class="link" />
-          <line x1="120" y1="80" x2="120" y2="140" class="link" />
-          <line x1="360" y1="80" x2="360" y2="140" class="link" />
-          <line x1="600" y1="80" x2="600" y2="140" class="link" />
-          <line x1="810" y1="80" x2="810" y2="140" class="link" />
-        </svg>
-      </div>
-
-      <div style="display:flex; gap: 8px; margin-top: 10px;">
-        <button class="btn primary" id="downloadSvg">Download SVG</button>
-        <button class="btn secondary" id="downloadJson">Download JSON</button>
-      </div>
-
-      <div class="details" style="margin-top: 14px;">
+      <div class="grid-two">
+        <div class="panel">
+          <h2>Feature Details</h2>
+          <div id="featureDetails" class="muted">Select a feature to see ownership.</div>
+        </div>
         <div class="panel">
           <h2>Function Details</h2>
           <div id="functionDetails" class="muted">Select a function to see details.</div>
         </div>
+      </div>
+
+      <div class="section grid-two">
         <div class="panel">
-          <h2>Storage Keys</h2>
+          <h2>Entry Points</h2>
+          <div id="entryPoints" class="muted"></div>
+        </div>
+        <div class="panel">
+          <h2>Storage Ownership</h2>
           <div id="storageList" class="list"></div>
         </div>
       </div>
 
-      <div class="panel" style="margin-top: 12px;">
-        <h2>Pipeline Stages</h2>
-        <table class="table" id="pipelineTable"></table>
+      <div class="section grid-two">
+        <div class="panel">
+          <h2>Engine Pipeline</h2>
+          <table class="table" id="pipelineTable"></table>
+        </div>
+        <div class="panel">
+          <h2>High-Risk Coupling</h2>
+          <div id="couplingDetails" class="muted"></div>
+        </div>
       </div>
     </div>
   </div>
 
   <script id="app-map-data" type="application/json">
-{
-  "meta": {
-    "app": "Weekly Schedule Manager V2.1.0",
-    "repo": "/workspace/My-Schedule",
-    "generatedBy": "agent",
-    "notes": "Best-effort static map based on current code structure and moved files."
-  },
-  "entryPoints": {
-    "domContentLoaded": [
+  {
+    "meta": {
+      "app": "Weekly Schedule Manager V2.1.0",
+      "repo": "/workspace/My-Schedule",
+      "generatedBy": "agent",
+      "notes": "Best-effort static map based on current code structure and split by feature ownership."
+    },
+    "entryPoints": {
+      "domContentLoaded": [
+        {
+          "file": "src/engine/schedule-engine.js",
+          "handlers": [
+            "loadFromLocalStorage",
+            "cleanupExpiredMedicineBlocks",
+            "initializeApp",
+            "setupModeButtons",
+            "setupNameEditing",
+            "setupDateEditing",
+            "setupTimePicker",
+            "setupTitleSuggestions",
+            "startLiveClock",
+            "setupScrollButton",
+            "populateBlockRecipeSelect"
+          ]
+        },
+        {
+          "file": "src/features/recipes/services/recipe-utils.js",
+          "handlers": [
+            "initRecipeUsageHistory",
+            "initGenerationCount",
+            "initScheduleHistory",
+            "cleanupOldData"
+          ]
+        },
+        {
+          "file": "src/features/recipes/ui/recipe-display.js",
+          "handlers": [
+            "loadSelectedRecipes",
+            "initializeRecipeLibrary"
+          ]
+        },
+        {
+          "file": "src/features/shopping/ui/shopping-quick-add.js",
+          "handlers": [
+            "populateQuickAddFromCatalog"
+          ]
+        },
+        {
+          "file": "src/features/smart-shopping/services/smart-shopping.js",
+          "handlers": [
+            "renderAllShoppingTables"
+          ]
+        },
+        {
+          "file": "src/features/products/services/product-management.js",
+          "handlers": [
+            "mergeCustomProducts"
+          ]
+        },
+        {
+          "file": "src/features/pwa/services/pwa-manager.js",
+          "handlers": [
+            "registerServiceWorker",
+            "setupInstallPrompt"
+          ]
+        },
+        {
+          "file": "src/engine/schedule-engine.js",
+          "handlers": [
+            "initCookingConfig"
+          ]
+        }
+      ],
+      "inlineHandlers": [
+        { "selector": "#settingsBtn", "handler": "openSettings", "file": "src/features/settings-history/services/settings-history.js" },
+        { "selector": "#addDayBtn", "handler": "openAddDayModal", "file": "src/engine/schedule-engine.js" },
+        { "selector": "button[onclick=\"openQuickAdd()\"]", "handler": "openQuickAdd", "file": "src/features/shopping/ui/shopping-quick-add.js" },
+        { "selector": "button[onclick=\"openKitchenStock()\"]", "handler": "openKitchenStock", "file": "src/features/kitchen-stock/services/kitchen-stock.js" },
+        { "selector": "button[onclick=\"generateSmartShopping()\"]", "handler": "generateSmartShopping", "file": "src/features/smart-shopping/services/smart-shopping.js" },
+        { "selector": "button[onclick=\"openImportRecipes()\"]", "handler": "openImportRecipes", "file": "src/features/schedule-ui/services/import-functions.js" },
+        { "selector": "button[onclick=\"toggleRecipesEditMode()\"]", "handler": "toggleRecipesEditMode", "file": "src/features/schedule-ui/services/import-functions.js" },
+        { "selector": "button[onclick=\"manualUpdateCheck()\"]", "handler": "manualUpdateCheck", "file": "src/features/pwa/services/pwa-manager.js" },
+        { "selector": "#setupWizardModal button[onclick=\"closeSetupWizard()\"]", "handler": "closeSetupWizard", "file": "src/features/wizard/services/setup-wizard.js" }
+      ],
+      "forms": [
+        { "selector": "#eventForm", "handler": "submit -> add event", "file": "src/engine/schedule-engine.js" },
+        { "selector": "#addItemForm", "handler": "addNewItem", "file": "src/features/products/services/product-management.js" },
+        { "selector": "#newShopForm", "handler": "addNewShop", "file": "src/features/products/services/product-management.js" },
+        { "selector": "#newCategoryForm", "handler": "addNewCategory", "file": "src/features/products/services/product-management.js" }
+      ]
+    },
+    "features": [
       {
+        "name": "wizard",
+        "description": "Setup wizard for defaults, work schedule, cooking, and shopping slot selection.",
+        "files": [
+          {
+            "path": "src/features/wizard/services/setup-wizard.js",
+            "functions": [
+              "openSetupWizard",
+              "closeSetupWizard",
+              "renderSetupShoppingNeeded",
+              "createWeekFromSetup",
+              "initWorkScheduleSetup",
+              "applyWorkScheduleToOrderedDays",
+              "getCommuteSettingsUniversal"
+            ]
+          }
+        ],
+        "storageKeys": ["weeklyWorkPattern", "weeklyWorkPatternMode", "weeklyWorkPatternPrep", "weeklyWorkPatternCommute"],
+        "engineCalls": ["addWeek", "findAvailableShoppingSlots", "buildPredictedDayBusyIntervals"]
+      },
+      {
+        "name": "settings-history",
+        "description": "Settings modal, schedule history, and reset actions.",
+        "files": [
+          {
+            "path": "src/features/settings-history/services/settings-history.js",
+            "functions": [
+              "openSettings",
+              "closeSettings",
+              "renderScheduleHistory",
+              "saveScheduleHistoryEntry",
+              "buildWeekScheduleText",
+              "resetRecipeHistory",
+              "resetScheduleHistory",
+              "resetAllData"
+            ]
+          }
+        ],
+        "storageKeys": ["scheduleHistory_v2", "recipeUsageHistory", "updateDismissed", "lastSeenVersion", "pwaInstalled"]
+      },
+      {
+        "name": "recipes",
+        "description": "Recipe library, import, selection, and tracking.",
+        "files": [
+          { "path": "src/features/recipes/model/recipe-database.js", "functions": ["RECIPE_DATABASE"] },
+          { "path": "src/features/recipes/ui/recipe-display.js", "functions": ["initializeRecipeLibrary", "renderRecipes"] },
+          { "path": "src/features/recipes/services/recipe-utils.js", "functions": ["getThisWeekRecipes", "assignRecipesWithLeftoverPlanning", "updateRecipeUsageHistory"] }
+        ],
+        "storageKeys": ["selectedRecipesThisWeek", "recipeUsageHistory", "scheduleHistory_v2", "aiGenerationCount"]
+      },
+      {
+        "name": "shopping",
+        "description": "Manual quick add shopping modal.",
+        "files": [
+          { "path": "src/features/shopping/ui/shopping-quick-add.js", "functions": ["openQuickAdd", "addQuickAddItem"] }
+        ],
+        "storageKeys": ["shoppingListHTML"]
+      },
+      {
+        "name": "smart-shopping",
+        "description": "Generate shopping tables from recipes + stock.",
+        "files": [
+          { "path": "src/features/smart-shopping/services/smart-shopping.js", "functions": ["generateSmartShopping", "renderAllShoppingTables"] }
+        ],
+        "storageKeys": ["shoppingTables_v2"]
+      },
+      {
+        "name": "kitchen-stock",
+        "description": "Kitchen stock items and overrides.",
+        "files": [
+          { "path": "src/features/kitchen-stock/services/kitchen-stock.js", "functions": ["openKitchenStock", "saveKitchenStock"] }
+        ],
+        "storageKeys": ["kitchenStock_v2"]
+      },
+      {
+        "name": "products",
+        "description": "Custom products, shops, and categories.",
+        "files": [
+          { "path": "src/features/products/model/product-catalog.js", "functions": ["CANONICAL_PRODUCTS"] },
+          { "path": "src/features/products/services/product-management.js", "functions": ["mergeCustomProducts", "saveCustomProducts", "saveCustomShops", "saveCustomCategories"] }
+        ],
+        "storageKeys": ["customProducts", "customShops", "customCategories"]
+      },
+      {
+        "name": "cooking",
+        "description": "Cooking checkboxes and stock updates.",
+        "files": [
+          { "path": "src/features/cooking/services/cooking-integration.js", "functions": ["toggleCooking", "subtractRecipeIngredients"] }
+        ]
+      },
+      {
+        "name": "work-commute",
+        "description": "Overlap resolution UI and commute helpers.",
+        "files": [
+          { "path": "src/features/work-commute/services/overlap-resolver.js", "functions": ["resolveWorkOverlaps"] }
+        ]
+      },
+      {
+        "name": "schedule-ui",
+        "description": "Schedule import and edit utilities.",
+        "files": [
+          { "path": "src/features/schedule-ui/services/import-functions.js", "functions": ["parseAndCreateSchedule", "openImportRecipes"] }
+        ]
+      },
+      {
+        "name": "pwa",
+        "description": "Service worker and install prompt.",
+        "files": [
+          { "path": "src/features/pwa/services/pwa-manager.js", "functions": ["registerServiceWorker", "setupInstallPrompt", "manualUpdateCheck"] }
+        ]
+      }
+    ],
+    "engine": {
+      "files": ["src/engine/schedule-engine.js"],
+      "publicApi": [
+        "addWeek",
+        "buildPredictedDayBusyIntervals",
+        "findAvailableShoppingSlots",
+        "finalizeDayBlocks",
+        "renderSchedule",
+        "saveToLocalStorage",
+        "loadFromLocalStorage"
+      ]
+    },
+    "functions": [
+      {
+        "name": "initializeApp",
         "file": "src/engine/schedule-engine.js",
-        "handlers": [
-          "loadFromLocalStorage",
-          "cleanupExpiredMedicineBlocks",
-          "initializeApp",
-          "setupModeButtons",
-          "setupNameEditing",
-          "setupDateEditing",
-          "setupTimePicker",
-          "setupTitleSuggestions",
-          "startLiveClock",
-          "setupScrollButton",
-          "populateBlockRecipeSelect"
-        ]
+        "type": "ui",
+        "calledBy": ["DOMContentLoaded"],
+        "calls": ["renderDayTabs", "renderSchedule", "renderShopping", "renderRecipes", "setupNavigation", "setupDayNavigation"],
+        "reads": {
+          "globals": ["scheduleData", "currentDay", "isToday"],
+          "localStorage": [],
+          "dom": ["#scheduleContent", ".day-tab"]
+        },
+        "writes": {
+          "globals": ["scheduleData"],
+          "localStorage": [],
+          "dom": ["#scheduleContent", ".day-tab"]
+        }
       },
       {
-        "file": "src/features/recipes/services/recipe-utils.js",
-        "handlers": [
-          "initRecipeUsageHistory",
-          "initGenerationCount",
-          "initScheduleHistory",
-          "cleanupOldData"
-        ]
+        "name": "addWeek",
+        "file": "src/engine/schedule-engine.js",
+        "type": "engine",
+        "calledBy": ["createWeekFromSetup", "openAddDayModal", "quickFillRota"],
+        "calls": ["assignRecipesWithLeftoverPlanning", "applyWorkMealRules", "resolveOverlapConflicts", "resolveWorkOverlaps", "finalizeDayBlocks", "renderSchedule", "saveToLocalStorage", "saveScheduleHistoryEntry"],
+        "reads": {
+          "globals": ["scheduleData", "leftoversAllowance"],
+          "localStorage": ["recipeUsageHistory", "scheduleHistory_v2"],
+          "dom": ["#weekStartDate", "#addWorkSchedule"]
+        },
+        "writes": {
+          "globals": ["scheduleData"],
+          "localStorage": ["weeklySchedule", "scheduleHistory_v2"],
+          "dom": ["#scheduleContent", "#dayTabsContainer"]
+        }
       },
       {
-        "file": "src/features/recipes/ui/recipe-display.js",
-        "handlers": [
-          "loadSelectedRecipes",
-          "initializeRecipeLibrary"
-        ]
+        "name": "buildPredictedDayBusyIntervals",
+        "file": "src/engine/schedule-engine.js",
+        "type": "engine",
+        "calledBy": ["renderSetupShoppingNeeded", "findAvailableShoppingSlots", "calculateFreeTimeSlots"],
+        "calls": ["getCommuteSettingsUniversal", "mergeIntervals", "applyWorkMealRules"],
+        "reads": {
+          "globals": ["scheduleData"],
+          "localStorage": [],
+          "dom": []
+        },
+        "writes": {
+          "globals": [],
+          "localStorage": [],
+          "dom": []
+        }
       },
       {
-        "file": "src/features/shopping/ui/shopping-quick-add.js",
-        "handlers": [
-          "populateQuickAddFromCatalog"
-        ]
+        "name": "findAvailableShoppingSlots",
+        "file": "src/engine/schedule-engine.js",
+        "type": "engine",
+        "calledBy": ["renderSetupShoppingNeeded"],
+        "calls": ["buildPredictedDayBusyIntervals"],
+        "reads": {
+          "globals": ["scheduleData"],
+          "localStorage": [],
+          "dom": []
+        },
+        "writes": { "globals": [], "localStorage": [], "dom": [] }
       },
       {
+        "name": "renderSetupShoppingNeeded",
+        "file": "src/features/wizard/services/setup-wizard.js",
+        "type": "feature",
+        "calledBy": ["openSetupWizard", "toggleSetupStep"],
+        "calls": ["findAvailableShoppingSlots", "buildPredictedDayBusyIntervals", "applyWorkScheduleToOrderedDays"],
+        "reads": {
+          "globals": ["scheduleData"],
+          "localStorage": [],
+          "dom": ["#setupStep4Shopping", "#setupWeekStartDateInput", "#setupShoppingDuration"]
+        },
+        "writes": {
+          "globals": ["setupShoppingSelection"],
+          "localStorage": [],
+          "dom": ["#setupStep4Shopping", "#setupShoppingSlotsList"]
+        }
+      },
+      {
+        "name": "createWeekFromSetup",
+        "file": "src/features/wizard/services/setup-wizard.js",
+        "type": "feature",
+        "calledBy": ["#createWeekFromSetup"],
+        "calls": ["addWeek", "addShoppingBlocks", "renderSchedule", "saveToLocalStorage"],
+        "reads": {
+          "globals": ["scheduleData", "setupShoppingSelection"],
+          "localStorage": [],
+          "dom": ["#createWeekFromSetup"]
+        },
+        "writes": {
+          "globals": ["window.currentWeekShoppingList"],
+          "localStorage": ["weeklySchedule"],
+          "dom": []
+        }
+      },
+      {
+        "name": "openSettings",
+        "file": "src/features/settings-history/services/settings-history.js",
+        "type": "ui",
+        "calledBy": ["#settingsBtn"],
+        "calls": ["loadSettingsStats", "renderScheduleHistory"],
+        "reads": {
+          "globals": [],
+          "localStorage": ["scheduleHistory_v2", "recipeUsageHistory"],
+          "dom": ["#settingsModal", "#statsGenerationCount"]
+        },
+        "writes": {
+          "globals": [],
+          "localStorage": [],
+          "dom": ["#settingsModal", "#statsGenerationCount"]
+        }
+      },
+      {
+        "name": "saveScheduleHistoryEntry",
+        "file": "src/features/settings-history/services/settings-history.js",
+        "type": "feature",
+        "calledBy": ["addWeek"],
+        "calls": [],
+        "reads": {
+          "globals": [],
+          "localStorage": ["scheduleHistory_v2"],
+          "dom": []
+        },
+        "writes": {
+          "globals": [],
+          "localStorage": ["scheduleHistory_v2"],
+          "dom": []
+        }
+      },
+      {
+        "name": "generateSmartShopping",
         "file": "src/features/smart-shopping/services/smart-shopping.js",
-        "handlers": [
-          "renderAllShoppingTables"
-        ]
-      },
-      {
-        "file": "src/features/products/services/product-management.js",
-        "handlers": [
-          "mergeCustomProducts"
-        ]
-      },
-      {
-        "file": "src/features/pwa/services/pwa-manager.js",
-        "handlers": [
-          "registerServiceWorker",
-          "setupInstallPrompt"
-        ]
-      },
-      {
-        "file": "src/engine/schedule-engine.js",
-        "handlers": [
-          "initCookingConfig"
-        ]
+        "type": "feature",
+        "calledBy": ["#shoppingContent"],
+        "calls": ["aggregateRecipeNeeds", "subtractKitchenStock", "choosePacksForShop", "renderAllShoppingTables"],
+        "reads": {
+          "globals": ["scheduleData", "kitchenStock"],
+          "localStorage": ["shoppingTables_v2", "kitchenStock_v2"],
+          "dom": ["#preferredShopSelect", "#shoppingListsContainer"]
+        },
+        "writes": {
+          "globals": [],
+          "localStorage": ["shoppingTables_v2"],
+          "dom": ["#shoppingListsContainer"]
+        }
       }
     ],
-    "inlineHandlers": [
-      { "selector": "#settingsBtn", "handler": "openSettings", "file": "src/engine/schedule-engine.js" },
-      { "selector": "#addDayBtn", "handler": "openAddDayModal", "file": "src/engine/schedule-engine.js" },
-      { "selector": "button[onclick=\"openQuickAdd()\"]", "handler": "openQuickAdd", "file": "src/features/shopping/ui/shopping-quick-add.js" },
-      { "selector": "button[onclick=\"openKitchenStock()\"]", "handler": "openKitchenStock", "file": "src/features/kitchen-stock/services/kitchen-stock.js" },
-      { "selector": "button[onclick=\"generateSmartShopping()\"]", "handler": "generateSmartShopping", "file": "src/features/smart-shopping/services/smart-shopping.js" },
-      { "selector": "button[onclick=\"openImportRecipes()\"]", "handler": "openImportRecipes", "file": "src/features/schedule-ui/services/import-functions.js" },
-      { "selector": "button[onclick=\"toggleRecipesEditMode()\"]", "handler": "toggleRecipesEditMode", "file": "src/features/schedule-ui/services/import-functions.js" },
-      { "selector": "button[onclick=\"manualUpdateCheck()\"]", "handler": "manualUpdateCheck", "file": "src/features/pwa/services/pwa-manager.js" }
-    ],
-    "forms": [
-      { "selector": "#eventForm", "handler": "submit -> add event", "file": "src/engine/schedule-engine.js" },
-      { "selector": "#addItemForm", "handler": "addNewItem", "file": "src/features/products/services/product-management.js" },
-      { "selector": "#newShopForm", "handler": "addNewShop", "file": "src/features/products/services/product-management.js" },
-      { "selector": "#newCategoryForm", "handler": "addNewCategory", "file": "src/features/products/services/product-management.js" }
-    ]
-  },
-  "files": [
-    { "path": "src/engine/schedule-engine.js", "role": "shared engine + UI", "notes": "Main schedule generation, prediction, rendering, settings, cooking config." },
-    { "path": "src/features/schedule-ui/services/import-functions.js", "role": "imports", "notes": "Schedule/shopping/recipe import, recipe edit mode." },
-    { "path": "src/features/recipes/model/recipe-database.js", "role": "data", "notes": "RECIPE_DATABASE." },
-    { "path": "src/features/recipes/ui/recipe-display.js", "role": "ui", "notes": "Recipe library UI, This Week list, custom recipes." },
-    { "path": "src/features/recipes/services/recipe-utils.js", "role": "services", "notes": "Recipe ID parsing, history, AI schedule tracking." },
-    { "path": "src/features/products/model/product-catalog.js", "role": "data", "notes": "CANONICAL_PRODUCTS and unit measures." },
-    { "path": "src/features/products/services/product-management.js", "role": "ui/services", "notes": "Custom products/shops/categories." },
-    { "path": "src/features/kitchen-stock/services/kitchen-stock.js", "role": "feature", "notes": "Kitchen stock + measurement overrides." },
-    { "path": "src/features/shopping/ui/shopping-quick-add.js", "role": "feature", "notes": "Quick Add shopping modal and selections." },
-    { "path": "src/features/smart-shopping/services/smart-shopping.js", "role": "feature", "notes": "Smart shopping from recipes." },
-    { "path": "src/features/cooking/services/cooking-integration.js", "role": "feature", "notes": "Cooking checkbox + stock updates." },
-    { "path": "src/features/work-commute/services/overlap-resolver.js", "role": "feature", "notes": "Overlap resolution modal for work conflicts." },
-    { "path": "src/features/pwa/services/pwa-manager.js", "role": "feature", "notes": "Service worker + install prompt + update banner." }
-  ],
-  "functions": [
-    { "name": "initializeApp", "file": "src/engine/schedule-engine.js", "approxLocation": "L1037-L1067", "type": "ui" },
-    { "name": "openSetupWizard", "file": "src/engine/schedule-engine.js", "approxLocation": "L1230-L1243", "type": "ui" },
-    { "name": "renderSetupShoppingNeeded", "file": "src/engine/schedule-engine.js", "approxLocation": "L1654-L1946", "type": "feature" },
-    { "name": "buildPredictedDayBusyIntervals", "file": "src/engine/schedule-engine.js", "approxLocation": "L1424-L1603", "type": "engine" },
-    { "name": "findAvailableShoppingSlots", "file": "src/engine/schedule-engine.js", "approxLocation": "L9204-L9337", "type": "engine" },
-    { "name": "addWeek", "file": "src/engine/schedule-engine.js", "approxLocation": "L3195-L4665", "type": "engine" },
-    { "name": "applyWorkMealRules", "file": "src/engine/schedule-engine.js", "approxLocation": "L7580-L7705", "type": "engine" },
-    { "name": "finalizeDayBlocks", "file": "src/engine/schedule-engine.js", "approxLocation": "L8925-L8940", "type": "engine" },
-    { "name": "renderSchedule", "file": "src/engine/schedule-engine.js", "approxLocation": "L4671-L4764", "type": "ui" },
-    { "name": "saveToLocalStorage", "file": "src/engine/schedule-engine.js", "approxLocation": "L7363-L7365", "type": "util" },
-    { "name": "loadFromLocalStorage", "file": "src/engine/schedule-engine.js", "approxLocation": "L7367-L7402", "type": "util" },
-    { "name": "generateSmartShopping", "file": "src/features/smart-shopping/services/smart-shopping.js", "approxLocation": "L10-L70", "type": "feature" },
-    { "name": "openQuickAdd", "file": "src/features/shopping/ui/shopping-quick-add.js", "approxLocation": "L156-L176", "type": "ui" },
-    { "name": "openKitchenStock", "file": "src/features/kitchen-stock/services/kitchen-stock.js", "approxLocation": "L273-L290", "type": "ui" },
-    { "name": "toggleCooking", "file": "src/features/cooking/services/cooking-integration.js", "approxLocation": "L11-L95", "type": "feature" },
-    { "name": "resolveWorkOverlaps", "file": "src/features/work-commute/services/overlap-resolver.js", "approxLocation": "L139-L189", "type": "engine" },
-    { "name": "initializeRecipeLibrary", "file": "src/features/recipes/ui/recipe-display.js", "approxLocation": "L60-L156", "type": "ui" },
-    { "name": "handleScheduleGenerated", "file": "src/features/recipes/services/recipe-utils.js", "approxLocation": "L1512-L1535", "type": "feature" },
-    { "name": "openSettings", "file": "src/engine/schedule-engine.js", "approxLocation": "L11833-L11837", "type": "ui" }
-  ],
-  "callGraph": [
-    { "from": "DOMContentLoaded", "to": ["loadFromLocalStorage", "initializeApp", "setupModeButtons"] },
-    { "from": "openSetupWizard", "to": ["embedDefaultsInSetup", "embedCookingInSetup", "renderSetupShoppingNeeded", "initWorkScheduleSetup"] },
-    { "from": "renderSetupShoppingNeeded", "to": ["findAvailableShoppingSlots", "buildPredictedDayBusyIntervals"] },
-    { "from": "addWeek", "to": ["assignRecipesWithLeftoverPlanning", "applyWorkMealRules", "finalizeDayBlocks", "renderSchedule", "saveToLocalStorage"] },
-    { "from": "addWeek", "to": ["resolveOverlapConflicts", "resolveWorkOverlaps"] },
-    { "from": "generateSmartShopping", "to": ["aggregateRecipeNeeds", "subtractKitchenStock", "choosePacksForShop", "renderAllShoppingTables"] },
-    { "from": "toggleCooking", "to": ["checkMissingIngredients", "subtractRecipeIngredients", "restoreRecipeIngredients"] }
-  ],
-  "dataFlow": {
-    "globals": [
-      "scheduleData",
-      "window.cookingConfig",
-      "CANONICAL_PRODUCTS",
-      "selectedRecipesThisWeek",
-      "kitchenStock",
-      "customProducts",
-      "customShops",
-      "customCategories"
-    ],
-    "localStorage": {
-      "weeklySchedule": {
-        "readers": ["loadFromLocalStorage"],
-        "writers": ["saveToLocalStorage"]
+    "storage": {
+      "keys": [
+        {
+          "key": "weeklySchedule",
+          "ownedBy": "engine",
+          "readers": ["loadFromLocalStorage"],
+          "writers": ["saveToLocalStorage"]
+        },
+        {
+          "key": "scheduleHistory_v2",
+          "ownedBy": "settings-history",
+          "readers": ["renderScheduleHistory", "loadSettingsStats"],
+          "writers": ["saveScheduleHistoryEntry", "resetScheduleHistory", "saveScheduleToHistory"]
+        },
+        {
+          "key": "recipeUsageHistory",
+          "ownedBy": "recipes",
+          "readers": ["initRecipeUsageHistory", "loadSettingsStats"],
+          "writers": ["updateRecipeUsageHistory", "resetRecipeHistory"]
+        },
+        {
+          "key": "shoppingTables_v2",
+          "ownedBy": "smart-shopping",
+          "readers": ["renderAllShoppingTables"],
+          "writers": ["generateSmartShopping"]
+        },
+        {
+          "key": "kitchenStock_v2",
+          "ownedBy": "kitchen-stock",
+          "readers": ["getKitchenStockQty"],
+          "writers": ["saveKitchenStock"]
+        },
+        {
+          "key": "customProducts",
+          "ownedBy": "products",
+          "readers": ["mergeCustomProducts"],
+          "writers": ["saveCustomProducts"]
+        },
+        {
+          "key": "customShops",
+          "ownedBy": "products",
+          "readers": ["getShopBrandStyle"],
+          "writers": ["saveCustomShops"]
+        },
+        {
+          "key": "customCategories",
+          "ownedBy": "products",
+          "readers": ["populateCategoryDropdown"],
+          "writers": ["saveCustomCategories"]
+        },
+        {
+          "key": "weeklyWorkPattern",
+          "ownedBy": "wizard",
+          "readers": ["loadWorkPattern"],
+          "writers": ["saveWorkPattern", "clearWorkPattern"]
+        },
+        {
+          "key": "cookingConfig",
+          "ownedBy": "engine",
+          "readers": ["getCookingConfig"],
+          "writers": ["saveCookingConfig"]
+        }
+      ]
+    },
+    "coupling": {
+      "globals": ["scheduleData", "window.currentWeekShoppingList", "kitchenStock", "customProducts", "customShops", "customCategories"],
+      "hotspots": [
+        {
+          "name": "Global scheduleData",
+          "reason": "Shared across engine + features; many reads/writes.",
+          "functions": ["addWeek", "renderSchedule", "renderSetupShoppingNeeded", "generateSmartShopping"]
+        },
+        {
+          "name": "History key reuse",
+          "reason": "scheduleHistory_v2 is written by engine and recipes utils.",
+          "functions": ["saveScheduleHistoryEntry", "saveScheduleToHistory"]
+        }
+      ],
+      "missingDependencies": [
+        {
+          "name": "loadScheduleHistory",
+          "referencedBy": "resetScheduleHistory",
+          "file": "src/features/settings-history/services/settings-history.js",
+          "note": "Function is referenced but not defined (existing behavior)."
+        }
+      ]
+    },
+    "pipelineStages": [
+      {
+        "stage": 1,
+        "name": "App boot",
+        "functions": ["loadFromLocalStorage", "initializeApp", "setupModeButtons", "initializeRecipeLibrary"]
       },
-      "defaultBlocksActiveDay": {
-        "readers": ["setActiveDefaultDay"],
-        "writers": ["setActiveDefaultDay"]
+      {
+        "stage": 2,
+        "name": "Setup wizard",
+        "functions": ["openSetupWizard", "renderSetupShoppingNeeded", "createWeekFromSetup"]
       },
-      "cookingConfig": {
-        "readers": ["getCookingConfig"],
-        "writers": ["saveCookingConfig"]
+      {
+        "stage": 3,
+        "name": "Prediction/available slots",
+        "functions": ["buildPredictedDayBusyIntervals", "findAvailableShoppingSlots"]
       },
-      "shoppingListHTML": {
-        "readers": ["renderShopping"],
-        "writers": ["importShopping", "clearGeneratedShopping"]
+      {
+        "stage": 4,
+        "name": "Create week generation",
+        "functions": ["addWeek", "assignRecipesWithLeftoverPlanning", "applyWorkMealRules"]
       },
-      "shoppingTables_v2": {
-        "readers": ["renderAllShoppingTables"],
-        "writers": ["generateSmartShopping"]
+      {
+        "stage": 5,
+        "name": "Overlap resolution",
+        "functions": ["resolveOverlapConflicts", "resolveWorkOverlaps"]
       },
-      "kitchenStock_v2": {
-        "readers": ["getKitchenStockQty"],
-        "writers": ["saveKitchenStock"]
+      {
+        "stage": 6,
+        "name": "Finalize day blocks",
+        "functions": ["finalizeDayBlocks"]
       },
-      "customProducts": {
-        "readers": ["mergeCustomProducts"],
-        "writers": ["saveCustomProducts"]
+      {
+        "stage": 7,
+        "name": "Render schedule/shopping/recipes",
+        "functions": ["renderSchedule", "renderShopping", "renderAllShoppingTables", "renderRecipes"]
       },
-      "customShops": {
-        "readers": ["getShopBrandStyle"],
-        "writers": ["saveCustomShops"]
-      },
-      "customCategories": {
-        "readers": ["populateCategoryDropdown"],
-        "writers": ["saveCustomCategories"]
-      },
-      "selectedRecipesThisWeek": {
-        "readers": ["getThisWeekRecipes"],
-        "writers": ["addRecipeToThisWeek"]
-      },
-      "recipeUsageHistory": {
-        "readers": ["initRecipeUsageHistory"],
-        "writers": ["updateRecipeUsageHistory"]
-      },
-      "scheduleHistory_v2": {
-        "readers": ["renderScheduleHistory"],
-        "writers": ["saveScheduleHistoryEntry", "saveScheduleToHistory"]
-      },
-      "aiGenerationCount": {
-        "readers": ["initGenerationCount"],
-        "writers": ["incrementGenerationCount"]
+      {
+        "stage": 8,
+        "name": "Save/load + history/settings",
+        "functions": ["saveToLocalStorage", "loadFromLocalStorage", "saveScheduleHistoryEntry", "renderScheduleHistory"]
       }
-    },
-    "domRefs": [
-      { "selector": "#scheduleContent", "file": "src/engine/schedule-engine.js" },
-      { "selector": "#dayTabsContainer", "file": "src/engine/schedule-engine.js" },
-      { "selector": "#shoppingDisplay", "file": "src/engine/schedule-engine.js" },
-      { "selector": "#recipesContent", "file": "src/features/recipes/ui/recipe-display.js" },
-      { "selector": "#setupWizardModal", "file": "src/engine/schedule-engine.js" },
-      { "selector": "#quickAddModal", "file": "src/features/shopping/ui/shopping-quick-add.js" },
-      { "selector": "#kitchenStockModal", "file": "src/features/kitchen-stock/services/kitchen-stock.js" },
-      { "selector": "#productManagementModal", "file": "src/features/products/services/product-management.js" },
-      { "selector": "#workOverlapModal", "file": "src/features/work-commute/services/overlap-resolver.js" }
     ]
-  },
-  "pipelineStages": [
-    {
-      "stage": 1,
-      "name": "App boot",
-      "functions": ["loadFromLocalStorage", "initializeApp", "setupModeButtons", "initializeRecipeLibrary"]
-    },
-    {
-      "stage": 2,
-      "name": "Setup wizard",
-      "functions": ["openSetupWizard", "renderSetupShoppingNeeded", "createWeekFromSetup"]
-    },
-    {
-      "stage": 3,
-      "name": "Prediction/available slots",
-      "functions": ["buildPredictedDayBusyIntervals", "findAvailableShoppingSlots"]
-    },
-    {
-      "stage": 4,
-      "name": "Create week generation",
-      "functions": ["addWeek", "assignRecipesWithLeftoverPlanning", "applyWorkMealRules"]
-    },
-    {
-      "stage": 5,
-      "name": "Overlap resolution",
-      "functions": ["resolveOverlapConflicts", "resolveWorkOverlaps"]
-    },
-    {
-      "stage": 6,
-      "name": "Finalize day blocks",
-      "functions": ["finalizeDayBlocks"]
-    },
-    {
-      "stage": 7,
-      "name": "Render schedule/shopping/recipes",
-      "functions": ["renderSchedule", "renderShopping", "renderAllShoppingTables", "renderRecipes"]
-    },
-    {
-      "stage": 8,
-      "name": "Save/load + history/settings",
-      "functions": ["saveToLocalStorage", "loadFromLocalStorage", "saveScheduleHistoryEntry", "renderScheduleHistory"]
-    }
-  ]
-}
-
-</script>
+  }
+  </script>
 
   <script>
-    const dataTag = document.getElementById('app-map-data');
-    const mapData = JSON.parse(dataTag.textContent);
+    const embeddedData = document.getElementById('app-map-data').textContent.trim();
+    const state = {
+      data: embeddedData ? JSON.parse(embeddedData) : null,
+      selectedFeature: null,
+      selectedFunction: null
+    };
 
-    const functionList = document.getElementById('functionList');
-    const functionDetails = document.getElementById('functionDetails');
-    const storageList = document.getElementById('storageList');
-    const pipelineTable = document.getElementById('pipelineTable');
-    const searchInput = document.getElementById('searchInput');
-    const clearSearch = document.getElementById('clearSearch');
-
-    function renderFunctions(filter = '') {
-      const term = filter.toLowerCase();
-      functionList.innerHTML = '';
-      mapData.functions
-        .filter(fn => !term || fn.name.toLowerCase().includes(term))
-        .forEach(fn => {
-          const div = document.createElement('div');
-          div.className = 'list-item';
-          div.textContent = `${fn.name} (${fn.type})`;
-          div.addEventListener('click', () => showFunction(fn));
-          functionList.appendChild(div);
-        });
+    function renderFeatures() {
+      const list = document.getElementById('featureList');
+      list.innerHTML = '';
+      state.data.features.forEach(feature => {
+        const item = document.createElement('div');
+        item.className = 'list-item';
+        item.textContent = feature.name;
+        item.addEventListener('click', () => selectFeature(feature));
+        list.appendChild(item);
+      });
     }
 
-    function showFunction(fn) {
-      const calledBy = (mapData.callGraph.find(e => e.to && e.to.includes(fn.name)) || {}).from;
-      const calls = (mapData.callGraph.find(e => e.from === fn.name) || {}).to || [];
-      functionDetails.innerHTML = `
+    function renderFunctions(filter = '') {
+      const list = document.getElementById('functionList');
+      list.innerHTML = '';
+      const query = filter.toLowerCase();
+      state.data.functions
+        .filter(fn => !query || fn.name.toLowerCase().includes(query))
+        .forEach(fn => {
+          const item = document.createElement('div');
+          item.className = 'list-item';
+          item.textContent = `${fn.name} (${fn.type})`;
+          item.dataset.name = fn.name;
+          item.addEventListener('click', () => selectFunction(fn));
+          list.appendChild(item);
+        });
+      highlightFeatureDependencies();
+    }
+
+    function renderStorage(filter = '') {
+      const list = document.getElementById('storageList');
+      list.innerHTML = '';
+      const query = filter.toLowerCase();
+      state.data.storage.keys
+        .filter(entry => !query || entry.key.toLowerCase().includes(query))
+        .forEach(entry => {
+          const item = document.createElement('div');
+          item.className = 'list-item';
+          item.dataset.key = entry.key;
+          item.innerHTML = `
+            <div><strong>${entry.key}</strong> <span class="pill">${entry.ownedBy}</span></div>
+            <div class="muted">Reads: ${entry.readers.join(', ') || '—'}</div>
+            <div class="muted">Writes: ${entry.writers.join(', ') || '—'}</div>
+          `;
+          list.appendChild(item);
+        });
+      highlightFeatureDependencies();
+    }
+
+    function selectFeature(feature) {
+      state.selectedFeature = feature;
+      state.selectedFunction = null;
+      document.querySelectorAll('#featureList .list-item').forEach(item => {
+        item.classList.toggle('active', item.textContent === feature.name);
+      });
+      const detail = document.getElementById('featureDetails');
+      detail.innerHTML = `
+        <div><strong>${feature.name}</strong></div>
+        <div class="muted">${feature.description}</div>
+        <div class="section"><strong>Files</strong></div>
+        <ul>
+          ${feature.files.map(file => `<li>${file.path} — ${file.functions.join(', ')}</li>`).join('')}
+        </ul>
+        <div class="section"><strong>Engine calls</strong> ${feature.engineCalls ? feature.engineCalls.join(', ') : '—'}</div>
+        <div class="section"><strong>Storage keys</strong> ${feature.storageKeys ? feature.storageKeys.join(', ') : '—'}</div>
+      `;
+      document.getElementById('functionDetails').textContent = 'Select a function to see details.';
+      highlightFeatureDependencies();
+    }
+
+    function selectFunction(fn) {
+      state.selectedFunction = fn;
+      document.querySelectorAll('#functionList .list-item').forEach(item => {
+        item.classList.toggle('active', item.dataset.name === fn.name);
+      });
+      const detail = document.getElementById('functionDetails');
+      detail.innerHTML = `
         <div><strong>${fn.name}</strong> <span class="pill">${fn.type}</span></div>
-        <div class="muted">${fn.file} — ${fn.approxLocation}</div>
-        <div style="margin-top:8px;"><strong>Calls:</strong> ${calls.length ? calls.join(', ') : '—'}</div>
-        <div><strong>Called by:</strong> ${calledBy || '—'}</div>
+        <div class="muted">${fn.file}</div>
+        <div class="section"><strong>Called by</strong> ${fn.calledBy.join(', ') || '—'}</div>
+        <div class="section"><strong>Calls</strong> ${fn.calls.join(', ') || '—'}</div>
+        <div class="section"><strong>Reads</strong></div>
+        <div class="muted">Globals: ${fn.reads.globals.join(', ') || '—'}</div>
+        <div class="muted">localStorage: ${fn.reads.localStorage.join(', ') || '—'}</div>
+        <div class="muted">DOM: ${fn.reads.dom.join(', ') || '—'}</div>
+        <div class="section"><strong>Writes</strong></div>
+        <div class="muted">Globals: ${fn.writes.globals.join(', ') || '—'}</div>
+        <div class="muted">localStorage: ${fn.writes.localStorage.join(', ') || '—'}</div>
+        <div class="muted">DOM: ${fn.writes.dom.join(', ') || '—'}</div>
       `;
     }
 
-    function renderStorage() {
-      storageList.innerHTML = '';
-      Object.entries(mapData.dataFlow.localStorage).forEach(([key, info]) => {
-        const div = document.createElement('div');
-        div.className = 'list-item';
-        div.innerHTML = `<div><strong>${key}</strong></div><div class="muted">Readers: ${(info.readers || []).join(', ') || '—'}<br>Writers: ${(info.writers || []).join(', ') || '—'}</div>`;
-        storageList.appendChild(div);
-      });
+    function renderEntryPoints() {
+      const container = document.getElementById('entryPoints');
+      const domPoints = state.data.entryPoints.domContentLoaded.map(entry => {
+        return `<div><strong>${entry.file}</strong>: ${entry.handlers.join(', ')}</div>`;
+      }).join('');
+      const inline = state.data.entryPoints.inlineHandlers.map(entry => {
+        return `<div><strong>${entry.handler}</strong> → ${entry.selector}</div>`;
+      }).join('');
+      container.innerHTML = `
+        <div><strong>DOMContentLoaded</strong></div>
+        ${domPoints || '<div class="muted">—</div>'}
+        <div class="section"><strong>Inline handlers</strong></div>
+        ${inline || '<div class="muted">—</div>'}
+      `;
     }
 
     function renderPipeline() {
-      pipelineTable.innerHTML = `
-        <tr><th>Stage</th><th>Name</th><th>Functions</th></tr>
+      const table = document.getElementById('pipelineTable');
+      table.innerHTML = `
+        <tr><th>Stage</th><th>Functions</th></tr>
+        ${state.data.pipelineStages.map(stage => `
+          <tr>
+            <td>${stage.stage}. ${stage.name}</td>
+            <td>${stage.functions.join(', ')}</td>
+          </tr>
+        `).join('')}
       `;
-      mapData.pipelineStages.forEach(stage => {
-        const row = document.createElement('tr');
-        row.innerHTML = `<td>${stage.stage}</td><td>${stage.name}</td><td>${stage.functions.join(', ')}</td>`;
-        pipelineTable.appendChild(row);
+    }
+
+    function renderCoupling() {
+      const container = document.getElementById('couplingDetails');
+      const globals = state.data.coupling.globals.map(name => `<span class="pill">${name}</span>`).join(' ');
+      const hotspots = state.data.coupling.hotspots.map(item => {
+        return `
+          <div class="section"><strong>${item.name}</strong></div>
+          <div class="muted">${item.reason}</div>
+          <div class="muted">Functions: ${item.functions.join(', ')}</div>
+        `;
+      }).join('');
+      const missing = state.data.coupling.missingDependencies.map(item => {
+        return `<div class="muted">${item.name} referenced by ${item.referencedBy} (${item.file})</div>`;
+      }).join('');
+      container.innerHTML = `
+        <div><strong>Shared globals</strong></div>
+        <div>${globals || '—'}</div>
+        ${hotspots || '<div class="muted">—</div>'}
+        <div class="section"><strong>Missing dependencies</strong></div>
+        ${missing || '<div class="muted">—</div>'}
+      `;
+    }
+
+    function highlightFeatureDependencies() {
+      const feature = state.selectedFeature;
+      document.querySelectorAll('#functionList .list-item').forEach(item => {
+        item.classList.remove('highlight');
+      });
+      document.querySelectorAll('#storageList .list-item').forEach(item => {
+        item.classList.remove('highlight');
+      });
+      if (!feature) return;
+      const engineCalls = new Set(feature.engineCalls || []);
+      const ownedFunctions = new Set(feature.files.flatMap(file => file.functions));
+      document.querySelectorAll('#functionList .list-item').forEach(item => {
+        if (engineCalls.has(item.dataset.name) || ownedFunctions.has(item.dataset.name)) {
+          item.classList.add('highlight');
+        }
+      });
+      const storageKeys = new Set(feature.storageKeys || []);
+      document.querySelectorAll('#storageList .list-item').forEach(item => {
+        if (storageKeys.has(item.dataset.key)) {
+          item.classList.add('highlight');
+        }
       });
     }
 
-    searchInput.addEventListener('input', () => renderFunctions(searchInput.value));
-    clearSearch.addEventListener('click', () => {
-      searchInput.value = '';
-      renderFunctions('');
-    });
+    async function loadExternalJson() {
+      try {
+        const response = await fetch('app-map.json');
+        if (!response.ok) return;
+        const json = await response.json();
+        state.data = json;
+      } catch (error) {
+        // Ignore fetch errors for local file usage.
+      }
+    }
 
-    document.getElementById('downloadSvg').addEventListener('click', () => {
-      const svg = document.getElementById('diagramSvg');
-      const serializer = new XMLSerializer();
-      const svgBlob = new Blob([serializer.serializeToString(svg)], { type: 'image/svg+xml' });
-      const url = URL.createObjectURL(svgBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'app-map-diagram.svg';
-      a.click();
-      URL.revokeObjectURL(url);
-    });
+    async function init() {
+      await loadExternalJson();
+      renderFeatures();
+      renderFunctions();
+      renderStorage();
+      renderEntryPoints();
+      renderPipeline();
+      renderCoupling();
+      document.getElementById('searchInput').addEventListener('input', event => {
+        const value = event.target.value;
+        renderFunctions(value);
+        renderStorage(value);
+      });
+      document.getElementById('clearSearch').addEventListener('click', () => {
+        document.getElementById('searchInput').value = '';
+        renderFunctions('');
+        renderStorage('');
+      });
+    }
 
-    document.getElementById('downloadJson').addEventListener('click', () => {
-      const blob = new Blob([JSON.stringify(mapData, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'app-map.json';
-      a.click();
-      URL.revokeObjectURL(url);
-    });
-
-    renderFunctions();
-    renderStorage();
-    renderPipeline();
+    init();
   </script>
 </body>
 </html>

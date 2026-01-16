@@ -3,7 +3,7 @@
     "app": "Weekly Schedule Manager V2.1.0",
     "repo": "/workspace/My-Schedule",
     "generatedBy": "agent",
-    "notes": "Best-effort static map based on current code structure and moved files."
+    "notes": "Best-effort static map based on current code structure and split by feature ownership."
   },
   "entryPoints": {
     "domContentLoaded": [
@@ -72,14 +72,15 @@
       }
     ],
     "inlineHandlers": [
-      { "selector": "#settingsBtn", "handler": "openSettings", "file": "src/engine/schedule-engine.js" },
+      { "selector": "#settingsBtn", "handler": "openSettings", "file": "src/features/settings-history/services/settings-history.js" },
       { "selector": "#addDayBtn", "handler": "openAddDayModal", "file": "src/engine/schedule-engine.js" },
       { "selector": "button[onclick=\"openQuickAdd()\"]", "handler": "openQuickAdd", "file": "src/features/shopping/ui/shopping-quick-add.js" },
       { "selector": "button[onclick=\"openKitchenStock()\"]", "handler": "openKitchenStock", "file": "src/features/kitchen-stock/services/kitchen-stock.js" },
       { "selector": "button[onclick=\"generateSmartShopping()\"]", "handler": "generateSmartShopping", "file": "src/features/smart-shopping/services/smart-shopping.js" },
       { "selector": "button[onclick=\"openImportRecipes()\"]", "handler": "openImportRecipes", "file": "src/features/schedule-ui/services/import-functions.js" },
       { "selector": "button[onclick=\"toggleRecipesEditMode()\"]", "handler": "toggleRecipesEditMode", "file": "src/features/schedule-ui/services/import-functions.js" },
-      { "selector": "button[onclick=\"manualUpdateCheck()\"]", "handler": "manualUpdateCheck", "file": "src/features/pwa/services/pwa-manager.js" }
+      { "selector": "button[onclick=\"manualUpdateCheck()\"]", "handler": "manualUpdateCheck", "file": "src/features/pwa/services/pwa-manager.js" },
+      { "selector": "#setupWizardModal button[onclick=\"closeSetupWizard()\"]", "handler": "closeSetupWizard", "file": "src/features/wizard/services/setup-wizard.js" }
     ],
     "forms": [
       { "selector": "#eventForm", "handler": "submit -> add event", "file": "src/engine/schedule-engine.js" },
@@ -88,126 +89,367 @@
       { "selector": "#newCategoryForm", "handler": "addNewCategory", "file": "src/features/products/services/product-management.js" }
     ]
   },
-  "files": [
-    { "path": "src/engine/schedule-engine.js", "role": "shared engine + UI", "notes": "Main schedule generation, prediction, rendering, settings, cooking config." },
-    { "path": "src/features/schedule-ui/services/import-functions.js", "role": "imports", "notes": "Schedule/shopping/recipe import, recipe edit mode." },
-    { "path": "src/features/recipes/model/recipe-database.js", "role": "data", "notes": "RECIPE_DATABASE." },
-    { "path": "src/features/recipes/ui/recipe-display.js", "role": "ui", "notes": "Recipe library UI, This Week list, custom recipes." },
-    { "path": "src/features/recipes/services/recipe-utils.js", "role": "services", "notes": "Recipe ID parsing, history, AI schedule tracking." },
-    { "path": "src/features/products/model/product-catalog.js", "role": "data", "notes": "CANONICAL_PRODUCTS and unit measures." },
-    { "path": "src/features/products/services/product-management.js", "role": "ui/services", "notes": "Custom products/shops/categories." },
-    { "path": "src/features/kitchen-stock/services/kitchen-stock.js", "role": "feature", "notes": "Kitchen stock + measurement overrides." },
-    { "path": "src/features/shopping/ui/shopping-quick-add.js", "role": "feature", "notes": "Quick Add shopping modal and selections." },
-    { "path": "src/features/smart-shopping/services/smart-shopping.js", "role": "feature", "notes": "Smart shopping from recipes." },
-    { "path": "src/features/cooking/services/cooking-integration.js", "role": "feature", "notes": "Cooking checkbox + stock updates." },
-    { "path": "src/features/work-commute/services/overlap-resolver.js", "role": "feature", "notes": "Overlap resolution modal for work conflicts." },
-    { "path": "src/features/pwa/services/pwa-manager.js", "role": "feature", "notes": "Service worker + install prompt + update banner." }
+  "features": [
+    {
+      "name": "wizard",
+      "description": "Setup wizard for defaults, work schedule, cooking, and shopping slot selection.",
+      "files": [
+        {
+          "path": "src/features/wizard/services/setup-wizard.js",
+          "functions": [
+            "openSetupWizard",
+            "closeSetupWizard",
+            "renderSetupShoppingNeeded",
+            "createWeekFromSetup",
+            "initWorkScheduleSetup",
+            "applyWorkScheduleToOrderedDays",
+            "getCommuteSettingsUniversal"
+          ]
+        }
+      ],
+      "storageKeys": ["weeklyWorkPattern", "weeklyWorkPatternMode", "weeklyWorkPatternPrep", "weeklyWorkPatternCommute"],
+      "engineCalls": ["addWeek", "findAvailableShoppingSlots", "buildPredictedDayBusyIntervals"]
+    },
+    {
+      "name": "settings-history",
+      "description": "Settings modal, schedule history, and reset actions.",
+      "files": [
+        {
+          "path": "src/features/settings-history/services/settings-history.js",
+          "functions": [
+            "openSettings",
+            "closeSettings",
+            "renderScheduleHistory",
+            "saveScheduleHistoryEntry",
+            "buildWeekScheduleText",
+            "resetRecipeHistory",
+            "resetScheduleHistory",
+            "resetAllData"
+          ]
+        }
+      ],
+      "storageKeys": ["scheduleHistory_v2", "recipeUsageHistory", "updateDismissed", "lastSeenVersion", "pwaInstalled"]
+    },
+    {
+      "name": "recipes",
+      "description": "Recipe library, import, selection, and tracking.",
+      "files": [
+        { "path": "src/features/recipes/model/recipe-database.js", "functions": ["RECIPE_DATABASE"] },
+        { "path": "src/features/recipes/ui/recipe-display.js", "functions": ["initializeRecipeLibrary", "renderRecipes"] },
+        { "path": "src/features/recipes/services/recipe-utils.js", "functions": ["getThisWeekRecipes", "assignRecipesWithLeftoverPlanning", "updateRecipeUsageHistory"] }
+      ],
+      "storageKeys": ["selectedRecipesThisWeek", "recipeUsageHistory", "scheduleHistory_v2", "aiGenerationCount"]
+    },
+    {
+      "name": "shopping",
+      "description": "Manual quick add shopping modal.",
+      "files": [
+        { "path": "src/features/shopping/ui/shopping-quick-add.js", "functions": ["openQuickAdd", "addQuickAddItem"] }
+      ],
+      "storageKeys": ["shoppingListHTML"]
+    },
+    {
+      "name": "smart-shopping",
+      "description": "Generate shopping tables from recipes + stock.",
+      "files": [
+        { "path": "src/features/smart-shopping/services/smart-shopping.js", "functions": ["generateSmartShopping", "renderAllShoppingTables"] }
+      ],
+      "storageKeys": ["shoppingTables_v2"]
+    },
+    {
+      "name": "kitchen-stock",
+      "description": "Kitchen stock items and overrides.",
+      "files": [
+        { "path": "src/features/kitchen-stock/services/kitchen-stock.js", "functions": ["openKitchenStock", "saveKitchenStock"] }
+      ],
+      "storageKeys": ["kitchenStock_v2"]
+    },
+    {
+      "name": "products",
+      "description": "Custom products, shops, and categories.",
+      "files": [
+        { "path": "src/features/products/model/product-catalog.js", "functions": ["CANONICAL_PRODUCTS"] },
+        { "path": "src/features/products/services/product-management.js", "functions": ["mergeCustomProducts", "saveCustomProducts", "saveCustomShops", "saveCustomCategories"] }
+      ],
+      "storageKeys": ["customProducts", "customShops", "customCategories"]
+    },
+    {
+      "name": "cooking",
+      "description": "Cooking checkboxes and stock updates.",
+      "files": [
+        { "path": "src/features/cooking/services/cooking-integration.js", "functions": ["toggleCooking", "subtractRecipeIngredients"] }
+      ]
+    },
+    {
+      "name": "work-commute",
+      "description": "Overlap resolution UI and commute helpers.",
+      "files": [
+        { "path": "src/features/work-commute/services/overlap-resolver.js", "functions": ["resolveWorkOverlaps"] }
+      ]
+    },
+    {
+      "name": "schedule-ui",
+      "description": "Schedule import and edit utilities.",
+      "files": [
+        { "path": "src/features/schedule-ui/services/import-functions.js", "functions": ["parseAndCreateSchedule", "openImportRecipes"] }
+      ]
+    },
+    {
+      "name": "pwa",
+      "description": "Service worker and install prompt.",
+      "files": [
+        { "path": "src/features/pwa/services/pwa-manager.js", "functions": ["registerServiceWorker", "setupInstallPrompt", "manualUpdateCheck"] }
+      ]
+    }
   ],
+  "engine": {
+    "files": ["src/engine/schedule-engine.js"],
+    "publicApi": [
+      "addWeek",
+      "buildPredictedDayBusyIntervals",
+      "findAvailableShoppingSlots",
+      "finalizeDayBlocks",
+      "renderSchedule",
+      "saveToLocalStorage",
+      "loadFromLocalStorage"
+    ]
+  },
   "functions": [
-    { "name": "initializeApp", "file": "src/engine/schedule-engine.js", "approxLocation": "L1037-L1067", "type": "ui" },
-    { "name": "openSetupWizard", "file": "src/engine/schedule-engine.js", "approxLocation": "L1230-L1243", "type": "ui" },
-    { "name": "renderSetupShoppingNeeded", "file": "src/engine/schedule-engine.js", "approxLocation": "L1654-L1946", "type": "feature" },
-    { "name": "buildPredictedDayBusyIntervals", "file": "src/engine/schedule-engine.js", "approxLocation": "L1424-L1603", "type": "engine" },
-    { "name": "findAvailableShoppingSlots", "file": "src/engine/schedule-engine.js", "approxLocation": "L9204-L9337", "type": "engine" },
-    { "name": "addWeek", "file": "src/engine/schedule-engine.js", "approxLocation": "L3195-L4665", "type": "engine" },
-    { "name": "applyWorkMealRules", "file": "src/engine/schedule-engine.js", "approxLocation": "L7580-L7705", "type": "engine" },
-    { "name": "finalizeDayBlocks", "file": "src/engine/schedule-engine.js", "approxLocation": "L8925-L8940", "type": "engine" },
-    { "name": "renderSchedule", "file": "src/engine/schedule-engine.js", "approxLocation": "L4671-L4764", "type": "ui" },
-    { "name": "saveToLocalStorage", "file": "src/engine/schedule-engine.js", "approxLocation": "L7363-L7365", "type": "util" },
-    { "name": "loadFromLocalStorage", "file": "src/engine/schedule-engine.js", "approxLocation": "L7367-L7402", "type": "util" },
-    { "name": "generateSmartShopping", "file": "src/features/smart-shopping/services/smart-shopping.js", "approxLocation": "L10-L70", "type": "feature" },
-    { "name": "openQuickAdd", "file": "src/features/shopping/ui/shopping-quick-add.js", "approxLocation": "L156-L176", "type": "ui" },
-    { "name": "openKitchenStock", "file": "src/features/kitchen-stock/services/kitchen-stock.js", "approxLocation": "L273-L290", "type": "ui" },
-    { "name": "toggleCooking", "file": "src/features/cooking/services/cooking-integration.js", "approxLocation": "L11-L95", "type": "feature" },
-    { "name": "resolveWorkOverlaps", "file": "src/features/work-commute/services/overlap-resolver.js", "approxLocation": "L139-L189", "type": "engine" },
-    { "name": "initializeRecipeLibrary", "file": "src/features/recipes/ui/recipe-display.js", "approxLocation": "L60-L156", "type": "ui" },
-    { "name": "handleScheduleGenerated", "file": "src/features/recipes/services/recipe-utils.js", "approxLocation": "L1512-L1535", "type": "feature" },
-    { "name": "openSettings", "file": "src/engine/schedule-engine.js", "approxLocation": "L11833-L11837", "type": "ui" }
+    {
+      "name": "initializeApp",
+      "file": "src/engine/schedule-engine.js",
+      "type": "ui",
+      "calledBy": ["DOMContentLoaded"],
+      "calls": ["renderDayTabs", "renderSchedule", "renderShopping", "renderRecipes", "setupNavigation", "setupDayNavigation"],
+      "reads": {
+        "globals": ["scheduleData", "currentDay", "isToday"],
+        "localStorage": [],
+        "dom": ["#scheduleContent", ".day-tab"]
+      },
+      "writes": {
+        "globals": ["scheduleData"],
+        "localStorage": [],
+        "dom": ["#scheduleContent", ".day-tab"]
+      }
+    },
+    {
+      "name": "addWeek",
+      "file": "src/engine/schedule-engine.js",
+      "type": "engine",
+      "calledBy": ["createWeekFromSetup", "openAddDayModal", "quickFillRota"],
+      "calls": ["assignRecipesWithLeftoverPlanning", "applyWorkMealRules", "resolveOverlapConflicts", "resolveWorkOverlaps", "finalizeDayBlocks", "renderSchedule", "saveToLocalStorage", "saveScheduleHistoryEntry"],
+      "reads": {
+        "globals": ["scheduleData", "leftoversAllowance"],
+        "localStorage": ["recipeUsageHistory", "scheduleHistory_v2"],
+        "dom": ["#weekStartDate", "#addWorkSchedule"]
+      },
+      "writes": {
+        "globals": ["scheduleData"],
+        "localStorage": ["weeklySchedule", "scheduleHistory_v2"],
+        "dom": ["#scheduleContent", "#dayTabsContainer"]
+      }
+    },
+    {
+      "name": "buildPredictedDayBusyIntervals",
+      "file": "src/engine/schedule-engine.js",
+      "type": "engine",
+      "calledBy": ["renderSetupShoppingNeeded", "findAvailableShoppingSlots", "calculateFreeTimeSlots"],
+      "calls": ["getCommuteSettingsUniversal", "mergeIntervals", "applyWorkMealRules"],
+      "reads": {
+        "globals": ["scheduleData"],
+        "localStorage": [],
+        "dom": []
+      },
+      "writes": {
+        "globals": [],
+        "localStorage": [],
+        "dom": []
+      }
+    },
+    {
+      "name": "findAvailableShoppingSlots",
+      "file": "src/engine/schedule-engine.js",
+      "type": "engine",
+      "calledBy": ["renderSetupShoppingNeeded"],
+      "calls": ["buildPredictedDayBusyIntervals"],
+      "reads": {
+        "globals": ["scheduleData"],
+        "localStorage": [],
+        "dom": []
+      },
+      "writes": { "globals": [], "localStorage": [], "dom": [] }
+    },
+    {
+      "name": "renderSetupShoppingNeeded",
+      "file": "src/features/wizard/services/setup-wizard.js",
+      "type": "feature",
+      "calledBy": ["openSetupWizard", "toggleSetupStep"],
+      "calls": ["findAvailableShoppingSlots", "buildPredictedDayBusyIntervals", "applyWorkScheduleToOrderedDays"],
+      "reads": {
+        "globals": ["scheduleData"],
+        "localStorage": [],
+        "dom": ["#setupStep4Shopping", "#setupWeekStartDateInput", "#setupShoppingDuration"]
+      },
+      "writes": {
+        "globals": ["setupShoppingSelection"],
+        "localStorage": [],
+        "dom": ["#setupStep4Shopping", "#setupShoppingSlotsList"]
+      }
+    },
+    {
+      "name": "createWeekFromSetup",
+      "file": "src/features/wizard/services/setup-wizard.js",
+      "type": "feature",
+      "calledBy": ["#createWeekFromSetup"],
+      "calls": ["addWeek", "addShoppingBlocks", "renderSchedule", "saveToLocalStorage"],
+      "reads": {
+        "globals": ["scheduleData", "setupShoppingSelection"],
+        "localStorage": [],
+        "dom": ["#createWeekFromSetup"]
+      },
+      "writes": {
+        "globals": ["window.currentWeekShoppingList"],
+        "localStorage": ["weeklySchedule"],
+        "dom": []
+      }
+    },
+    {
+      "name": "openSettings",
+      "file": "src/features/settings-history/services/settings-history.js",
+      "type": "ui",
+      "calledBy": ["#settingsBtn"],
+      "calls": ["loadSettingsStats", "renderScheduleHistory"],
+      "reads": {
+        "globals": [],
+        "localStorage": ["scheduleHistory_v2", "recipeUsageHistory"],
+        "dom": ["#settingsModal", "#statsGenerationCount"]
+      },
+      "writes": {
+        "globals": [],
+        "localStorage": [],
+        "dom": ["#settingsModal", "#statsGenerationCount"]
+      }
+    },
+    {
+      "name": "saveScheduleHistoryEntry",
+      "file": "src/features/settings-history/services/settings-history.js",
+      "type": "feature",
+      "calledBy": ["addWeek"],
+      "calls": [],
+      "reads": {
+        "globals": [],
+        "localStorage": ["scheduleHistory_v2"],
+        "dom": []
+      },
+      "writes": {
+        "globals": [],
+        "localStorage": ["scheduleHistory_v2"],
+        "dom": []
+      }
+    },
+    {
+      "name": "generateSmartShopping",
+      "file": "src/features/smart-shopping/services/smart-shopping.js",
+      "type": "feature",
+      "calledBy": ["#shoppingContent"],
+      "calls": ["aggregateRecipeNeeds", "subtractKitchenStock", "choosePacksForShop", "renderAllShoppingTables"],
+      "reads": {
+        "globals": ["scheduleData", "kitchenStock"],
+        "localStorage": ["shoppingTables_v2", "kitchenStock_v2"],
+        "dom": ["#preferredShopSelect", "#shoppingListsContainer"]
+      },
+      "writes": {
+        "globals": [],
+        "localStorage": ["shoppingTables_v2"],
+        "dom": ["#shoppingListsContainer"]
+      }
+    }
   ],
-  "callGraph": [
-    { "from": "DOMContentLoaded", "to": ["loadFromLocalStorage", "initializeApp", "setupModeButtons"] },
-    { "from": "openSetupWizard", "to": ["embedDefaultsInSetup", "embedCookingInSetup", "renderSetupShoppingNeeded", "initWorkScheduleSetup"] },
-    { "from": "renderSetupShoppingNeeded", "to": ["findAvailableShoppingSlots", "buildPredictedDayBusyIntervals"] },
-    { "from": "addWeek", "to": ["assignRecipesWithLeftoverPlanning", "applyWorkMealRules", "finalizeDayBlocks", "renderSchedule", "saveToLocalStorage"] },
-    { "from": "addWeek", "to": ["resolveOverlapConflicts", "resolveWorkOverlaps"] },
-    { "from": "generateSmartShopping", "to": ["aggregateRecipeNeeds", "subtractKitchenStock", "choosePacksForShop", "renderAllShoppingTables"] },
-    { "from": "toggleCooking", "to": ["checkMissingIngredients", "subtractRecipeIngredients", "restoreRecipeIngredients"] }
-  ],
-  "dataFlow": {
-    "globals": [
-      "scheduleData",
-      "window.cookingConfig",
-      "CANONICAL_PRODUCTS",
-      "selectedRecipesThisWeek",
-      "kitchenStock",
-      "customProducts",
-      "customShops",
-      "customCategories"
-    ],
-    "localStorage": {
-      "weeklySchedule": {
+  "storage": {
+    "keys": [
+      {
+        "key": "weeklySchedule",
+        "ownedBy": "engine",
         "readers": ["loadFromLocalStorage"],
         "writers": ["saveToLocalStorage"]
       },
-      "defaultBlocksActiveDay": {
-        "readers": ["setActiveDefaultDay"],
-        "writers": ["setActiveDefaultDay"]
+      {
+        "key": "scheduleHistory_v2",
+        "ownedBy": "settings-history",
+        "readers": ["renderScheduleHistory", "loadSettingsStats"],
+        "writers": ["saveScheduleHistoryEntry", "resetScheduleHistory", "saveScheduleToHistory"]
       },
-      "cookingConfig": {
-        "readers": ["getCookingConfig"],
-        "writers": ["saveCookingConfig"]
+      {
+        "key": "recipeUsageHistory",
+        "ownedBy": "recipes",
+        "readers": ["initRecipeUsageHistory", "loadSettingsStats"],
+        "writers": ["updateRecipeUsageHistory", "resetRecipeHistory"]
       },
-      "shoppingListHTML": {
-        "readers": ["renderShopping"],
-        "writers": ["importShopping", "clearGeneratedShopping"]
-      },
-      "shoppingTables_v2": {
+      {
+        "key": "shoppingTables_v2",
+        "ownedBy": "smart-shopping",
         "readers": ["renderAllShoppingTables"],
         "writers": ["generateSmartShopping"]
       },
-      "kitchenStock_v2": {
+      {
+        "key": "kitchenStock_v2",
+        "ownedBy": "kitchen-stock",
         "readers": ["getKitchenStockQty"],
         "writers": ["saveKitchenStock"]
       },
-      "customProducts": {
+      {
+        "key": "customProducts",
+        "ownedBy": "products",
         "readers": ["mergeCustomProducts"],
         "writers": ["saveCustomProducts"]
       },
-      "customShops": {
+      {
+        "key": "customShops",
+        "ownedBy": "products",
         "readers": ["getShopBrandStyle"],
         "writers": ["saveCustomShops"]
       },
-      "customCategories": {
+      {
+        "key": "customCategories",
+        "ownedBy": "products",
         "readers": ["populateCategoryDropdown"],
         "writers": ["saveCustomCategories"]
       },
-      "selectedRecipesThisWeek": {
-        "readers": ["getThisWeekRecipes"],
-        "writers": ["addRecipeToThisWeek"]
+      {
+        "key": "weeklyWorkPattern",
+        "ownedBy": "wizard",
+        "readers": ["loadWorkPattern"],
+        "writers": ["saveWorkPattern", "clearWorkPattern"]
       },
-      "recipeUsageHistory": {
-        "readers": ["initRecipeUsageHistory"],
-        "writers": ["updateRecipeUsageHistory"]
-      },
-      "scheduleHistory_v2": {
-        "readers": ["renderScheduleHistory"],
-        "writers": ["saveScheduleHistoryEntry", "saveScheduleToHistory"]
-      },
-      "aiGenerationCount": {
-        "readers": ["initGenerationCount"],
-        "writers": ["incrementGenerationCount"]
+      {
+        "key": "cookingConfig",
+        "ownedBy": "engine",
+        "readers": ["getCookingConfig"],
+        "writers": ["saveCookingConfig"]
       }
-    },
-    "domRefs": [
-      { "selector": "#scheduleContent", "file": "src/engine/schedule-engine.js" },
-      { "selector": "#dayTabsContainer", "file": "src/engine/schedule-engine.js" },
-      { "selector": "#shoppingDisplay", "file": "src/engine/schedule-engine.js" },
-      { "selector": "#recipesContent", "file": "src/features/recipes/ui/recipe-display.js" },
-      { "selector": "#setupWizardModal", "file": "src/engine/schedule-engine.js" },
-      { "selector": "#quickAddModal", "file": "src/features/shopping/ui/shopping-quick-add.js" },
-      { "selector": "#kitchenStockModal", "file": "src/features/kitchen-stock/services/kitchen-stock.js" },
-      { "selector": "#productManagementModal", "file": "src/features/products/services/product-management.js" },
-      { "selector": "#workOverlapModal", "file": "src/features/work-commute/services/overlap-resolver.js" }
+    ]
+  },
+  "coupling": {
+    "globals": ["scheduleData", "window.currentWeekShoppingList", "kitchenStock", "customProducts", "customShops", "customCategories"],
+    "hotspots": [
+      {
+        "name": "Global scheduleData",
+        "reason": "Shared across engine + features; many reads/writes.",
+        "functions": ["addWeek", "renderSchedule", "renderSetupShoppingNeeded", "generateSmartShopping"]
+      },
+      {
+        "name": "History key reuse",
+        "reason": "scheduleHistory_v2 is written by engine and recipes utils.",
+        "functions": ["saveScheduleHistoryEntry", "saveScheduleToHistory"]
+      }
+    ],
+    "missingDependencies": [
+      {
+        "name": "loadScheduleHistory",
+        "referencedBy": "resetScheduleHistory",
+        "file": "src/features/settings-history/services/settings-history.js",
+        "note": "Function is referenced but not defined (existing behavior)."
+      }
     ]
   },
   "pipelineStages": [
