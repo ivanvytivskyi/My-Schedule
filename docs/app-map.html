@@ -9,17 +9,17 @@
     header { padding: 16px 20px; background: #667eea; color: white; }
     header h1 { margin: 0 0 6px; font-size: 20px; }
     header p { margin: 0; opacity: 0.9; font-size: 13px; }
-    .container { display: grid; grid-template-columns: 320px 1fr; gap: 16px; padding: 16px; }
+    .container { display: grid; grid-template-columns: 360px 1fr; gap: 16px; padding: 16px; }
     .panel { background: white; border-radius: 10px; padding: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
     .panel h2 { margin: 0 0 10px; font-size: 16px; }
-    .list { max-height: 280px; overflow: auto; border: 1px solid #e5e7eb; border-radius: 8px; }
-    .list-item { padding: 8px 10px; border-bottom: 1px solid #eef2f7; cursor: pointer; }
+    .list { max-height: 260px; overflow: auto; border: 1px solid #e5e7eb; border-radius: 8px; }
+    .list-item { padding: 8px 10px; border-bottom: 1px solid #eef2f7; cursor: pointer; font-size: 12px; }
     .list-item:last-child { border-bottom: none; }
     .list-item.active { background: #eef2ff; }
     .list-item.highlight { background: #fef3c7; }
     .search { display: flex; gap: 8px; margin-bottom: 10px; }
     .search input { flex: 1; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; }
-    .btn { padding: 8px 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+    .btn { padding: 8px 10px; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 12px; }
     .btn.primary { background: #667eea; color: white; }
     .btn.secondary { background: #eef2ff; color: #3730a3; }
     .grid-two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -28,6 +28,17 @@
     .muted { color: #6b7280; font-size: 12px; }
     .pill { display: inline-block; padding: 2px 6px; background: #f3f4f6; border-radius: 999px; font-size: 11px; margin-right: 4px; }
     .section { margin-top: 12px; }
+    .tree { list-style: none; padding-left: 12px; margin: 0; }
+    .tree li { margin: 4px 0; }
+    .tree button { background: none; border: none; color: #111; cursor: pointer; font-size: 12px; padding: 2px 0; text-align: left; }
+    .tree .group { font-weight: 600; }
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
+    .diagram { border: 1px solid #e5e7eb; border-radius: 8px; overflow: auto; background: #f9fafb; }
+    .diagram svg { width: 100%; height: 420px; }
+    .call-graph { display: grid; gap: 6px; }
+    .call-graph ul { list-style: none; padding-left: 14px; margin: 6px 0; }
+    .call-graph li { font-size: 12px; cursor: pointer; color: #1f2937; }
+    .badge { background: #e0e7ff; color: #3730a3; font-size: 10px; padding: 2px 6px; border-radius: 999px; margin-left: 6px; }
   </style>
 </head>
 <body>
@@ -40,37 +51,31 @@
     <div class="panel">
       <h2>Search</h2>
       <div class="search">
-        <input id="searchInput" type="text" placeholder="Search functions or storage keys" />
+        <input id="searchInput" type="text" placeholder="Search functions, files, storage keys, selectors" />
         <button class="btn secondary" id="clearSearch">Clear</button>
       </div>
-      <h2>Features</h2>
-      <div id="featureList" class="list"></div>
+      <h2>Feature Tree</h2>
+      <div id="featureTree" class="list"></div>
       <div class="section">
-        <h2>Functions</h2>
-        <div id="functionList" class="list"></div>
+        <h2>Entry Points</h2>
+        <div id="entryPoints" class="list"></div>
       </div>
     </div>
 
     <div class="panel">
-      <div class="grid-two">
-        <div class="panel">
-          <h2>Feature Details</h2>
-          <div id="featureDetails" class="muted">Select a feature to see ownership.</div>
-        </div>
-        <div class="panel">
-          <h2>Function Details</h2>
-          <div id="functionDetails" class="muted">Select a function to see details.</div>
-        </div>
+      <div class="toolbar">
+        <button class="btn primary" id="downloadJson">Download JSON</button>
+        <button class="btn secondary" id="downloadSvg">Download SVG</button>
       </div>
 
       <div class="section grid-two">
         <div class="panel">
-          <h2>Entry Points</h2>
-          <div id="entryPoints" class="muted"></div>
+          <h2>Function Details</h2>
+          <div id="functionDetails" class="muted">Select a function to see details.</div>
         </div>
         <div class="panel">
-          <h2>Storage Ownership</h2>
-          <div id="storageList" class="list"></div>
+          <h2>Storage Details</h2>
+          <div id="storageDetails" class="muted">Select a storage key to see readers/writers.</div>
         </div>
       </div>
 
@@ -80,720 +85,444 @@
           <table class="table" id="pipelineTable"></table>
         </div>
         <div class="panel">
-          <h2>High-Risk Coupling</h2>
-          <div id="couplingDetails" class="muted"></div>
+          <h2>Risk Panel</h2>
+          <div id="riskPanel" class="muted"></div>
+        </div>
+      </div>
+
+      <div class="section grid-two">
+        <div class="panel">
+          <h2>Storage Ownership</h2>
+          <div id="storageList" class="list"></div>
+        </div>
+        <div class="panel">
+          <h2>Diagram</h2>
+          <div class="diagram" id="diagram"></div>
         </div>
       </div>
     </div>
   </div>
 
-  <script id="app-map-data" type="application/json">
-  {
-    "meta": {
-      "app": "Weekly Schedule Manager V2.1.0",
-      "repo": "/workspace/My-Schedule",
-      "generatedBy": "agent",
-      "notes": "Best-effort static map based on current code structure and split by feature ownership."
-    },
-    "entryPoints": {
-      "domContentLoaded": [
-        {
-          "file": "src/engine/schedule-engine.js",
-          "handlers": [
-            "loadFromLocalStorage",
-            "cleanupExpiredMedicineBlocks",
-            "initializeApp",
-            "setupModeButtons",
-            "setupNameEditing",
-            "setupDateEditing",
-            "setupTimePicker",
-            "setupTitleSuggestions",
-            "startLiveClock",
-            "setupScrollButton",
-            "populateBlockRecipeSelect"
-          ]
-        },
-        {
-          "file": "src/features/recipes/services/recipe-utils.js",
-          "handlers": [
-            "initRecipeUsageHistory",
-            "initGenerationCount",
-            "initScheduleHistory",
-            "cleanupOldData"
-          ]
-        },
-        {
-          "file": "src/features/recipes/ui/recipe-display.js",
-          "handlers": [
-            "loadSelectedRecipes",
-            "initializeRecipeLibrary"
-          ]
-        },
-        {
-          "file": "src/features/shopping/ui/shopping-quick-add.js",
-          "handlers": [
-            "populateQuickAddFromCatalog"
-          ]
-        },
-        {
-          "file": "src/features/smart-shopping/services/smart-shopping.js",
-          "handlers": [
-            "renderAllShoppingTables"
-          ]
-        },
-        {
-          "file": "src/features/products/services/product-management.js",
-          "handlers": [
-            "mergeCustomProducts"
-          ]
-        },
-        {
-          "file": "src/features/pwa/services/pwa-manager.js",
-          "handlers": [
-            "registerServiceWorker",
-            "setupInstallPrompt"
-          ]
-        },
-        {
-          "file": "src/engine/schedule-engine.js",
-          "handlers": [
-            "initCookingConfig"
-          ]
-        }
-      ],
-      "inlineHandlers": [
-        { "selector": "#settingsBtn", "handler": "openSettings", "file": "src/features/settings-history/services/settings-history.js" },
-        { "selector": "#addDayBtn", "handler": "openAddDayModal", "file": "src/engine/schedule-engine.js" },
-        { "selector": "button[onclick=\"openQuickAdd()\"]", "handler": "openQuickAdd", "file": "src/features/shopping/ui/shopping-quick-add.js" },
-        { "selector": "button[onclick=\"openKitchenStock()\"]", "handler": "openKitchenStock", "file": "src/features/kitchen-stock/services/kitchen-stock.js" },
-        { "selector": "button[onclick=\"generateSmartShopping()\"]", "handler": "generateSmartShopping", "file": "src/features/smart-shopping/services/smart-shopping.js" },
-        { "selector": "button[onclick=\"openImportRecipes()\"]", "handler": "openImportRecipes", "file": "src/features/schedule-ui/services/import-functions.js" },
-        { "selector": "button[onclick=\"toggleRecipesEditMode()\"]", "handler": "toggleRecipesEditMode", "file": "src/features/schedule-ui/services/import-functions.js" },
-        { "selector": "button[onclick=\"manualUpdateCheck()\"]", "handler": "manualUpdateCheck", "file": "src/features/pwa/services/pwa-manager.js" },
-        { "selector": "#setupWizardModal button[onclick=\"closeSetupWizard()\"]", "handler": "closeSetupWizard", "file": "src/features/wizard/services/setup-wizard.js" }
-      ],
-      "forms": [
-        { "selector": "#eventForm", "handler": "submit -> add event", "file": "src/engine/schedule-engine.js" },
-        { "selector": "#addItemForm", "handler": "addNewItem", "file": "src/features/products/services/product-management.js" },
-        { "selector": "#newShopForm", "handler": "addNewShop", "file": "src/features/products/services/product-management.js" },
-        { "selector": "#newCategoryForm", "handler": "addNewCategory", "file": "src/features/products/services/product-management.js" }
-      ]
-    },
-    "features": [
-      {
-        "name": "wizard",
-        "description": "Setup wizard for defaults, work schedule, cooking, and shopping slot selection.",
-        "files": [
-          {
-            "path": "src/features/wizard/services/setup-wizard.js",
-            "functions": [
-              "openSetupWizard",
-              "closeSetupWizard",
-              "renderSetupShoppingNeeded",
-              "createWeekFromSetup",
-              "initWorkScheduleSetup",
-              "applyWorkScheduleToOrderedDays",
-              "getCommuteSettingsUniversal"
-            ]
-          }
-        ],
-        "storageKeys": ["weeklyWorkPattern", "weeklyWorkPatternMode", "weeklyWorkPatternPrep", "weeklyWorkPatternCommute"],
-        "engineCalls": ["addWeek", "findAvailableShoppingSlots", "buildPredictedDayBusyIntervals"]
-      },
-      {
-        "name": "settings-history",
-        "description": "Settings modal, schedule history, and reset actions.",
-        "files": [
-          {
-            "path": "src/features/settings-history/services/settings-history.js",
-            "functions": [
-              "openSettings",
-              "closeSettings",
-              "renderScheduleHistory",
-              "saveScheduleHistoryEntry",
-              "buildWeekScheduleText",
-              "resetRecipeHistory",
-              "resetScheduleHistory",
-              "resetAllData"
-            ]
-          }
-        ],
-        "storageKeys": ["scheduleHistory_v2", "recipeUsageHistory", "updateDismissed", "lastSeenVersion", "pwaInstalled"]
-      },
-      {
-        "name": "recipes",
-        "description": "Recipe library, import, selection, and tracking.",
-        "files": [
-          { "path": "src/features/recipes/model/recipe-database.js", "functions": ["RECIPE_DATABASE"] },
-          { "path": "src/features/recipes/ui/recipe-display.js", "functions": ["initializeRecipeLibrary", "renderRecipes"] },
-          { "path": "src/features/recipes/services/recipe-utils.js", "functions": ["getThisWeekRecipes", "assignRecipesWithLeftoverPlanning", "updateRecipeUsageHistory"] }
-        ],
-        "storageKeys": ["selectedRecipesThisWeek", "recipeUsageHistory", "scheduleHistory_v2", "aiGenerationCount"]
-      },
-      {
-        "name": "shopping",
-        "description": "Manual quick add shopping modal.",
-        "files": [
-          { "path": "src/features/shopping/ui/shopping-quick-add.js", "functions": ["openQuickAdd", "addQuickAddItem"] }
-        ],
-        "storageKeys": ["shoppingListHTML"]
-      },
-      {
-        "name": "smart-shopping",
-        "description": "Generate shopping tables from recipes + stock.",
-        "files": [
-          { "path": "src/features/smart-shopping/services/smart-shopping.js", "functions": ["generateSmartShopping", "renderAllShoppingTables"] }
-        ],
-        "storageKeys": ["shoppingTables_v2"]
-      },
-      {
-        "name": "kitchen-stock",
-        "description": "Kitchen stock items and overrides.",
-        "files": [
-          { "path": "src/features/kitchen-stock/services/kitchen-stock.js", "functions": ["openKitchenStock", "saveKitchenStock"] }
-        ],
-        "storageKeys": ["kitchenStock_v2"]
-      },
-      {
-        "name": "products",
-        "description": "Custom products, shops, and categories.",
-        "files": [
-          { "path": "src/features/products/model/product-catalog.js", "functions": ["CANONICAL_PRODUCTS"] },
-          { "path": "src/features/products/services/product-management.js", "functions": ["mergeCustomProducts", "saveCustomProducts", "saveCustomShops", "saveCustomCategories"] }
-        ],
-        "storageKeys": ["customProducts", "customShops", "customCategories"]
-      },
-      {
-        "name": "cooking",
-        "description": "Cooking checkboxes and stock updates.",
-        "files": [
-          { "path": "src/features/cooking/services/cooking-integration.js", "functions": ["toggleCooking", "subtractRecipeIngredients"] }
-        ]
-      },
-      {
-        "name": "work-commute",
-        "description": "Overlap resolution UI and commute helpers.",
-        "files": [
-          { "path": "src/features/work-commute/services/overlap-resolver.js", "functions": ["resolveWorkOverlaps"] }
-        ]
-      },
-      {
-        "name": "schedule-ui",
-        "description": "Schedule import and edit utilities.",
-        "files": [
-          { "path": "src/features/schedule-ui/services/import-functions.js", "functions": ["parseAndCreateSchedule", "openImportRecipes"] }
-        ]
-      },
-      {
-        "name": "pwa",
-        "description": "Service worker and install prompt.",
-        "files": [
-          { "path": "src/features/pwa/services/pwa-manager.js", "functions": ["registerServiceWorker", "setupInstallPrompt", "manualUpdateCheck"] }
-        ]
-      }
-    ],
-    "engine": {
-      "files": ["src/engine/schedule-engine.js"],
-      "publicApi": [
-        "addWeek",
-        "buildPredictedDayBusyIntervals",
-        "findAvailableShoppingSlots",
-        "finalizeDayBlocks",
-        "renderSchedule",
-        "saveToLocalStorage",
-        "loadFromLocalStorage"
-      ]
-    },
-    "functions": [
-      {
-        "name": "initializeApp",
-        "file": "src/engine/schedule-engine.js",
-        "type": "ui",
-        "calledBy": ["DOMContentLoaded"],
-        "calls": ["renderDayTabs", "renderSchedule", "renderShopping", "renderRecipes", "setupNavigation", "setupDayNavigation"],
-        "reads": {
-          "globals": ["scheduleData", "currentDay", "isToday"],
-          "localStorage": [],
-          "dom": ["#scheduleContent", ".day-tab"]
-        },
-        "writes": {
-          "globals": ["scheduleData"],
-          "localStorage": [],
-          "dom": ["#scheduleContent", ".day-tab"]
-        }
-      },
-      {
-        "name": "addWeek",
-        "file": "src/engine/schedule-engine.js",
-        "type": "engine",
-        "calledBy": ["createWeekFromSetup", "openAddDayModal", "quickFillRota"],
-        "calls": ["assignRecipesWithLeftoverPlanning", "applyWorkMealRules", "resolveOverlapConflicts", "resolveWorkOverlaps", "finalizeDayBlocks", "renderSchedule", "saveToLocalStorage", "saveScheduleHistoryEntry"],
-        "reads": {
-          "globals": ["scheduleData", "leftoversAllowance"],
-          "localStorage": ["recipeUsageHistory", "scheduleHistory_v2"],
-          "dom": ["#weekStartDate", "#addWorkSchedule"]
-        },
-        "writes": {
-          "globals": ["scheduleData"],
-          "localStorage": ["weeklySchedule", "scheduleHistory_v2"],
-          "dom": ["#scheduleContent", "#dayTabsContainer"]
-        }
-      },
-      {
-        "name": "buildPredictedDayBusyIntervals",
-        "file": "src/engine/schedule-engine.js",
-        "type": "engine",
-        "calledBy": ["renderSetupShoppingNeeded", "findAvailableShoppingSlots", "calculateFreeTimeSlots"],
-        "calls": ["getCommuteSettingsUniversal", "mergeIntervals", "applyWorkMealRules"],
-        "reads": {
-          "globals": ["scheduleData"],
-          "localStorage": [],
-          "dom": []
-        },
-        "writes": {
-          "globals": [],
-          "localStorage": [],
-          "dom": []
-        }
-      },
-      {
-        "name": "findAvailableShoppingSlots",
-        "file": "src/engine/schedule-engine.js",
-        "type": "engine",
-        "calledBy": ["renderSetupShoppingNeeded"],
-        "calls": ["buildPredictedDayBusyIntervals"],
-        "reads": {
-          "globals": ["scheduleData"],
-          "localStorage": [],
-          "dom": []
-        },
-        "writes": { "globals": [], "localStorage": [], "dom": [] }
-      },
-      {
-        "name": "renderSetupShoppingNeeded",
-        "file": "src/features/wizard/services/setup-wizard.js",
-        "type": "feature",
-        "calledBy": ["openSetupWizard", "toggleSetupStep"],
-        "calls": ["findAvailableShoppingSlots", "buildPredictedDayBusyIntervals", "applyWorkScheduleToOrderedDays"],
-        "reads": {
-          "globals": ["scheduleData"],
-          "localStorage": [],
-          "dom": ["#setupStep4Shopping", "#setupWeekStartDateInput", "#setupShoppingDuration"]
-        },
-        "writes": {
-          "globals": ["setupShoppingSelection"],
-          "localStorage": [],
-          "dom": ["#setupStep4Shopping", "#setupShoppingSlotsList"]
-        }
-      },
-      {
-        "name": "createWeekFromSetup",
-        "file": "src/features/wizard/services/setup-wizard.js",
-        "type": "feature",
-        "calledBy": ["#createWeekFromSetup"],
-        "calls": ["addWeek", "addShoppingBlocks", "renderSchedule", "saveToLocalStorage"],
-        "reads": {
-          "globals": ["scheduleData", "setupShoppingSelection"],
-          "localStorage": [],
-          "dom": ["#createWeekFromSetup"]
-        },
-        "writes": {
-          "globals": ["window.currentWeekShoppingList"],
-          "localStorage": ["weeklySchedule"],
-          "dom": []
-        }
-      },
-      {
-        "name": "openSettings",
-        "file": "src/features/settings-history/services/settings-history.js",
-        "type": "ui",
-        "calledBy": ["#settingsBtn"],
-        "calls": ["loadSettingsStats", "renderScheduleHistory"],
-        "reads": {
-          "globals": [],
-          "localStorage": ["scheduleHistory_v2", "recipeUsageHistory"],
-          "dom": ["#settingsModal", "#statsGenerationCount"]
-        },
-        "writes": {
-          "globals": [],
-          "localStorage": [],
-          "dom": ["#settingsModal", "#statsGenerationCount"]
-        }
-      },
-      {
-        "name": "saveScheduleHistoryEntry",
-        "file": "src/features/settings-history/services/settings-history.js",
-        "type": "feature",
-        "calledBy": ["addWeek"],
-        "calls": [],
-        "reads": {
-          "globals": [],
-          "localStorage": ["scheduleHistory_v2"],
-          "dom": []
-        },
-        "writes": {
-          "globals": [],
-          "localStorage": ["scheduleHistory_v2"],
-          "dom": []
-        }
-      },
-      {
-        "name": "generateSmartShopping",
-        "file": "src/features/smart-shopping/services/smart-shopping.js",
-        "type": "feature",
-        "calledBy": ["#shoppingContent"],
-        "calls": ["aggregateRecipeNeeds", "subtractKitchenStock", "choosePacksForShop", "renderAllShoppingTables"],
-        "reads": {
-          "globals": ["scheduleData", "kitchenStock"],
-          "localStorage": ["shoppingTables_v2", "kitchenStock_v2"],
-          "dom": ["#preferredShopSelect", "#shoppingListsContainer"]
-        },
-        "writes": {
-          "globals": [],
-          "localStorage": ["shoppingTables_v2"],
-          "dom": ["#shoppingListsContainer"]
-        }
-      }
-    ],
-    "storage": {
-      "keys": [
-        {
-          "key": "weeklySchedule",
-          "ownedBy": "engine",
-          "readers": ["loadFromLocalStorage"],
-          "writers": ["saveToLocalStorage"]
-        },
-        {
-          "key": "scheduleHistory_v2",
-          "ownedBy": "settings-history",
-          "readers": ["renderScheduleHistory", "loadSettingsStats"],
-          "writers": ["saveScheduleHistoryEntry", "resetScheduleHistory", "saveScheduleToHistory"]
-        },
-        {
-          "key": "recipeUsageHistory",
-          "ownedBy": "recipes",
-          "readers": ["initRecipeUsageHistory", "loadSettingsStats"],
-          "writers": ["updateRecipeUsageHistory", "resetRecipeHistory"]
-        },
-        {
-          "key": "shoppingTables_v2",
-          "ownedBy": "smart-shopping",
-          "readers": ["renderAllShoppingTables"],
-          "writers": ["generateSmartShopping"]
-        },
-        {
-          "key": "kitchenStock_v2",
-          "ownedBy": "kitchen-stock",
-          "readers": ["getKitchenStockQty"],
-          "writers": ["saveKitchenStock"]
-        },
-        {
-          "key": "customProducts",
-          "ownedBy": "products",
-          "readers": ["mergeCustomProducts"],
-          "writers": ["saveCustomProducts"]
-        },
-        {
-          "key": "customShops",
-          "ownedBy": "products",
-          "readers": ["getShopBrandStyle"],
-          "writers": ["saveCustomShops"]
-        },
-        {
-          "key": "customCategories",
-          "ownedBy": "products",
-          "readers": ["populateCategoryDropdown"],
-          "writers": ["saveCustomCategories"]
-        },
-        {
-          "key": "weeklyWorkPattern",
-          "ownedBy": "wizard",
-          "readers": ["loadWorkPattern"],
-          "writers": ["saveWorkPattern", "clearWorkPattern"]
-        },
-        {
-          "key": "cookingConfig",
-          "ownedBy": "engine",
-          "readers": ["getCookingConfig"],
-          "writers": ["saveCookingConfig"]
-        }
-      ]
-    },
-    "coupling": {
-      "globals": ["scheduleData", "window.currentWeekShoppingList", "kitchenStock", "customProducts", "customShops", "customCategories"],
-      "hotspots": [
-        {
-          "name": "Global scheduleData",
-          "reason": "Shared across engine + features; many reads/writes.",
-          "functions": ["addWeek", "renderSchedule", "renderSetupShoppingNeeded", "generateSmartShopping"]
-        },
-        {
-          "name": "History key reuse",
-          "reason": "scheduleHistory_v2 is written by engine and recipes utils.",
-          "functions": ["saveScheduleHistoryEntry", "saveScheduleToHistory"]
-        }
-      ],
-      "missingDependencies": [
-        {
-          "name": "loadScheduleHistory",
-          "referencedBy": "resetScheduleHistory",
-          "file": "src/features/settings-history/services/settings-history.js",
-          "note": "Function is referenced but not defined (existing behavior)."
-        }
-      ]
-    },
-    "pipelineStages": [
-      {
-        "stage": 1,
-        "name": "App boot",
-        "functions": ["loadFromLocalStorage", "initializeApp", "setupModeButtons", "initializeRecipeLibrary"]
-      },
-      {
-        "stage": 2,
-        "name": "Setup wizard",
-        "functions": ["openSetupWizard", "renderSetupShoppingNeeded", "createWeekFromSetup"]
-      },
-      {
-        "stage": 3,
-        "name": "Prediction/available slots",
-        "functions": ["buildPredictedDayBusyIntervals", "findAvailableShoppingSlots"]
-      },
-      {
-        "stage": 4,
-        "name": "Create week generation",
-        "functions": ["addWeek", "assignRecipesWithLeftoverPlanning", "applyWorkMealRules"]
-      },
-      {
-        "stage": 5,
-        "name": "Overlap resolution",
-        "functions": ["resolveOverlapConflicts", "resolveWorkOverlaps"]
-      },
-      {
-        "stage": 6,
-        "name": "Finalize day blocks",
-        "functions": ["finalizeDayBlocks"]
-      },
-      {
-        "stage": 7,
-        "name": "Render schedule/shopping/recipes",
-        "functions": ["renderSchedule", "renderShopping", "renderAllShoppingTables", "renderRecipes"]
-      },
-      {
-        "stage": 8,
-        "name": "Save/load + history/settings",
-        "functions": ["saveToLocalStorage", "loadFromLocalStorage", "saveScheduleHistoryEntry", "renderScheduleHistory"]
-      }
-    ]
-  }
-  </script>
-
   <script>
-    const embeddedData = document.getElementById('app-map-data').textContent.trim();
     const state = {
-      data: embeddedData ? JSON.parse(embeddedData) : null,
-      selectedFeature: null,
-      selectedFunction: null
+      data: null,
+      functionMap: new Map(),
+      fileRoleMap: new Map(),
+      searchIndex: [],
+      selectedFunction: null,
+      selectedStorage: null,
+      diagramSvg: null
     };
 
-    function renderFeatures() {
-      const list = document.getElementById('featureList');
-      list.innerHTML = '';
-      state.data.features.forEach(feature => {
-        const item = document.createElement('div');
-        item.className = 'list-item';
-        item.textContent = feature.name;
-        item.addEventListener('click', () => selectFeature(feature));
-        list.appendChild(item);
-      });
-    }
+    const elements = {
+      featureTree: document.getElementById('featureTree'),
+      functionDetails: document.getElementById('functionDetails'),
+      entryPoints: document.getElementById('entryPoints'),
+      pipelineTable: document.getElementById('pipelineTable'),
+      storageList: document.getElementById('storageList'),
+      storageDetails: document.getElementById('storageDetails'),
+      riskPanel: document.getElementById('riskPanel'),
+      diagram: document.getElementById('diagram'),
+      searchInput: document.getElementById('searchInput'),
+      clearSearch: document.getElementById('clearSearch'),
+      downloadJson: document.getElementById('downloadJson'),
+      downloadSvg: document.getElementById('downloadSvg')
+    };
 
-    function renderFunctions(filter = '') {
-      const list = document.getElementById('functionList');
-      list.innerHTML = '';
-      const query = filter.toLowerCase();
-      state.data.functions
-        .filter(fn => !query || fn.name.toLowerCase().includes(query))
-        .forEach(fn => {
-          const item = document.createElement('div');
-          item.className = 'list-item';
-          item.textContent = `${fn.name} (${fn.type})`;
-          item.dataset.name = fn.name;
-          item.addEventListener('click', () => selectFunction(fn));
-          list.appendChild(item);
+    const escapeHtml = (value) => value.replace(/[&<>"']/g, (c) => ({
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#039;'
+    })[c]);
+
+    function renderFeatureTree() {
+      const tree = {};
+      state.data.files.forEach((file) => {
+        if (!file.path.endsWith('.js')) return;
+        const feature = file.feature || 'shared';
+        const role = file.role || 'feature';
+        tree[feature] = tree[feature] || {};
+        tree[feature][role] = tree[feature][role] || {};
+        tree[feature][role][file.path] = [];
+      });
+
+      state.data.functions.forEach((fn) => {
+        const feature = fn.ownerFeature || 'shared';
+        const role = state.fileRoleMap.get(fn.file) || 'feature';
+        if (!tree[feature]) tree[feature] = {};
+        if (!tree[feature][role]) tree[feature][role] = {};
+        if (!tree[feature][role][fn.file]) tree[feature][role][fn.file] = [];
+        tree[feature][role][fn.file].push(fn);
+      });
+
+      const root = document.createElement('div');
+      Object.keys(tree).sort().forEach((feature) => {
+        const featureNode = document.createElement('div');
+        featureNode.innerHTML = `<div class="list-item group">${escapeHtml(feature)}</div>`;
+        const roleList = document.createElement('ul');
+        roleList.className = 'tree';
+        Object.keys(tree[feature]).sort().forEach((role) => {
+          const roleItem = document.createElement('li');
+          roleItem.innerHTML = `<div class="list-item"><span class="pill">${escapeHtml(role)}</span></div>`;
+          const fileList = document.createElement('ul');
+          fileList.className = 'tree';
+          Object.keys(tree[feature][role]).sort().forEach((filePath) => {
+            const fileItem = document.createElement('li');
+            const fileButton = document.createElement('button');
+            fileButton.textContent = filePath;
+            fileButton.className = 'group';
+            fileItem.appendChild(fileButton);
+            const fnList = document.createElement('ul');
+            fnList.className = 'tree';
+            tree[feature][role][filePath]
+              .sort((a, b) => a.name.localeCompare(b.name))
+              .forEach((fn) => {
+                const fnItem = document.createElement('li');
+                const fnButton = document.createElement('button');
+                fnButton.textContent = fn.name;
+                fnButton.addEventListener('click', () => selectFunction(fn.name));
+                fnItem.appendChild(fnButton);
+                fnList.appendChild(fnItem);
+              });
+            fileItem.appendChild(fnList);
+            fileList.appendChild(fileItem);
+          });
+          roleItem.appendChild(fileList);
+          roleList.appendChild(roleItem);
         });
-      highlightFeatureDependencies();
-    }
-
-    function renderStorage(filter = '') {
-      const list = document.getElementById('storageList');
-      list.innerHTML = '';
-      const query = filter.toLowerCase();
-      state.data.storage.keys
-        .filter(entry => !query || entry.key.toLowerCase().includes(query))
-        .forEach(entry => {
-          const item = document.createElement('div');
-          item.className = 'list-item';
-          item.dataset.key = entry.key;
-          item.innerHTML = `
-            <div><strong>${entry.key}</strong> <span class="pill">${entry.ownedBy}</span></div>
-            <div class="muted">Reads: ${entry.readers.join(', ') || '—'}</div>
-            <div class="muted">Writes: ${entry.writers.join(', ') || '—'}</div>
-          `;
-          list.appendChild(item);
-        });
-      highlightFeatureDependencies();
-    }
-
-    function selectFeature(feature) {
-      state.selectedFeature = feature;
-      state.selectedFunction = null;
-      document.querySelectorAll('#featureList .list-item').forEach(item => {
-        item.classList.toggle('active', item.textContent === feature.name);
+        featureNode.appendChild(roleList);
+        root.appendChild(featureNode);
       });
-      const detail = document.getElementById('featureDetails');
-      detail.innerHTML = `
-        <div><strong>${feature.name}</strong></div>
-        <div class="muted">${feature.description}</div>
-        <div class="section"><strong>Files</strong></div>
-        <ul>
-          ${feature.files.map(file => `<li>${file.path} — ${file.functions.join(', ')}</li>`).join('')}
-        </ul>
-        <div class="section"><strong>Engine calls</strong> ${feature.engineCalls ? feature.engineCalls.join(', ') : '—'}</div>
-        <div class="section"><strong>Storage keys</strong> ${feature.storageKeys ? feature.storageKeys.join(', ') : '—'}</div>
-      `;
-      document.getElementById('functionDetails').textContent = 'Select a function to see details.';
-      highlightFeatureDependencies();
-    }
 
-    function selectFunction(fn) {
-      state.selectedFunction = fn;
-      document.querySelectorAll('#functionList .list-item').forEach(item => {
-        item.classList.toggle('active', item.dataset.name === fn.name);
-      });
-      const detail = document.getElementById('functionDetails');
-      detail.innerHTML = `
-        <div><strong>${fn.name}</strong> <span class="pill">${fn.type}</span></div>
-        <div class="muted">${fn.file}</div>
-        <div class="section"><strong>Called by</strong> ${fn.calledBy.join(', ') || '—'}</div>
-        <div class="section"><strong>Calls</strong> ${fn.calls.join(', ') || '—'}</div>
-        <div class="section"><strong>Reads</strong></div>
-        <div class="muted">Globals: ${fn.reads.globals.join(', ') || '—'}</div>
-        <div class="muted">localStorage: ${fn.reads.localStorage.join(', ') || '—'}</div>
-        <div class="muted">DOM: ${fn.reads.dom.join(', ') || '—'}</div>
-        <div class="section"><strong>Writes</strong></div>
-        <div class="muted">Globals: ${fn.writes.globals.join(', ') || '—'}</div>
-        <div class="muted">localStorage: ${fn.writes.localStorage.join(', ') || '—'}</div>
-        <div class="muted">DOM: ${fn.writes.dom.join(', ') || '—'}</div>
-      `;
+      elements.featureTree.innerHTML = '';
+      elements.featureTree.appendChild(root);
     }
 
     function renderEntryPoints() {
-      const container = document.getElementById('entryPoints');
-      const domPoints = state.data.entryPoints.domContentLoaded.map(entry => {
-        return `<div><strong>${entry.file}</strong>: ${entry.handlers.join(', ')}</div>`;
-      }).join('');
-      const inline = state.data.entryPoints.inlineHandlers.map(entry => {
-        return `<div><strong>${entry.handler}</strong> → ${entry.selector}</div>`;
-      }).join('');
-      container.innerHTML = `
-        <div><strong>DOMContentLoaded</strong></div>
-        ${domPoints || '<div class="muted">—</div>'}
-        <div class="section"><strong>Inline handlers</strong></div>
-        ${inline || '<div class="muted">—</div>'}
-      `;
+      elements.entryPoints.innerHTML = '';
+      const list = document.createElement('div');
+      Object.entries(state.data.entryPoints).forEach(([group, entries]) => {
+        const header = document.createElement('div');
+        header.className = 'list-item group';
+        header.textContent = `${group} (${entries.length})`;
+        list.appendChild(header);
+        entries.forEach((entry) => {
+          const item = document.createElement('div');
+          item.className = 'list-item';
+          const handlers = (entry.handlers || []).join(', ');
+          item.innerHTML = `<strong>${escapeHtml(entry.event || '')}</strong> → ${escapeHtml(entry.selector || '')}<br><span class="muted">${escapeHtml(handlers)} (${escapeHtml(entry.file)})</span>`;
+          item.addEventListener('click', () => {
+            if (entry.handlers && entry.handlers[0]) {
+              selectFunction(entry.handlers[0]);
+            }
+          });
+          list.appendChild(item);
+        });
+      });
+      elements.entryPoints.appendChild(list);
     }
 
     function renderPipeline() {
-      const table = document.getElementById('pipelineTable');
-      table.innerHTML = `
-        <tr><th>Stage</th><th>Functions</th></tr>
-        ${state.data.pipelineStages.map(stage => `
-          <tr>
-            <td>${stage.stage}. ${stage.name}</td>
-            <td>${stage.functions.join(', ')}</td>
-          </tr>
-        `).join('')}
+      elements.pipelineTable.innerHTML = '<tr><th>Stage</th><th>Functions</th><th>Storage</th></tr>';
+      state.data.enginePipeline.stages.forEach((stage) => {
+        const row = document.createElement('tr');
+        row.innerHTML = `<td>${escapeHtml(stage.stage)}</td><td>${stage.stageFunctions.length}</td><td>${stage.storageKeys.length}</td>`;
+        elements.pipelineTable.appendChild(row);
+      });
+    }
+
+    function renderStorageList() {
+      elements.storageList.innerHTML = '';
+      state.data.dataFlow.localStorage.forEach((item) => {
+        const row = document.createElement('div');
+        row.className = 'list-item';
+        row.textContent = item.key;
+        row.addEventListener('click', () => selectStorage(item.key));
+        elements.storageList.appendChild(row);
+      });
+    }
+
+    function renderRiskPanel() {
+      const fanIn = [...state.data.functions]
+        .sort((a, b) => b.calledBy.length - a.calledBy.length)
+        .slice(0, 8);
+      const mutating = [...state.data.functions]
+        .sort((a, b) => (b.writes.localStorage.length + b.writes.globals.length) - (a.writes.localStorage.length + a.writes.globals.length))
+        .slice(0, 8);
+      const critical = state.data.dataFlow.engineCritical.slice(0, 8);
+
+      elements.riskPanel.innerHTML = `
+        <div class="section">
+          <strong>Most-called (fan-in)</strong>
+          <ul>${fanIn.map(fn => `<li>${escapeHtml(fn.name)} <span class="badge">${fn.calledBy.length}</span></li>`).join('')}</ul>
+        </div>
+        <div class="section">
+          <strong>Most-mutating</strong>
+          <ul>${mutating.map(fn => `<li>${escapeHtml(fn.name)} <span class="badge">${fn.writes.localStorage.length + fn.writes.globals.length}</span></li>`).join('')}</ul>
+        </div>
+        <div class="section">
+          <strong>Engine-critical touchpoints</strong>
+          <ul>${critical.map(fn => `<li>${escapeHtml(fn.name)}</li>`).join('')}</ul>
+        </div>
       `;
     }
 
-    function renderCoupling() {
-      const container = document.getElementById('couplingDetails');
-      const globals = state.data.coupling.globals.map(name => `<span class="pill">${name}</span>`).join(' ');
-      const hotspots = state.data.coupling.hotspots.map(item => {
-        return `
-          <div class="section"><strong>${item.name}</strong></div>
-          <div class="muted">${item.reason}</div>
-          <div class="muted">Functions: ${item.functions.join(', ')}</div>
+    function renderDiagram() {
+      const nodes = state.data.diagram.nodes;
+      const edges = state.data.diagram.edges;
+      const width = 900;
+      const height = 420;
+      const typeGroups = {
+        'Entry Points': [],
+        'Feature': [],
+        'Storage': [],
+        'Engine Stage': []
+      };
+
+      nodes.forEach((node) => {
+        typeGroups[node.type] = typeGroups[node.type] || [];
+        typeGroups[node.type].push(node);
+      });
+
+      const columns = [
+        { type: 'Entry Points', x: 80 },
+        { type: 'Feature', x: 260 },
+        { type: 'Engine Stage', x: 520 },
+        { type: 'Storage', x: 760 }
+      ];
+
+      const positions = {};
+      columns.forEach((col) => {
+        const colNodes = typeGroups[col.type] || [];
+        colNodes.forEach((node, idx) => {
+          const y = 40 + (idx * (height - 80) / Math.max(1, colNodes.length));
+          positions[node.id] = { x: col.x, y };
+        });
+      });
+
+      const svgParts = [`<svg viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">`];
+      svgParts.push('<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#9ca3af" /></marker></defs>');
+
+      edges.forEach((edge) => {
+        const from = positions[edge.from];
+        const to = positions[edge.to];
+        if (!from || !to) return;
+        svgParts.push(`<line x1="${from.x}" y1="${from.y}" x2="${to.x}" y2="${to.y}" stroke="#cbd5f5" stroke-width="1" marker-end="url(#arrow)" />`);
+      });
+
+      nodes.forEach((node) => {
+        const pos = positions[node.id];
+        if (!pos) return;
+        svgParts.push(`<rect x="${pos.x - 70}" y="${pos.y - 16}" width="140" height="32" rx="6" fill="#fff" stroke="#cbd5f5" />`);
+        svgParts.push(`<text x="${pos.x}" y="${pos.y + 4}" font-size="10" text-anchor="middle" fill="#1f2937">${escapeHtml(node.label)}</text>`);
+      });
+
+      svgParts.push('</svg>');
+      const svg = svgParts.join('');
+      state.diagramSvg = svg;
+      elements.diagram.innerHTML = svg;
+    }
+
+    function selectFunction(name) {
+      const fn = state.functionMap.get(name);
+      if (!fn) return;
+      state.selectedFunction = fn;
+      const reads = `
+        <div><strong>Reads</strong>: globals ${fn.reads.globals.join(', ') || '—'}, storage ${fn.reads.localStorage.join(', ') || '—'}, DOM ${fn.reads.domSelectors.join(', ') || '—'}</div>
+      `;
+      const writes = `
+        <div><strong>Writes</strong>: globals ${fn.writes.globals.join(', ') || '—'}, storage ${fn.writes.localStorage.join(', ') || '—'}, DOM ${fn.writes.domSelectors.join(', ') || '—'}</div>
+      `;
+      const callsList = renderCallList('Calls', fn.calls, 1);
+      const calledByList = renderCallList('Called By', fn.calledBy, 1);
+      elements.functionDetails.innerHTML = `
+        <div><strong>${escapeHtml(fn.name)}</strong> <span class="badge">${escapeHtml(fn.ownerFeature)}</span></div>
+        <div class="muted">${escapeHtml(fn.file)}:${fn.line}</div>
+        ${fn.exportedAs ? `<div class="muted">exported as ${escapeHtml(fn.exportedAs)}</div>` : ''}
+        ${reads}
+        ${writes}
+        <div class="section">
+          <label><input type="checkbox" id="expandCalls" /> show 2 levels</label>
+          <div class="call-graph" id="callGraph">
+            ${callsList}
+            ${calledByList}
+          </div>
+        </div>
+      `;
+      const expand = document.getElementById('expandCalls');
+      expand.addEventListener('change', () => {
+        const calls = expand.checked ? expandCalls(fn.calls) : fn.calls;
+        const calledBy = expand.checked ? expandCalls(fn.calledBy) : fn.calledBy;
+        document.getElementById('callGraph').innerHTML = `
+          ${renderCallList('Calls', calls, expand.checked ? 2 : 1)}
+          ${renderCallList('Called By', calledBy, expand.checked ? 2 : 1)}
         `;
-      }).join('');
-      const missing = state.data.coupling.missingDependencies.map(item => {
-        return `<div class="muted">${item.name} referenced by ${item.referencedBy} (${item.file})</div>`;
-      }).join('');
-      container.innerHTML = `
-        <div><strong>Shared globals</strong></div>
-        <div>${globals || '—'}</div>
-        ${hotspots || '<div class="muted">—</div>'}
-        <div class="section"><strong>Missing dependencies</strong></div>
-        ${missing || '<div class="muted">—</div>'}
+        attachCallClickHandlers();
+      });
+      attachCallClickHandlers();
+    }
+
+    function renderCallList(title, items, levels) {
+      if (!items.length) return `<div><strong>${title}</strong><div class="muted">—</div></div>`;
+      return `
+        <div>
+          <strong>${title} <span class="badge">${items.length}</span></strong>
+          <ul>${items.map((name) => `<li data-fn="${escapeHtml(name)}">${escapeHtml(name)}</li>`).join('')}</ul>
+        </div>
       `;
     }
 
-    function highlightFeatureDependencies() {
-      const feature = state.selectedFeature;
-      document.querySelectorAll('#functionList .list-item').forEach(item => {
-        item.classList.remove('highlight');
-      });
-      document.querySelectorAll('#storageList .list-item').forEach(item => {
-        item.classList.remove('highlight');
-      });
-      if (!feature) return;
-      const engineCalls = new Set(feature.engineCalls || []);
-      const ownedFunctions = new Set(feature.files.flatMap(file => file.functions));
-      document.querySelectorAll('#functionList .list-item').forEach(item => {
-        if (engineCalls.has(item.dataset.name) || ownedFunctions.has(item.dataset.name)) {
-          item.classList.add('highlight');
-        }
-      });
-      const storageKeys = new Set(feature.storageKeys || []);
-      document.querySelectorAll('#storageList .list-item').forEach(item => {
-        if (storageKeys.has(item.dataset.key)) {
-          item.classList.add('highlight');
-        }
+    function attachCallClickHandlers() {
+      document.querySelectorAll('[data-fn]').forEach((el) => {
+        el.addEventListener('click', () => {
+          selectFunction(el.getAttribute('data-fn'));
+        });
       });
     }
 
-    async function loadExternalJson() {
-      try {
-        const response = await fetch('app-map.json');
-        if (!response.ok) return;
-        const json = await response.json();
-        state.data = json;
-      } catch (error) {
-        // Ignore fetch errors for local file usage.
+    function expandCalls(names) {
+      const expanded = new Set(names);
+      names.forEach((name) => {
+        const fn = state.functionMap.get(name);
+        if (fn) {
+          fn.calls.forEach((call) => expanded.add(call));
+          fn.calledBy.forEach((call) => expanded.add(call));
+        }
+      });
+      return [...expanded];
+    }
+
+    function selectStorage(key) {
+      const item = state.data.dataFlow.localStorage.find((entry) => entry.key === key);
+      if (!item) return;
+      state.selectedStorage = item;
+      elements.storageDetails.innerHTML = `
+        <div><strong>${escapeHtml(item.key)}</strong></div>
+        <div class="section"><strong>Readers</strong><ul>${item.readers.map((name) => `<li data-fn="${escapeHtml(name)}">${escapeHtml(name)}</li>`).join('')}</ul></div>
+        <div class="section"><strong>Writers</strong><ul>${item.writers.map((name) => `<li data-fn="${escapeHtml(name)}">${escapeHtml(name)}</li>`).join('')}</ul></div>
+      `;
+      attachCallClickHandlers();
+    }
+
+    function buildSearchIndex() {
+      const entries = [];
+      state.data.functions.forEach((fn) => {
+        entries.push({
+          type: 'function',
+          label: fn.name,
+          detail: `${fn.file}:${fn.line}`,
+          keywords: [fn.name, fn.file, fn.ownerFeature, ...fn.reads.domSelectors, ...fn.writes.domSelectors],
+          action: () => selectFunction(fn.name)
+        });
+      });
+      state.data.files.forEach((file) => {
+        entries.push({
+          type: 'file',
+          label: file.path,
+          detail: file.feature,
+          keywords: [file.path, file.feature, file.role]
+        });
+      });
+      state.data.dataFlow.localStorage.forEach((key) => {
+        entries.push({
+          type: 'storage',
+          label: key.key,
+          detail: `readers ${key.readers.length} / writers ${key.writers.length}`,
+          keywords: [key.key, ...key.readers, ...key.writers],
+          action: () => selectStorage(key.key)
+        });
+      });
+      state.searchIndex = entries;
+    }
+
+    function renderSearchResults(query) {
+      if (!query) {
+        renderFeatureTree();
+        renderStorageList();
+        return;
+      }
+      const lower = query.toLowerCase();
+      const results = state.searchIndex.filter((entry) =>
+        entry.keywords.some((kw) => kw.toLowerCase().includes(lower))
+      ).slice(0, 50);
+
+      const list = document.createElement('div');
+      results.forEach((result) => {
+        const item = document.createElement('div');
+        item.className = 'list-item';
+        item.innerHTML = `<strong>${escapeHtml(result.label)}</strong><br><span class="muted">${escapeHtml(result.type)} · ${escapeHtml(result.detail || '')}</span>`;
+        if (result.action) {
+          item.addEventListener('click', result.action);
+        }
+        list.appendChild(item);
+      });
+      elements.featureTree.innerHTML = '';
+      elements.featureTree.appendChild(list);
+
+      const storageMatches = results.filter(r => r.type === 'storage').map(r => r.label);
+      if (storageMatches.length) {
+        elements.storageList.querySelectorAll('.list-item').forEach((item) => {
+          if (storageMatches.includes(item.textContent)) {
+            item.classList.add('highlight');
+          }
+        });
       }
     }
 
-    async function init() {
-      await loadExternalJson();
-      renderFeatures();
-      renderFunctions();
-      renderStorage();
-      renderEntryPoints();
-      renderPipeline();
-      renderCoupling();
-      document.getElementById('searchInput').addEventListener('input', event => {
-        const value = event.target.value;
-        renderFunctions(value);
-        renderStorage(value);
+    function attachExportButtons() {
+      elements.downloadJson.addEventListener('click', () => {
+        const blob = new Blob([JSON.stringify(state.data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'app-map.json';
+        link.click();
+        URL.revokeObjectURL(url);
       });
-      document.getElementById('clearSearch').addEventListener('click', () => {
-        document.getElementById('searchInput').value = '';
-        renderFunctions('');
-        renderStorage('');
+
+      elements.downloadSvg.addEventListener('click', () => {
+        if (!state.diagramSvg) return;
+        const blob = new Blob([state.diagramSvg], { type: 'image/svg+xml' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'app-map.svg';
+        link.click();
+        URL.revokeObjectURL(url);
       });
     }
 
-    init();
+    function initialize(data) {
+      state.data = data;
+      state.data.functions.forEach((fn) => state.functionMap.set(fn.name, fn));
+      state.data.files.forEach((file) => state.fileRoleMap.set(file.path, file.role));
+      buildSearchIndex();
+      renderFeatureTree();
+      renderEntryPoints();
+      renderPipeline();
+      renderStorageList();
+      renderRiskPanel();
+      renderDiagram();
+      attachExportButtons();
+    }
+
+    elements.searchInput.addEventListener('input', (event) => {
+      renderSearchResults(event.target.value.trim());
+    });
+
+    elements.clearSearch.addEventListener('click', () => {
+      elements.searchInput.value = '';
+      renderSearchResults('');
+    });
+
+    fetch('app-map.json')
+      .then((response) => response.json())
+      .then((data) => initialize(data))
+      .catch(() => {
+        elements.featureTree.innerHTML = '<div class="muted">Unable to load app-map.json</div>';
+      });
   </script>
 </body>
 </html>
